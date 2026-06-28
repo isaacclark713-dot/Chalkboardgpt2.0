@@ -227,6 +227,14 @@
   .pc-btn-bad{color:var(--hot-d);border-color:#e7b3a8}.pc-btn-bad:hover{background:#fdeeeb}
   .pc-fail-reason{margin-top:6px}
   .pc-fail-reason select{font-size:11px;padding:5px 7px;width:100%}
+  .diag-panel{margin-top:8px;border:1px solid #e2e0d5;background:#faf9f5;border-radius:4px;padding:9px}
+  .diag-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#4a5048;margin-bottom:6px}
+  .diag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+  .diag-cell label{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#8a908a;margin-bottom:3px}
+  .diag-cell select{width:100%;font-size:11px;padding:6px 7px;border:1px solid #cfcdc2;border-radius:3px;background:#fff}
+  .diag-log{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .diag-help{font-size:10.5px;color:#6a7066;line-height:1.35;margin-top:5px}
+  .pc-result-btns button.on{background:var(--field);color:#fff;border-color:var(--field)}
   .pc-logged{font-size:11px;font-weight:700;padding:6px 0;display:flex;align-items:center;gap:6px}
   .pc-logged.ok{color:var(--cool-d)}.pc-logged.mid{color:#8a7320}.pc-logged.bad{color:var(--hot-d)}
   .pc-adj{font-size:10.5px;color:#5a6058;margin-top:4px;line-height:1.45;border-top:1px solid #eeece4;padding-top:6px}
@@ -1135,6 +1143,175 @@ function neutralOptionsForPlay(pl){
   return list;
 }
 
+/* ============================================================
+   CONTEXTUAL PLAY DIAGNOSTICS v6
+   ------------------------------------------------------------
+   Result logging is formation/play/concept specific. The app now asks
+   different questions based on what was actually called: motion response,
+   coverage, run fit, screen leverage, draw behavior, RPO conflict, etc.
+   Those answers update active reads and feed the coach-brain answer engine.
+   ============================================================ */
+const DIAG_OPTIONS={
+  motion:[
+    {v:'',l:'— motion response —'},
+    {v:'motion_follow_man',l:'Defender followed = man tell',reaction:'man_coverage',reads:{coverage:'man'},conceptInfo:true,note:'Motion identified man coverage.'},
+    {v:'motion_bump_zone',l:'Bump/banjo = zone or match',reaction:'zone_coverage',reads:{coverage:'zone'},conceptInfo:true,note:'Defense bumped/banjoed the motion.'},
+    {v:'motion_static_zone',l:'No travel/static = zone tell',reaction:'zone_coverage',reads:{coverage:'zone'},conceptInfo:true,note:'Static response points toward zone.'},
+    {v:'motion_safety_rotate',l:'Safety spun/rotated late',reaction:'safety_insert',reads:{mof:'rotated'},conceptInfo:true,note:'Motion caused late safety rotation.'},
+    {v:'motion_overadjust',l:'Over-adjusted / fast flowed',reaction:'lb_overflow',conceptInfo:true,note:'Defense overreacted to motion; answers off the same look should rise.'},
+    {v:'motion_overhang_widen',l:'Apex widened with motion',reaction:'overhang_widen',conceptInfo:true,note:'Apex widened; inside run and glance answers become better.'},
+    {v:'motion_overhang_squeeze',l:'Apex squeezed / fit run',reaction:'overhang_squeeze',conceptInfo:true,note:'Apex squeezed; perimeter/access answers become better.'},
+    {v:'motion_confusion',l:'Late communication/confusion',reaction:'no_adjustment',conceptInfo:true,note:'Motion created communication stress.'}
+  ],
+  runfit:[
+    {v:'',l:'— run fit / box —'},
+    {v:'run_light_box',l:'Light box / numbers good',reaction:'light_box',reads:{box:'light'},conceptInfo:true,note:'Run numbers were favorable.'},
+    {v:'run_loaded_box',l:'Loaded box / extra hat',reaction:'loaded_box',reads:{box:'heavy'},conceptInfo:true,reason:'run_loaded_box',note:'Box was loaded; RPO/PA/perimeter answers should rise.'},
+    {v:'run_lb_overflow',l:'LBs overflowed / fast flow',reaction:'lb_overflow',reads:{lbFit:'aggressive'},conceptInfo:true,reason:'run_lb_fast_flow',note:'LBs fast-flowed; counter/boot answers should rise.'},
+    {v:'run_edge_crash',l:'Edge crashed / squeezed',reaction:'edge_crash',conceptInfo:true,reason:'run_edge_squeeze',note:'Edge crashed; boot/read/perimeter answers should rise.'},
+    {v:'run_edge_widen',l:'Edge widened / forced bounce',reaction:'edge_widen',conceptInfo:true,reason:'run_edge_widen',note:'Edge widened; inside/gap answers should rise.'},
+    {v:'run_no_push',l:'No movement up front',reaction:'loaded_box',conceptInfo:true,reason:'run_no_movement',note:'Run fit/LOS was stalemated; avoid blindly repeating.'},
+    {v:'run_missed_block',l:'Missed block / execution',execution:true,reason:'run_missed_block',note:'Execution issue; protect the concept.'}
+  ],
+  coverage:[
+    {v:'',l:'— coverage / shell —'},
+    {v:'cov_man',l:'Man coverage',reaction:'man_coverage',reads:{coverage:'man'},conceptInfo:true,reason:'Coverage (man)',note:'Man coverage confirmed.'},
+    {v:'cov_zone',l:'Zone coverage',reaction:'zone_coverage',reads:{coverage:'zone'},conceptInfo:true,reason:'Coverage (zone match)',note:'Zone coverage confirmed.'},
+    {v:'cov_match',l:'Zone match / carried routes',reaction:'zone_coverage',reads:{coverage:'zone'},conceptInfo:true,reason:'Coverage (zone match)',note:'Zone-match behavior showed up.'},
+    {v:'cov_cover0',l:'Cover 0 / all-out pressure',reaction:'blitz_pressure',reads:{coverage:'man',pressure:'blitz'},conceptInfo:true,reason:'Pressure / blitz',note:'Cover 0 pressure look.'},
+    {v:'cov_single_high',l:'Single-high middle closed',reaction:'safety_insert',reads:{mof:'single'},conceptInfo:true,note:'Middle of field closed.'},
+    {v:'cov_two_high',l:'Two-high middle open',reaction:'soft_coverage',reads:{mof:'two'},conceptInfo:true,note:'Two-high shell / light box likely.'},
+    {v:'cov_soft',l:'Soft/off coverage',reaction:'soft_coverage',reads:{pressure:'passive'},conceptInfo:true,note:'Soft coverage gives access/quick game.'},
+    {v:'cov_bracket',l:'Bracket/robber took primary',reaction:'zone_coverage',conceptInfo:true,reason:'Coverage (zone match)',note:'Primary route was bracketed/robbed.'},
+    {v:'cov_drop',l:'Drop / bad throw / execution',execution:true,reason:'pass_drop',note:'Execution issue; do not punish the concept.'}
+  ],
+  screen:[
+    {v:'',l:'— screen picture —'},
+    {v:'screen_wide_open',l:'Wide open / numbers',reaction:'blitz_pressure',reads:{pressure:'blitz'},conceptInfo:true,note:'Screen was there; pressure/space answer is live.'},
+    {v:'screen_all_over',l:'Defense all over it',reaction:'no_adjustment',conceptInfo:true,reason:'screen_covered',note:'Screen was covered; do not over-call it from that look.'},
+    {v:'screen_dl_retrace',l:'DL retraced / sniffed out',reaction:'no_adjustment',conceptInfo:true,reason:'screen_retraced',note:'DL retraced; mix draw/quick/shot instead of repeat screen.'},
+    {v:'screen_bad_timing',l:'Bad timing / bad throw',execution:true,reason:'screen_execution',note:'Screen execution issue.'},
+    {v:'screen_blocker_missed',l:'Perimeter blocker missed',execution:true,reason:'screen_blocker',note:'Blocking issue; concept may still be sound.'}
+  ],
+  draw:[
+    {v:'',l:'— draw picture —'},
+    {v:'draw_drop_good',l:'Coverage dropped / rush lanes opened',reaction:'soft_coverage',reads:{pressure:'passive'},conceptInfo:true,note:'Draw is a good answer to the drop/rush look.'},
+    {v:'draw_box_not_vacated',l:'Box did not vacate',reaction:'loaded_box',reads:{box:'heavy'},conceptInfo:true,reason:'draw_box_not_vacated',note:'Draw was not a good answer to that box.'},
+    {v:'draw_spy_contain',l:'Spy/contain sat on it',reaction:'edge_widen',conceptInfo:true,reason:'draw_spy',note:'Contain/spy handled the draw.'},
+    {v:'draw_dl_retrace',l:'DL retraced / squeezed',reaction:'edge_crash',conceptInfo:true,reason:'draw_retraced',note:'DL retraced; screen/quick/PA answers may be better.'},
+    {v:'draw_missed_block',l:'Missed block / execution',execution:true,reason:'run_missed_block',note:'Execution issue; protect the draw concept.'}
+  ],
+  rpo:[
+    {v:'',l:'— RPO / conflict defender —'},
+    {v:'rpo_apex_widen',l:'Apex widened with access threat',reaction:'overhang_widen',conceptInfo:true,note:'Apex widened; handoff/inside answers improve.'},
+    {v:'rpo_apex_squeeze',l:'Apex squeezed / fit run',reaction:'overhang_squeeze',conceptInfo:true,note:'Apex squeezed; throw access answer improves.'},
+    {v:'rpo_glance_open',l:'Glance/access window open',reaction:'safety_insert',conceptInfo:true,note:'RPO access window was available.'},
+    {v:'rpo_window_closed',l:'Window closed / safety capped',reaction:'soft_coverage',conceptInfo:true,reason:'Coverage (zone match)',note:'Coverage capped the RPO window.'},
+    {v:'rpo_qb_wrong',l:'QB made wrong read',execution:true,reason:'pass_qb_read',note:'QB read issue; do not punish the concept heavily.'}
+  ],
+  playaction:[
+    {v:'',l:'— run-action response —'},
+    {v:'pa_lbs_bite',l:'LBs/safety bit hard',reaction:'lb_overflow',reads:{lbFit:'aggressive'},conceptInfo:true,note:'Run action is affecting the second level.'},
+    {v:'pa_no_bite',l:'Disciplined / no bite',reaction:'no_adjustment',reads:{lbFit:'disciplined'},conceptInfo:true,reason:'Coverage (zone match)',note:'Defense did not honor the fake.'},
+    {v:'pa_edge_contain',l:'Edge contained boot/naked',reaction:'edge_widen',conceptInfo:true,reason:'Pressure / blitz',note:'Boot edge was handled; use quick/inside answers.'},
+    {v:'pa_crosser_open',l:'Crosser/leak came open',reaction:'zone_coverage',conceptInfo:true,note:'PA crosser/leak is live.'},
+    {v:'pa_pressure',l:'Pressure beat protection',reaction:'blitz_pressure',reads:{pressure:'blitz'},conceptInfo:true,reason:'Pressure / blitz',note:'PA protection was stressed; hot/quick/screen answers rise.'}
+  ],
+  quick:[
+    {v:'',l:'— quick-game leverage —'},
+    {v:'quick_access',l:'Access/leverage was there',reaction:'soft_coverage',conceptInfo:true,note:'Quick/access answer was available.'},
+    {v:'quick_squat',l:'DB squatted / jumped route',reaction:'soft_coverage',conceptInfo:true,reason:'Coverage (zone match)',note:'Defense squatted the quick throw; double-move/shot answers rise.'},
+    {v:'quick_tight_man',l:'Tight man leverage',reaction:'man_coverage',reads:{coverage:'man'},conceptInfo:true,reason:'Coverage (man)',note:'Tight man; rub/crosser answers rise.'},
+    {v:'quick_bad_throw_drop',l:'Bad throw/drop',execution:true,reason:'pass_drop',note:'Execution issue; concept protected.'}
+  ],
+  shot:[
+    {v:'',l:'— shot picture —'},
+    {v:'shot_single_high_open',l:'Single-high shot was there',reaction:'safety_insert',reads:{mof:'single'},conceptInfo:true,note:'Shot window exists vs single-high.'},
+    {v:'shot_two_high_capped',l:'Two-high capped the shot',reaction:'soft_coverage',reads:{mof:'two'},conceptInfo:true,reason:'Coverage (zone match)',note:'Two-high capped vertical; work run/underneath/flood.'},
+    {v:'shot_no_time',l:'No time / protection issue',reaction:'blitz_pressure',reads:{pressure:'blitz'},conceptInfo:true,reason:'Pressure / blitz',note:'Protection did not hold for the shot.'},
+    {v:'shot_wr_won_miss',l:'WR won / missed throw',execution:true,reason:'pass_bad_throw',note:'Shot concept worked; execution missed.'}
+  ],
+  general:[
+    {v:'',l:'— general diagnosis —'},
+    {v:'gen_good_call',l:'Defense had the right call',reaction:'no_adjustment',conceptInfo:true,reason:'defense_good_call',note:'Good defensive call; use a complementary answer.'},
+    {v:'gen_execution',l:'Execution issue',execution:true,reason:'execution_ok',note:'Execution issue; protect the concept.'},
+    {v:'gen_no_info',l:'No clear tell',reaction:'no_adjustment',reason:'no_clear_info',note:'No clear information; keep probing.'}
+  ]
+};
+const DIAG_OPTION_MAP={};
+Object.values(DIAG_OPTIONS).flat().forEach(o=>{ if(o.v) DIAG_OPTION_MAP[o.v]=o; });
+function conceptNameLower(pl){return ((pl&&pl.concept)||'')+' '+((pl&&pl.play)||'')+' '+((pl&&pl.formation)||'');}
+function isPassish(pl){return !!pl && (pl.family==='pass'||pl.family==='play_action'||pl.family==='screen'||pl.family==='option_rpo');}
+function isScreenPlay(pl){return !!pl && (pl.family==='screen'||/screen|slip|tunnel|bubble|now/i.test(conceptNameLower(pl)));}
+function isDrawPlay(pl){return !!pl && /draw/i.test(conceptNameLower(pl));}
+function isRpoPlay(pl){return !!pl && (pl.family==='option_rpo'||/rpo|read|option|glance|bubble/i.test(conceptNameLower(pl)));}
+function isPlayActionLike(pl){return !!pl && (pl.family==='play_action'||/boot|naked|play action|pa |waggle|keeper|roll/i.test(conceptNameLower(pl)));}
+function isQuickLike(pl){return !!pl && ['Quick Game','Slants','Stick','Spot','Spacing','Mesh','Shallow','Curls / Curl Flats'].includes(pl.concept);}
+function isShotLike(pl){return !!pl && (AGGR_SHOT_CONCEPTS.includes(pl.concept)||/vertical|four verts|post|go|shot|wheel|dagger|sail|y cross|corner/i.test(conceptNameLower(pl)));}
+function diagnosticSectionsForPlay(pl){
+  const sections=[];
+  if(pl&&pl.motion>=1) sections.push({key:'motion',title:'Motion response',options:DIAG_OPTIONS.motion});
+  if(pl&&isRunFamily(pl.family)) sections.push({key:'runfit',title:'Run fit / box',options:DIAG_OPTIONS.runfit});
+  if(isPassish(pl)||isDrawPlay(pl)) sections.push({key:'coverage',title:'Coverage / shell',options:DIAG_OPTIONS.coverage});
+  if(isScreenPlay(pl)) sections.push({key:'screen',title:'Screen picture',options:DIAG_OPTIONS.screen});
+  if(isDrawPlay(pl)) sections.push({key:'draw',title:'Draw picture',options:DIAG_OPTIONS.draw});
+  if(isRpoPlay(pl)) sections.push({key:'rpo',title:'RPO / conflict',options:DIAG_OPTIONS.rpo});
+  if(isPlayActionLike(pl)) sections.push({key:'playaction',title:'Run-action response',options:DIAG_OPTIONS.playaction});
+  if(isQuickLike(pl)&&isPassish(pl)) sections.push({key:'quick',title:'Quick-game leverage',options:DIAG_OPTIONS.quick});
+  if(isShotLike(pl)&&isPassish(pl)) sections.push({key:'shot',title:'Shot picture',options:DIAG_OPTIONS.shot});
+  if(!sections.length) sections.push({key:'general',title:'General diagnosis',options:DIAG_OPTIONS.general});
+  return sections;
+}
+function normalizeReactionAlias(r){
+  const map={pressure:'blitz_pressure',blitz:'blitz_pressure',man:'man_coverage',zone:'zone_coverage'};
+  return map[r]||r||'';
+}
+function buildPlayDiagnosis(pl,outcome,values){
+  const picked=(values||[]).map(v=>DIAG_OPTION_MAP[v]).filter(Boolean);
+  const reactions=[];
+  let reason='', label='', execution=false, conceptInfo=false;
+  const notes=[], readUpdates={};
+  picked.forEach(o=>{
+    if(o.reaction) reactions.push(normalizeReactionAlias(o.reaction));
+    if(o.reason&&!reason) reason=o.reason;
+    if(o.l) label=label?label+'; '+o.l:o.l;
+    if(o.execution) execution=true;
+    if(o.conceptInfo) conceptInfo=true;
+    if(o.note) notes.push(o.note);
+    if(o.reads) Object.assign(readUpdates,o.reads);
+  });
+  if(!reason){
+    if(outcome==='neutral') reason=isRunFamily(pl.family)?'run_no_gain':'pass_incomplete';
+    else if(outcome==='failure') reason=isRunFamily(pl.family)?'Box count / run fit':'Coverage (zone match)';
+  }
+  if(!label) label=outcome==='neutral'?neutralReasonText(reason):(outcome==='failure'?reason:'');
+  const uniq=[...new Set(reactions.filter(Boolean))];
+  return {
+    picked:picked.map(o=>o.v),
+    labels:label,
+    reason,
+    reaction:uniq[0]||'',
+    reactions:uniq,
+    executionIssue:execution,
+    conceptInfo:conceptInfo||(!execution&&picked.length>0),
+    notes,
+    readUpdates
+  };
+}
+function applyDiagnosticReads(diag){
+  if(!diag||!diag.readUpdates||!ingame)return;
+  const R=ingame.reads||(ingame.reads=emptyReads());
+  R.confirmed=R.confirmed||{};
+  Object.entries(diag.readUpdates).forEach(([k,v])=>{ if(v){R[k]=v; R.confirmed[k]=true;} });
+}
+function diagnosisSummary(diag){
+  if(!diag)return '';
+  const bits=[];
+  if(diag.labels)bits.push(diag.labels);
+  if(diag.reactions&&diag.reactions.length)bits.push('Reads: '+diag.reactions.map(reactionText).join(' / '));
+  return bits.join(' · ');
+}
+
 const COACH_BRAIN={
   "Inside Zone":{
     series:"Inside Zone Series", role:"base run", runFamily:"zone", actionFamily:"run",
@@ -1902,36 +2079,41 @@ function applyScoutToReads(){
   else if(scout.lbfit==='disciplined') setT('lbFit','disciplined');
 }
 
-function logResult(concept,outcome,reason,reaction,play){
+function logResult(concept,outcome,reason,reaction,play,diagnosis){
   if(!ingame||!ingame.concepts[concept]){ if(!ingame) seedIngameFromBook();
     if(!ingame.concepts[concept]) ingame.concepts[concept]={w:W_BASE,base:W_BASE,calls:0,success:0,neutral:0,failure:0,reasons:{}};
   }
+  diagnosis=diagnosis||{};
   const c=ingame.concepts[concept];
   c.calls++; c[outcome]++;
-  const rawReason=reason||'';
-  const effectiveReaction=outcome==='neutral'?neutralReaction(rawReason,reaction):(reaction||'');
+  const rawReason=diagnosis.reason||reason||'';
+  const allReactions=(diagnosis.reactions&&diagnosis.reactions.length?diagnosis.reactions:[diagnosis.reaction,reaction]).map(normalizeReactionAlias).filter(Boolean);
+  const effectiveReaction=allReactions[0] || (outcome==='neutral'?neutralReaction(rawReason,''):'');
   let answerList=[];
   let note='';
 
+  applyDiagnosticReads(diagnosis);
+
   if(outcome==='success'){
-    // boost working concept, capped over its base
+    // boost working concept, capped over its base. Diagnostics still update the reads.
     const cap=Math.min(W_MAX,c.base+BOOST_CAP_DELTA);
     c.w=Math.min(cap,c.w+BOOST_SUCCESS);
     note=`${concept} boosted (working) → weight ${c.w.toFixed(2)}`;
+    if(diagnosis.notes&&diagnosis.notes.length) note+=' '+diagnosis.notes.slice(0,2).join(' ');
   } else if(outcome==='neutral'){
-    // Neutral = no value / no harm. Preserve the concept, but let the diagnosis guide the next answer.
+    // Neutral = no value / no harm. Preserve the concept, but let the actual football diagnosis guide the next answer.
     c.neutralReasons=c.neutralReasons||{};
     if(rawReason) c.neutralReasons[rawReason]=(c.neutralReasons[rawReason]||0)+1;
-    const label=neutralReasonText(rawReason);
-    const exec=isNeutralExecution(rawReason);
-    const conceptInfo=isNeutralConceptInfo(rawReason);
+    const label=diagnosis.labels||neutralReasonText(rawReason);
+    const exec=!!diagnosis.executionIssue || isNeutralExecution(rawReason);
+    const conceptInfo=!!diagnosis.conceptInfo || isNeutralConceptInfo(rawReason);
 
     if(exec){
-      // Drop, missed block, missed throw, etc. — do not punish the concept.
+      // Drop, missed block, bad throw, QB read issue, etc. — do not punish the concept.
       c.w=c.w+(c.base-c.w)*0.05;
       note=`Neutral logged${label?' — '+label:''}. ${concept} protected; diagnosis says execution, not the call.`;
     } else if(conceptInfo){
-      // The play gave useful football information, but it was not a damaging failure.
+      // Useful football information, but not a damaging failure.
       c.w=Math.max(W_MIN,c.w-0.03);
       note=`Neutral logged${label?' — '+label:''}. ${concept} only nudged slightly; use the answer, not a hard cut.`;
     } else {
@@ -1940,10 +2122,14 @@ function logResult(concept,outcome,reason,reaction,play){
       note=`Neutral logged${label?' — '+label:''}. ${concept} preserved; exact repeat will be cooled slightly.`;
     }
 
-    if(effectiveReaction && !exec){
-      answerList=promoteCoachBrainAnswers(concept,effectiveReaction,conceptInfo?0.14:0.10);
+    const reactionsForAnswers=allReactions.length?allReactions:(effectiveReaction?[effectiveReaction]:[]);
+    if(reactionsForAnswers.length && !exec){
+      const promoted=[];
+      reactionsForAnswers.forEach(r=>promoteCoachBrainAnswers(concept,r,conceptInfo?0.14:0.10).forEach(a=>promoted.push(a)));
+      answerList=[...new Set(promoted)];
       if(answerList.length) note+=` Promoted series answers: ${answerList.join(', ')}.`;
     }
+    if(diagnosis.notes&&diagnosis.notes.length) note+=' '+diagnosis.notes.slice(0,2).join(' ');
   } else { // failure
     c.w=Math.max(W_MIN,c.w-0.12);
     if(rawReason){
@@ -1953,16 +2139,19 @@ function logResult(concept,outcome,reason,reaction,play){
         c.w=Math.max(W_MIN,c.w-FAIL_CUT);
         const promoted=promoteAnswers(concept,rawReason);
         const diag=FAIL_DIAGNOSIS[rawReason]?' — '+FAIL_DIAGNOSIS[rawReason]:'';
-        note=`${concept} keeps failing vs ${rawReason}${diag}. Cut to ${c.w.toFixed(2)}. Promoted: ${promoted.join(', ')||'—'}`;
+        note=`${concept} keeps failing vs ${diagnosis.labels||rawReason}${diag}. Cut to ${c.w.toFixed(2)}. Promoted: ${promoted.join(', ')||'—'}`;
       } else {
-        note=`${concept} failure logged (${rawReason})`;
+        note=`${concept} failure logged (${diagnosis.labels||rawReason})`;
       }
     } else {
       note=`${concept} failure logged`;
     }
-    if(effectiveReaction){
-      answerList=answerConcepts(concept,effectiveReaction);
+    const reactionsForAnswers=allReactions.length?allReactions:(effectiveReaction?[effectiveReaction]:[]);
+    if(reactionsForAnswers.length){
+      answerList=[...new Set(reactionsForAnswers.flatMap(r=>answerConcepts(concept,r)))];
+      reactionsForAnswers.forEach(r=>promoteCoachBrainAnswers(concept,r,0.10));
     }
+    if(diagnosis.notes&&diagnosis.notes.length) note+=' '+diagnosis.notes.slice(0,2).join(' ');
   }
 
   // overcall trim: any concept called noticeably more than the field gets nudged down
@@ -1979,8 +2168,10 @@ function logResult(concept,outcome,reason,reaction,play){
       outcome,
       reason:outcome==='neutral'?'':rawReason,
       neutralReason:outcome==='neutral'?rawReason:'',
-      neutralExecution:outcome==='neutral'?isNeutralExecution(rawReason):false,
+      neutralExecution:outcome==='neutral'?(!!diagnosis.executionIssue||isNeutralExecution(rawReason)):false,
       reaction:effectiveReaction||'',
+      reactions:allReactions,
+      diagnostics:diagnosis,
       answerConcepts:answerList,
       formation:play.formation||'',
       play:play.play||''
@@ -1989,7 +2180,7 @@ function logResult(concept,outcome,reason,reaction,play){
   const brainNote=coachBrainLogNote(concept,effectiveReaction);
   if(brainNote && outcome!=='neutral') note=note?note+' '+brainNote:brainNote;
 
-  ingame.log.unshift({t:Date.now(),concept,outcome,reason:outcome==='neutral'?'':rawReason,neutralReason:outcome==='neutral'?rawReason:'',reaction:effectiveReaction||'',series:brain?brain.series:''});
+  ingame.log.unshift({t:Date.now(),concept,outcome,reason:outcome==='neutral'?'':rawReason,neutralReason:outcome==='neutral'?rawReason:'',reaction:effectiveReaction||'',reactions:allReactions,diagnostics:diagnosis,series:brain?brain.series:''});
   ingame.log=ingame.log.slice(0,60);
   save(LS.ig,ingame);
   return note;
@@ -4270,71 +4461,77 @@ function renderSuggestion(plays){
     }
     card.appendChild(body);
 
-    // ── Result buttons ──
+    // ── Contextual result + diagnosis panel ──
     const rw=el('div','pc-results');
-    rw.appendChild(el('div','pc-results-label','I ran this play — result / diagnosis:'));
+    rw.appendChild(el('div','pc-results-label','I ran this formation / play / concept — log result + what the defense told us:'));
     const btns=el('div','pc-result-btns');
-    const reactWrap=el('div','pc-fail-reason');
-    reactWrap.style.display='block';
-    const rSel=el('select');
-    DEF_REACTIONS.forEach(r=>{const o=el('option');o.value=r.v;o.textContent=r.l;rSel.appendChild(o);});
-    reactWrap.appendChild(rSel);
+    let selectedOutcome='';
+    const outcomeBtns={};
 
-    const neutralSel=el('div','pc-fail-reason');neutralSel.style.display='none';
-    const nSel=el('select');
-    neutralOptionsForPlay(pl).forEach(r=>{const o=el('option');o.value=r.v;o.textContent=r.l;nSel.appendChild(o);});
-    neutralSel.appendChild(nSel);
-
-    const failSel=el('div','pc-fail-reason');failSel.style.display='none';
-    const fSel=el('select');
-    FAIL_REASONS.forEach(r=>{const o=el('option');o.value=r.v;o.textContent=r.l;fSel.appendChild(o);});
-    failSel.appendChild(fSel);
-
-    function logThis(outcome){
-      const reason=outcome==='failure'?(fSel.value||''):(outcome==='neutral'?(nSel.value||''):'');
-      const reaction=rSel.value||'';
-      const note=logResult(pl.concept,outcome,reason,reaction,pl);
-      // mark card
-      card.classList.remove('selected','logged-ok','logged-mid','logged-bad');
-      card.classList.add(outcome==='success'?'logged-ok':outcome==='neutral'?'logged-mid':'logged-bad');
-      // replace result area with confirmation + adjustment note
-      rw.innerHTML='';
-      const lg=el('div','pc-logged '+(outcome==='success'?'ok':outcome==='neutral'?'mid':'bad'));
-      const reasonLabel=outcome==='neutral'?neutralReasonText(reason):reason;
-      lg.textContent=(outcome==='success'?'✓ Success':outcome==='neutral'?'~ Neutral':'✕ Failure')+(reasonLabel?' — '+reasonLabel:'')+(reaction?' · '+reactionText(reaction):'');
-      rw.appendChild(lg);
-      if(note){const adj=el('div','pc-adj',note);rw.appendChild(adj);}
-      // refresh board + meter
-      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');
-      renderIngameStats();
-      toast(pl.concept+' → '+(outcome==='success'?'boosted':outcome==='neutral'?'preserved':'cut'));
+    function setOutcome(out){
+      selectedOutcome=out;
+      Object.entries(outcomeBtns).forEach(([k,b])=>b.classList.toggle('on',k===out));
     }
 
     ['success','neutral','failure'].forEach(out=>{
       const b=el('button');
       b.className='pc-btn-'+(out==='success'?'ok':out==='neutral'?'mid':'bad');
-      b.textContent=out==='success'?'✓ Success':out==='neutral'?'~ Neutral':'✕ Failure';
-      b.addEventListener('click',()=>{
-        if(out==='failure'){
-          failSel.style.display=failSel.style.display==='none'?'block':'none';
-          neutralSel.style.display='none';
-          if(failSel.style.display==='none') logThis('failure');
-        } else if(out==='neutral'){
-          neutralSel.style.display=neutralSel.style.display==='none'?'block':'none';
-          failSel.style.display='none';
-          if(neutralSel.style.display==='none') logThis('neutral');
-        } else { logThis(out); }
-      });
+      b.textContent=out==='success'?'✓ Successful':out==='neutral'?'~ Neutral / no harm':'✕ Negative';
+      b.addEventListener('click',()=>setOutcome(out));
+      outcomeBtns[out]=b;
       btns.appendChild(b);
     });
-    // Confirm neutral / failure with selected diagnosis
-    nSel.addEventListener('change',()=>{ if(nSel.value!=='') logThis('neutral'); });
-    fSel.addEventListener('change',()=>{ if(fSel.value!=='') logThis('failure'); });
-
-    rw.appendChild(reactWrap);
     rw.appendChild(btns);
-    rw.appendChild(neutralSel);
-    rw.appendChild(failSel);
+
+    const diagPanel=el('div','diag-panel');
+    diagPanel.appendChild(el('div','diag-title','Diagnosis — tailored to this play'));
+    const diagGrid=el('div','diag-grid');
+    const diagSelects=[];
+    diagnosticSectionsForPlay(pl).forEach(sec=>{
+      const cell=el('div','diag-cell');
+      cell.appendChild(el('label',null,sec.title));
+      const sel=el('select');
+      sec.options.forEach(o=>{const opt=el('option');opt.value=o.v;opt.textContent=o.l;sel.appendChild(opt);});
+      diagSelects.push(sel);
+      cell.appendChild(sel);
+      diagGrid.appendChild(cell);
+    });
+    diagPanel.appendChild(diagGrid);
+    const helpBits=[];
+    if(pl.motion>=1)helpBits.push('motion response');
+    if(isPassish(pl))helpBits.push('coverage');
+    if(isRunFamily(pl.family))helpBits.push('run fit');
+    if(isScreenPlay(pl))helpBits.push('screen picture');
+    if(isDrawPlay(pl))helpBits.push('draw behavior');
+    if(helpBits.length) diagPanel.appendChild(el('div','diag-help','This play asks for '+helpBits.join(' + ')+' because of its formation/play/concept tags.'));
+
+    const logRow=el('div','diag-log');
+    const logBtn=el('button','btn primary sm','Log play');
+    logBtn.addEventListener('click',()=>{
+      if(!selectedOutcome){toast('Choose successful, neutral, or negative first');return;}
+      const vals=diagSelects.map(s=>s.value).filter(Boolean);
+      const diagnosis=buildPlayDiagnosis(pl,selectedOutcome,vals);
+      const note=logResult(pl.concept,selectedOutcome,diagnosis.reason,diagnosis.reaction,pl,diagnosis);
+      // mark card
+      card.classList.remove('selected','logged-ok','logged-mid','logged-bad');
+      card.classList.add(selectedOutcome==='success'?'logged-ok':selectedOutcome==='neutral'?'logged-mid':'logged-bad');
+      // replace result area with confirmation + adjustment note
+      rw.innerHTML='';
+      const lg=el('div','pc-logged '+(selectedOutcome==='success'?'ok':selectedOutcome==='neutral'?'mid':'bad'));
+      const sum=diagnosisSummary(diagnosis);
+      lg.textContent=(selectedOutcome==='success'?'✓ Success':selectedOutcome==='neutral'?'~ Neutral':'✕ Negative')+(sum?' — '+sum:'');
+      rw.appendChild(lg);
+      if(note){const adj=el('div','pc-adj',note);rw.appendChild(adj);}
+      // refresh board + meter
+      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');
+      renderIngameStats();
+      toast(pl.concept+' → '+(selectedOutcome==='success'?'boosted':selectedOutcome==='neutral'?'preserved':'cut'));
+    });
+    logRow.appendChild(logBtn);
+    logRow.appendChild(el('span','hint','Select only the things you actually saw; leave the rest blank.'));
+    diagPanel.appendChild(logRow);
+    rw.appendChild(diagPanel);
+
     card.appendChild(rw);
     cards.appendChild(card);
   });
