@@ -305,6 +305,18 @@
   .pb-tbody .rm-btn:hover{opacity:1;background:#fdf3f1}
   .pb-tbody .added-row td{background:#f3f8f4}
 
+  /* ---------- Concept targets / exact situation ---------- */
+  .ct-row{display:grid;grid-template-columns:150px 1fr 48px;gap:9px;align-items:center;padding:5px 0;border-bottom:1px solid #f0eee6}
+  .ct-row label{font-weight:800;font-size:12px;color:var(--field);line-height:1.2}
+  .ct-row .ct-guide{display:block;font-size:9.5px;font-weight:600;color:#8a908a;margin-top:1px}
+  .ct-row .ct-pct{font-family:"SFMono-Regular",ui-monospace,monospace;font-weight:800;font-size:12px;text-align:right;color:#9098a0}
+  .ct-row .ct-pct.active{color:var(--field)}
+  .exact-dd-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:8px 0 10px;background:#f6f5ef;border:1px solid #e2e0d5;border-radius:4px;padding:10px 12px}
+  .exact-dd-row .ed-cell{min-width:92px}
+  .exact-dd-row .ed-cell.small{width:88px;min-width:78px}
+  .exact-dd-row .ed-cell label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#4a5048;display:block;margin-bottom:3px}
+  .exact-dd-row input[type=number]{height:34px;padding:6px 8px}
+  .exact-dd-readout{font-size:11.5px;font-weight:700;color:var(--field);align-self:center;padding-top:15px}
 
 
 </style>
@@ -400,6 +412,13 @@
       <div style="margin-top:18px">
         <label class="fld">Concept families to emphasize (optional)</label>
         <div id="ph-families" class="grid3" style="gap:6px 18px"></div>
+      </div>
+
+      <div style="margin-top:18px;border-top:1px dashed #ddd;padding-top:14px">
+        <label class="fld">Core concept call targets</label>
+        <p class="hint" style="margin:0 0 8px">Tell the app what you actually want to major in. These are not hard quotas; they seed the base book, starting call weights, and in-game diversity guardrails.</p>
+        <div id="ph-concept-targets"></div>
+        <div class="hint" id="ph-concept-target-total" style="margin-top:6px"></div>
       </div>
 
       <div class="btnbar" style="margin-top:20px">
@@ -738,6 +757,19 @@
         <button class="terr-btn" data-zone="twominute"><span>⏱ Two-Minute</span><span class="t-sub">clock mgmt</span></button>
       </div>
       <label class="fld" style="margin-top:10px">Situation</label>
+      <div class="exact-dd-row" id="ig-exact-dd">
+        <div class="ed-cell small">
+          <label>Down</label>
+          <select id="ig-down-exact">
+            <option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="4">4th</option>
+          </select>
+        </div>
+        <div class="ed-cell small">
+          <label>Yards</label>
+          <input type="number" id="ig-yards-exact" min="1" max="30" value="10">
+        </div>
+        <div class="exact-dd-readout" id="ig-dd-readout">1st &amp; 10 · balanced</div>
+      </div>
       <div class="dd-grid" id="ig-dd-grid">
         <button class="dd-btn on" data-down="1" data-dist="med"><span class="dd-main">1st &amp; 10</span><span class="dd-sub">balanced</span></button>
         <button class="dd-btn" data-down="1" data-dist="short"><span class="dd-main">1st &amp; Short</span><span class="dd-sub">≤2 yds</span></button>
@@ -1406,6 +1438,85 @@ const SITUATIONS = {
 };
 
 const MOTION_LABELS=[[0,"Static"],[20,"Light motion"],[40,"Moderate motion"],[65,"Heavy motion"],[85,"Max disguise"]];
+const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Boot / Play Action","Option / RPO","Quick Game","Stick","Mesh","Flood","Smash","Screen","Verticals / Four Verticals","Jet Sweep"];
+const CONCEPT_TARGET_GUIDE={
+  "Inside Zone":"base run guide 15–30%","Outside Zone / Stretch":"base run guide 12–25%","Power / Power O":"base run guide 12–25%","Counter":"constraint guide 6–15%","Duo":"base run guide 10–22%",
+  "Boot / Play Action":"married PA guide 6–14%","Option / RPO":"access guide 8–20%","Quick Game":"rhythm guide 8–18%","Stick":"conversion guide 5–12%","Mesh":"man answer guide 5–12%",
+  "Flood":"zone/boot answer 4–10%","Smash":"coverage answer 4–10%","Screen":"pressure answer 5–12%","Verticals / Four Verticals":"shot guide 3–8%","Jet Sweep":"motion stress 4–10%"
+};
+function ensurePhilosophyShape(){
+  if(!philosophy.persMix) philosophy.persMix={...DEFAULT_PERS_MIX};
+  if(!Array.isArray(philosophy.emphasis)) philosophy.emphasis=[];
+  if(!philosophy.conceptTargets) philosophy.conceptTargets={};
+}
+function conceptTargetPct(concept){ensurePhilosophyShape(); return Number(philosophy.conceptTargets[concept]||0);}
+function activeConceptTargets(){ensurePhilosophyShape(); return Object.entries(philosophy.conceptTargets).filter(([,v])=>Number(v)>0);}
+function conceptTargetGenMult(concept){
+  const t=conceptTargetPct(concept), active=activeConceptTargets().length;
+  if(t>0) return Math.min(4.2,1+t/8);      // 16% target ≈ 3x in book selection
+  return active?0.86:1;
+}
+function conceptTargetSeedMult(concept){
+  const t=conceptTargetPct(concept), active=activeConceptTargets().length;
+  if(t>0) return Math.min(2.15,0.95+t/13); // 16% target ≈ 2.18, capped
+  return active?0.9:1;
+}
+function conceptTargetGameMult(pl){
+  const t=conceptTargetPct(pl.concept), active=activeConceptTargets().length;
+  if(!ingame||!ingame.log||!ingame.log.length){ return t>0?1.12:(active?0.95:1); }
+  const total=ingame.log.length;
+  const calls=(ingame.concepts[pl.concept]&&ingame.concepts[pl.concept].calls)||0;
+  const cur=calls/Math.max(1,total), target=t/100;
+  if(t>0){
+    if(cur < target*0.55) return 1.35;
+    if(cur < target*0.85) return 1.18;
+    if(cur > target*1.40) return 0.70;
+    if(cur > target*1.15) return 0.86;
+    return 1.04;
+  }
+  return active?0.9:1;
+}
+function conceptFamilyForName(concept){
+  const pl=(playbook&&playbook.plays?playbook.plays:PLAYS).find(p=>p.concept===concept);
+  return pl?pl.family:'unknown';
+}
+function scoutConceptMultFor(concept,family){
+  const f=family||conceptFamilyForName(concept);
+  const c=concept;
+  let m=1;
+  const man=MAN_BEATERS.includes(c), zone=ZONE_BEATERS.includes(c), quick=QUICK_HOT.includes(c), slow=SLOW_DEVELOP.includes(c), inside=INSIDE_RUN.includes(c);
+  if(scout.shell==='man'){ if(man)m*=1.22; if(zone&&c!=='Mesh')m*=0.9; }
+  else if(scout.shell==='single'){ if(["Post","Dagger","Y Cross","Verticals / Four Verticals","Go Routes"].includes(c))m*=1.18; }
+  else if(scout.shell==='two'){ if(isRunFamily(f))m*=1.15; if(["Stick","Mesh","Y Cross","Smash"].includes(c))m*=1.10; if(["Post","Go Routes"].includes(c))m*=0.9; }
+  if(scout.pers==='base'){ if(f==='pass'||f==='play_action')m*=1.12; if(["Y Cross","Stick","Smash","Verticals / Four Verticals"].includes(c))m*=1.08; }
+  else if(scout.pers==='nickel'){ if(isRunFamily(f)||f==='option_rpo')m*=1.16; }
+  if(scout.press==='blitz'){ if(quick)m*=1.25; if(slow)m*=0.82; }
+  else if(scout.press==='passive'){ if(slow)m*=1.12; if(c==='Screen')m*=0.9; }
+  if(scout.lbfit==='aggressive'){ if(["Boot / Play Action","Counter","Screen","Draw","Dagger"].includes(c))m*=1.18; if(inside)m*=0.92; }
+  else if(scout.lbfit==='disciplined'){ if(isRunFamily(f)||c==='Quick Game')m*=1.05; }
+  if(scout.force==='corner'){ if(["Crack","Jet Sweep","Screen","Option / RPO","Quick Game"].includes(c))m*=1.06; }
+  else if(scout.force==='nickel'){ if(["Power / Power O","Counter","Boot / Play Action","Smash"].includes(c))m*=1.07; }
+  else if(scout.force==='safety'){ if(["Post","Seam","Verticals / Four Verticals","Boot / Play Action"].includes(c))m*=1.08; }
+  else if(scout.force==='sam'){ if(["Outside Zone / Stretch","Jet Sweep","Boot / Play Action"].includes(c))m*=1.06; }
+  if(scout.front==='odd'){ if(["Outside Zone / Stretch","Power / Power O","Counter","Boot / Play Action"].includes(c))m*=1.07; }
+  else if(scout.front==='even'){ if(["Inside Zone","Duo","Trap","Quick Game"].includes(c))m*=1.06; }
+  return Math.max(0.65,Math.min(1.65,m));
+}
+function applyScoutWeightBase(){
+  if(!ingame||!ingame.concepts)return;
+  Object.entries(ingame.concepts).forEach(([name,c])=>{
+    if(c.baseRaw==null)c.baseRaw=c.base||W_BASE;
+    const oldBase=c.base||c.baseRaw;
+    const delta=(c.w||oldBase)-oldBase;
+    const newBase=Math.max(W_MIN,Math.min(W_MAX,c.baseRaw*scoutConceptMultFor(name)));
+    c.base=newBase;
+    c.w=Math.max(W_MIN,Math.min(W_MAX,newBase+delta));
+  });
+}
+function distBucketFromYards(y){y=Math.max(1,Number(y)||10); return y<=2?'short':(y<=6?'med':'long');}
+function yardsForBucket(down,dist){ if(String(down)==='1'&&dist==='med')return 10; if(dist==='short')return 2; if(dist==='med')return 5; return 8; }
+function sitLabelExact(down,yards){const d=String(down); const suf={1:'st',2:'nd',3:'rd',4:'th'}[d]||'th'; return `${d}${suf} & ${yards}`;}
+
 
 // Default personnel mix — percentage weight each grouping gets in the book (must sum to 100)
 const DEFAULT_PERS_MIX={'11':65,'12':25,'10':0,'13':0,'20':0,'21':10,'22':0,'23':0};
@@ -1417,7 +1528,7 @@ const IDENTITY_PERS_MIX={
   spread:   {'11':50,'12':10,'10':35,'20':5,'21':0,'13':0,'22':0,'23':0},
   pro:      {'11':25,'12':35,'20':5,'21':20,'22':10,'23':5,'10':0,'13':0}
 };
-function defaultPhilosophy(){return{identity:'balanced',aggr:'normal',persMix:{...DEFAULT_PERS_MIX},size:100,emphasis:[],rpMin:45,rpMax:58};}
+function defaultPhilosophy(){return{identity:'balanced',aggr:'normal',persMix:{...DEFAULT_PERS_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
 
 /* ============================================================
    STATE + PERSISTENCE
@@ -1428,6 +1539,7 @@ let playbook=loadJSON(LS.pb)||null;        // {meta,plays:[...]}
 let motion=loadNum(LS.motion,35);
 let ingame=loadJSON(LS.ig)||null;          // {concepts,log,reads}
 let scout=loadJSON(LS.scout)||defaultScout();
+ensurePhilosophyShape();
 
 // run/pass band defaults per identity (run% min,max)
 const IDENTITY_RP={balanced:[45,58],run:[52,68],pass:[28,42],spread:[38,52],pro:[46,60]};
@@ -1601,8 +1713,9 @@ function generatePlaybook(){
     if(p.aggr==='aggressive'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=1.7;
     if(p.aggr==='measured'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=0.6;
     if(p.aggr==='measured'&&(pl.family==='run'||pl.concept==='Quick Game')) s*=1.2;
-    // emphasized families
+    // emphasized families and desired call targets
     if(p.emphasis.includes(pl.concept)) s*=2.2;
+    s*=conceptTargetGenMult(pl.concept);
     // de-emphasize unmapped "Other / Unknown" so named concepts lead
     if(pl.concept==='Other / Unknown') s*=0.45;
     // small deterministic jitter
@@ -1752,11 +1865,15 @@ function seedIngameFromBook(){
   // every concept that appears in book starts with a weight scaled by its share
   const names=playbook?[...new Set(playbook.plays.map(p=>p.concept))]:CONCEPTS.slice();
   for(const n of names){
-    const base=W_BASE*(0.7+0.6*((counts[n]||1)/maxc));
-    concepts[n]={w:base,base:base,calls:0,success:0,neutral:0,failure:0,reasons:{}};
+    // Start from playbook share, but do not let raw frequency dominate the play caller.
+    let base=W_BASE*(0.85+0.3*((counts[n]||1)/maxc));
+    base*=conceptTargetSeedMult(n);
+    base=Math.max(W_MIN,Math.min(W_MAX,base));
+    concepts[n]={w:base,base:base,baseRaw:base,calls:0,success:0,neutral:0,failure:0,reasons:{}};
   }
   ingame={concepts,log:[],reads:emptyReads()};
   applyScoutToReads();   // pre-fill tentative reads from scouting report
+  applyScoutWeightBase(); // make pregame scout visible in the starting concept board
   save(LS.ig,ingame);
 }
 
@@ -1971,7 +2088,7 @@ function zoneFit(pl, zone){
   return 1.0;
 }
 
-function suggestPlay(down, dist, zone){
+function suggestPlay(down, dist, zone, yards){
   if(!playbook){return null;}
   if(!ingame) seedIngameFromBook();
   _suggestCallN++;
@@ -1988,9 +2105,11 @@ function suggestPlay(down, dist, zone){
   const scored=playbook.plays.map(pl=>{
     const c=ingame.concepts[pl.concept]||{w:W_BASE};
     let s=c.w;
-    s*=ddFit(pl,down,dist);
+    s*=ddFit(pl,down,dist,yards);
     s*=zoneFit(pl,zone);               // ← territory layer
     s*=readMult(pl);
+    s*=scoutConceptMultFor(pl.concept,pl.family);
+    s*=conceptTargetGameMult(pl);
     s*=coachBrainMult(pl);              // ← series / constraint answer layer
     if(!overrideBalance){
       if(isRunFamily(pl.family)) s*=runNudge; else s*=passNudge;
@@ -2061,7 +2180,7 @@ function suggestPlay(down, dist, zone){
 // All concepts that are play-action by nature (regardless of family tag in DB)
 const PA_CONCEPTS=new Set(["Boot / Play Action","Fake Jet"]);
 
-function ddFit(pl,down,dist){
+function ddFit(pl,down,dist,yards){
   down=Number(down)||2;
   const f=pl.family, c=pl.concept;
   const isPa = f==='play_action' || PA_CONCEPTS.has(c);
@@ -2071,38 +2190,38 @@ function ddFit(pl,down,dist){
   const inter=["Stick","Mesh","Spot","Curls / Curl Flats","Option / RPO","Sail","Bench / Corner Strike"].includes(c);
   const shot=AGGR_SHOT_CONCEPTS.includes(c);
   const draw=c==='Draw';
+  const y=Math.max(1,Number(yards)||yardsForBucket(down,dist));
 
-  // PA gate: completely zero out in all situations except 1st-and-short
+  // PA gate: play-action is only live when the distance makes the run fake believable.
   if(isPa){
-    if(down===1 && dist==='short') return 1.45;   // PA is live — first and short only
-    return 0;                                       // everywhere else: not in the pool
+    if(down===1 && y<=3) return 1.45;
+    if(down===2 && y<=3) return 1.15;
+    return 0;
   }
 
-  // 1ST DOWN (always 1st-and-10 treatment — balanced)
+  let val=1.0;
   if(down===1){
-    if(dist==='short') return power?1.7 : run?1.55 : quick?1.15 : scr?0.75 : shot?0.85 : 1.0;
-    // 1st-and-10: run-favored but pass is live
-    return run?1.35 : f==='option_rpo'?1.30 : quick?1.1 : pass?1.05 : scr?0.85 : shot?0.9 : 1.0;
+    if(y<=3) val = power?1.75 : run?1.55 : quick?1.15 : scr?0.75 : shot?0.85 : 1.0;
+    else     val = run?1.35 : f==='option_rpo'?1.30 : quick?1.1 : pass?1.05 : scr?0.85 : shot?0.9 : 1.0;
+  } else if(down===2){
+    if(y<=2)      val = power?1.7 : run?1.48 : quick?1.22 : pass?1.05 : scr?0.8 : shot?0.85 : 1.0;
+    else if(y<=6) val = f==='option_rpo'?1.32 : quick?1.28 : run?1.08 : pass?1.15 : scr?0.9 : shot?0.98 : 1.0;
+    else          val = quick?1.18 : pass?1.32 : shot?1.22 : scr?1.18 : draw?1.1 : run?0.45 : 1.0;
+  } else if(down===3){
+    if(y<=2)      val = power?1.85 : run?1.5 : quick?1.4 : pass?1.05 : scr?0.75 : shot?0.55 : 1.0;
+    else if(y<=6) val = inter?1.58 : quick?1.4 : pass?1.28 : scr?1.12 : run?0.45 : shot?0.82 : 1.0;
+    else          val = shot?1.52 : scr?1.45 : draw?1.35 : pass?1.35 : run?0.22 : 1.0;
+  } else {
+    if(y<=2)      val = power?2.05 : run?1.62 : quick?1.33 : pass?0.85 : 1.0;
+    else if(y<=6) val = quick?1.42 : inter?1.38 : pass?1.28 : run?0.5 : 1.0;
+    else          val = shot?1.45 : scr?1.4 : pass?1.35 : run?0.22 : 1.0;
   }
 
-  // 2ND DOWN
-  if(down===2){
-    if(dist==='short') return power?1.65 : run?1.45 : quick?1.2  : pass?1.05 : scr?0.8  : shot?0.85 : 1.0;
-    if(dist==='med')   return f==='option_rpo'?1.3 : quick?1.25 : run?1.1  : pass?1.15 : scr?0.9  : shot?0.95 : 1.0;
-    /* long */         return quick?1.15 : pass?1.3 : shot?1.2  : scr?1.15 : draw?1.1  : run?0.5  : 1.0;
-  }
-
-  // 3RD DOWN
-  if(down===3){
-    if(dist==='short') return power?1.8  : run?1.45 : quick?1.35 : pass?1.05 : scr?0.75 : shot?0.55 : 1.0;
-    if(dist==='med')   return inter?1.55 : quick?1.35 : pass?1.25 : scr?1.1  : run?0.5  : shot?0.8  : 1.0;
-    /* long */         return shot?1.5  : scr?1.45 : draw?1.35 : pass?1.35 : run?0.25 : 1.0;
-  }
-
-  // 4TH DOWN
-  if(dist==='short') return power?2.0  : run?1.6  : quick?1.3  : pass?0.85 : 1.0;
-  if(dist==='med')   return quick?1.4  : inter?1.35 : pass?1.25 : run?0.55 : 1.0;
-  /* long */         return shot?1.45 : scr?1.4  : pass?1.35 : run?0.25 : 1.0;
+  // Fine tune exact yardage within the bucket.
+  if(y===1 && (power||quick||f==='option_rpo')) val*=1.12;
+  if(y>=8 && (shot||scr||draw)) val*=1.10;
+  if(y>=10 && run && !draw) val*=0.75;
+  return val;
 }
 function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;}return h;}
 
@@ -2137,6 +2256,7 @@ function initPhilosophyForm(){
     line.appendChild(cb);line.appendChild(el('span',null,con));
     wrap.appendChild(line);
   });
+  renderConceptTargets();
   // motion slider
   $('#motion-slider').value=motion; updateMotionLabel();
   // run/pass band dual slider
@@ -2172,6 +2292,36 @@ function renderPersMixSliders(){
     wrap.appendChild(row);
   });
   updatePersMixTotal();
+}
+
+function renderConceptTargets(){
+  const wrap=$('#ph-concept-targets'); if(!wrap)return;
+  ensurePhilosophyShape();
+  wrap.innerHTML='';
+  CORE_CONCEPT_TARGETS.forEach(con=>{
+    const row=el('div','ct-row');
+    const lbl=el('label'); lbl.textContent=con;
+    const guide=el('span','ct-guide',CONCEPT_TARGET_GUIDE[con]||'coach-selected target'); lbl.appendChild(guide);
+    const sl=el('input'); sl.type='range'; sl.min=0; sl.max=35; sl.step=1; sl.value=conceptTargetPct(con);
+    const pct=el('span','ct-pct '+(Number(sl.value)>0?'active':''),sl.value+'%');
+    sl.addEventListener('input',()=>{
+      ensurePhilosophyShape();
+      const val=Number(sl.value)||0;
+      if(val>0) philosophy.conceptTargets[con]=val; else delete philosophy.conceptTargets[con];
+      pct.textContent=val+'%'; pct.className='ct-pct '+(val>0?'active':'');
+      updateConceptTargetTotal(); save(LS.ph,philosophy);
+    });
+    row.appendChild(lbl); row.appendChild(sl); row.appendChild(pct); wrap.appendChild(row);
+  });
+  updateConceptTargetTotal();
+}
+function updateConceptTargetTotal(){
+  const el_=$('#ph-concept-target-total'); if(!el_)return;
+  const entries=activeConceptTargets();
+  const total=entries.reduce((s,[,v])=>s+Number(v||0),0);
+  if(!entries.length){el_.textContent='No concept targets set — the app will use identity/personnel/scout weighting.';return;}
+  el_.textContent=`Active concept targets: ${entries.length} · requested total ${total}%. These guide the caller but do not have to equal 100%.`;
+  el_.style.color=total>85?'var(--gold-d)':'#8a908a';
 }
 
 function updatePersMixTotal(){
@@ -2501,7 +2651,7 @@ function scriptVariantScore(pl,sit,spec,role){
   const power=['Power / Power O','Dive','Trap','Counter','Inside Zone','HB Base / Zone'].includes(c);
   const shot=AGGR_SHOT_CONCEPTS.includes(c);
   let s=(ingame&&ingame.concepts[c]?ingame.concepts[c].w:1);
-  s*=Math.max(0.05,ddFit(pl,down,dist));
+  s*=Math.max(0.05,ddFit(pl,down,dist,sit.yards));
   if(role==='motion_probe'){ if(pl.motion>=1)s*=1.8; else s*=0.55; if(dist==='long'&&(pass||scr||quick||opt))s*=1.3; }
   if(role==='run_fit_probe'){ if(run||opt)s*=1.45; if(dist==='long'&&run&&!scr)s*=0.55; if(dist==='long'&&(quick||scr))s*=1.45; }
   if(role==='pressure_probe'){ if(scr||quick||c==='Draw')s*=1.8; if(shot&&!quick)s*=0.7; }
@@ -2542,8 +2692,9 @@ function buildScriptVariants(spec, defaultPl, defaultSit){
   return {role,variants};
 }
 function ensureScriptState(){
-  if(!scout.scriptState) scout.scriptState={idx:0,situation:{down:'1',dist:'med'},history:[]};
-  if(!scout.scriptState.situation) scout.scriptState.situation={down:'1',dist:'med'};
+  if(!scout.scriptState) scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};
+  if(!scout.scriptState.situation) scout.scriptState.situation={down:'1',dist:'med',yards:10};
+  if(!scout.scriptState.situation.yards) scout.scriptState.situation.yards=yardsForBucket(scout.scriptState.situation.down,scout.scriptState.situation.dist);
   if(!Array.isArray(scout.scriptState.history)) scout.scriptState.history=[];
   const max=Math.max(0,(scout.script?scout.script.length:1)-1);
   scout.scriptState.idx=Math.max(0,Math.min(max,Number(scout.scriptState.idx)||0));
@@ -2888,7 +3039,7 @@ function buildOpeningScript(){
   }
 
   scout.script=items;
-  scout.scriptState={idx:0,situation:{down:'1',dist:'med'},history:[]};
+  scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};
   save(LS.scout,scout);
   return items;
 }
@@ -3215,18 +3366,27 @@ function renderScriptCaller(){
   const titleBox=el('div');
   titleBox.appendChild(el('div','script-live-kicker','Live opening script caller'));
   titleBox.appendChild(el('div','script-live-title',`Objective ${state.idx+1} of ${items.length}: ${item.readLabel||'probe the defense'}`));
-  titleBox.appendChild(el('div','script-live-sub','Choose the actual down/distance, call the shown variant, then log what the defense did. The objective stays the same even if the play changes.'));
+  titleBox.appendChild(el('div','script-live-sub','Enter the actual down and yards-to-go, call the shown variant, then log what the defense did. The objective stays the same even if the play changes.'));
   top.appendChild(titleBox);
   const controls=el('div','script-live-controls');
-  const sitBox=el('div');sitBox.appendChild(el('label',null,'Current down/distance'));
-  const sitSel=el('select');
-  SCRIPT_SIT_OPTS.forEach(o=>{const opt=el('option');opt.value=o.down+'|'+o.dist;opt.textContent=o.label;sitSel.appendChild(opt);});
-  sitSel.value=scriptSitKey(sit);
-  sitSel.addEventListener('change',()=>{const[d,di]=sitSel.value.split('|');state.situation={down:d,dist:di};save(LS.scout,scout);renderScriptCaller();});
-  sitBox.appendChild(sitSel);controls.appendChild(sitBox);
+  const downBox=el('div');downBox.appendChild(el('label',null,'Down'));
+  const downSel=el('select');
+  [['1','1st'],['2','2nd'],['3','3rd'],['4','4th']].forEach(([v,l])=>{const opt=el('option');opt.value=v;opt.textContent=l;downSel.appendChild(opt);});
+  downSel.value=String(sit.down||'1');
+  downBox.appendChild(downSel);controls.appendChild(downBox);
+  const yardsBox=el('div');yardsBox.appendChild(el('label',null,'Yards'));
+  const yardsInp=el('input'); yardsInp.type='number'; yardsInp.min='1'; yardsInp.max='30'; yardsInp.value=String(sit.yards||yardsForBucket(sit.down,sit.dist));
+  yardsBox.appendChild(yardsInp);controls.appendChild(yardsBox);
+  const applyScriptSit=()=>{
+    const d=downSel.value; const y=Math.max(1,Math.min(30,Number(yardsInp.value)||10));
+    state.situation={down:d,dist:distBucketFromYards(y),yards:y};
+    save(LS.scout,scout);renderScriptCaller();
+  };
+  downSel.addEventListener('change',applyScriptSit);
+  yardsInp.addEventListener('change',applyScriptSit);
   const prev=el('button','btn ghost sm','◀ Back');prev.disabled=state.idx<=0;prev.addEventListener('click',()=>{state.idx=Math.max(0,state.idx-1);save(LS.scout,scout);renderScriptCaller();});controls.appendChild(prev);
   const next=el('button','btn ghost sm','Next ▶');next.disabled=state.idx>=items.length-1;next.addEventListener('click',()=>{state.idx=Math.min(items.length-1,state.idx+1);save(LS.scout,scout);renderScriptCaller();});controls.appendChild(next);
-  const reset=el('button','btn danger sm','Reset caller');reset.addEventListener('click',()=>{scout.scriptState={idx:0,situation:{down:'1',dist:'med'},history:[]};save(LS.scout,scout);renderScriptCaller();toast('Script caller reset');});controls.appendChild(reset);
+  const reset=el('button','btn danger sm','Reset caller');reset.addEventListener('click',()=>{scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};save(LS.scout,scout);renderScriptCaller();toast('Script caller reset');});controls.appendChild(reset);
   top.appendChild(controls);wrap.appendChild(top);
 
   const call=el('div','script-call');
@@ -3237,7 +3397,7 @@ function renderScriptCaller(){
   const cc=el('span','pill');cc.style.cssText='background:#eee;color:#444';cc.textContent=variant.concept;meta.appendChild(cc);
   if(variant.motion===2)meta.appendChild(el('span','pill motion','Move'));
   else if(variant.motion===1){const ms=el('span','pill');ms.style.cssText='background:#efe7d4;color:#9a7320';ms.textContent='Form';meta.appendChild(ms);}
-  const sitBadge=el('span','pill');sitBadge.style.cssText='background:var(--gold);color:var(--ink)';sitBadge.textContent=scriptSitLabel(sit);meta.appendChild(sitBadge);
+  const sitBadge=el('span','pill');sitBadge.style.cssText='background:var(--gold);color:var(--ink)';sitBadge.textContent=sit.yards?`${sitLabelExact(sit.down,sit.yards)} (${sit.dist})`:scriptSitLabel(sit);meta.appendChild(sitBadge);
   if(item.scriptRole){const rb=el('span','pill');rb.style.cssText='background:#e7eef7;color:#2f5891';rb.textContent=item.scriptRole.replace(/_/g,' ');meta.appendChild(rb);}
   call.appendChild(meta);
   call.appendChild(el('div','script-call-purpose',item.purpose));
@@ -3251,7 +3411,7 @@ function renderScriptCaller(){
   obsSel.addEventListener('change',()=>{
     if(obsSel.value==='')return;
     const note=applyScriptObservation(state.idx,Number(obsSel.value),variant,sit);
-    state.history.push({idx:state.idx+1,situation:scriptSitLabel(sit),play:variant.play,concept:variant.concept,observation:item.observe[Number(obsSel.value)].label,note:note||'',t:Date.now()});
+    state.history.push({idx:state.idx+1,situation:(sit.yards?`${sitLabelExact(sit.down,sit.yards)} (${sit.dist})`:scriptSitLabel(sit)),play:variant.play,concept:variant.concept,observation:item.observe[Number(obsSel.value)].label,note:note||'',t:Date.now()});
     if(state.history.length>30)state.history=state.history.slice(-30);
     if(state.idx<items.length-1) state.idx++;
     save(LS.scout,scout);
@@ -4392,18 +4552,34 @@ $('#btn-csv').addEventListener('click',()=>{
   toast('CSV downloaded');
 });
 
-// in-game — down & distance button grid
-let _igDown='1', _igDist='med', _igZone='normal';
+// in-game — exact down & distance + quick button grid
+let _igDown='1', _igDist='med', _igYards=10, _igZone='normal';
+function updateIgExactControls(fromGrid=false){
+  const dSel=$('#ig-down-exact'), yInp=$('#ig-yards-exact'), rd=$('#ig-dd-readout');
+  if(dSel)dSel.value=String(_igDown);
+  if(yInp)yInp.value=String(_igYards);
+  _igDist=distBucketFromYards(_igYards);
+  $$('#ig-dd-grid .dd-btn').forEach(x=>x.classList.toggle('on',x.dataset.down===String(_igDown)&&x.dataset.dist===_igDist));
+  if(rd)rd.textContent=`${sitLabelExact(_igDown,_igYards)} · ${_igDist==='short'?'short yardage':_igDist==='med'?'medium':'long yardage'}`;
+}
+function setIgSituation(down,yards){
+  _igDown=String(down||1);
+  _igYards=Math.max(1,Math.min(30,Number(yards)||yardsForBucket(_igDown,_igDist)));
+  _igDist=distBucketFromYards(_igYards);
+  updateIgExactControls();
+}
 $$('#ig-territory .terr-btn').forEach(b=>b.addEventListener('click',()=>{
   $$('#ig-territory .terr-btn').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); _igZone=b.dataset.zone;
 }));
 $$('#ig-dd-grid .dd-btn').forEach(b=>b.addEventListener('click',()=>{
-  $$('#ig-dd-grid .dd-btn').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); _igDown=b.dataset.down; _igDist=b.dataset.dist;
+  _igDown=b.dataset.down; _igDist=b.dataset.dist; _igYards=yardsForBucket(_igDown,_igDist); updateIgExactControls(true);
 }));
+if($('#ig-down-exact')) $('#ig-down-exact').addEventListener('change',e=>setIgSituation(e.target.value,_igYards));
+if($('#ig-yards-exact')) $('#ig-yards-exact').addEventListener('input',e=>setIgSituation(_igDown,e.target.value));
+updateIgExactControls();
 $('#btn-ig-reset').addEventListener('click',()=>{if(!playbook){toast('No playbook');return;}seedIngameFromBook();clearRecentSuggestions();$('#ig-plays').innerHTML='';renderIngame();toast('In-game tracking reset to base');});
-$('#btn-suggest').addEventListener('click',()=>{const plays=suggestPlay(_igDown,_igDist,_igZone);renderSuggestion(plays);});
+$('#btn-suggest').addEventListener('click',()=>{const plays=suggestPlay(_igDown,_igDist,_igZone,_igYards);renderSuggestion(plays);});
 $$('#ig-sort button').forEach(b=>b.addEventListener('click',()=>{igSort=b.dataset.s;$$('#ig-sort button').forEach(x=>x.classList.toggle('on',x===b));renderBoard();}));
 
 // scout
@@ -4411,14 +4587,23 @@ const SC_FIELDS={'sc-role':'role','sc-intent':'intent','sc-cond':'cond','sc-temp
 Object.keys(SC_FIELDS).forEach(id=>{
   $('#'+id).addEventListener('change',e=>{
     scout[SC_FIELDS[id]]=e.target.value; save(LS.scout,scout);
+    if(playbook){
+      if(!ingame)seedIngameFromBook();
+      applyScoutToReads();
+      applyScoutWeightBase();
+      save(LS.ig,ingame);
+      renderBoard(); renderIngameStats();
+    }
     if(['role','intent','cond','tempo'].includes(SC_FIELDS[id])){ renderPosture(); renderRunPassMeter(); }
-    else { if(playbook){ if(!ingame)seedIngameFromBook(); applyScoutToReads(); save(LS.ig,ingame); renderReadsEditor(); renderReadsSummary('#reads-summary'); renderReadsSummary('#ig-reads-summary'); } }
+    renderReadsEditor(); renderReadsSummary('#reads-summary'); renderReadsSummary('#ig-reads-summary');
   });
 });
 $('#btn-build-script').addEventListener('click',()=>{
   if(!playbook){toast('Generate a base playbook first');switchTab('philosophy');return;}
   if(!ingame)seedIngameFromBook();
   applyScoutToReads();
+  applyScoutWeightBase();
+  save(LS.ig,ingame);
   const items=buildOpeningScript();
   $('#script-card').style.display='block';
   renderOpeningScript(); renderReadsEditor(); renderReadsSummary('#reads-summary');
