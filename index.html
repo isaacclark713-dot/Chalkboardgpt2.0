@@ -236,6 +236,24 @@
   .sp-sit select{padding:4px 7px;font-size:11px;border-radius:3px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.25);color:var(--chalk);font-family:inherit;cursor:pointer}
   .sp-sit select option{background:#1a1a1a;color:#fff}
   .sp-sit .sit-badge{font-size:10.5px;font-weight:700;letter-spacing:.02em;background:var(--gold);color:var(--ink);padding:2px 9px;border-radius:10px}
+  /* ---------- Live script caller ---------- */
+  .script-live{border:1.5px solid #cfe4d6;background:#f3f8f4;border-radius:5px;padding:13px 14px;margin:14px 0 16px}
+  .script-live-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .script-live-kicker{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--cool-d)}
+  .script-live-title{font-weight:800;font-size:15px;color:var(--field);margin-top:2px}
+  .script-live-sub{font-size:11.5px;color:#5a6058;margin-top:3px;max-width:760px}
+  .script-live-controls{display:flex;align-items:flex-end;gap:7px;flex-wrap:wrap}
+  .script-live-controls label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#4a5048;display:block;margin-bottom:3px}
+  .script-call{background:#fff;border:1px solid #dcdad0;border-radius:4px;margin-top:10px;padding:11px 12px}
+  .script-call-play{font-weight:900;font-size:15px;color:var(--field)}
+  .script-call-meta{display:flex;gap:6px;flex-wrap:wrap;margin:5px 0 8px}
+  .script-call-purpose{font-size:12px;color:#4f574d;line-height:1.45}
+  .script-call-read{font-size:11.5px;margin-top:7px;background:#f6f5ef;border-left:3px solid var(--gold);padding:7px 9px;border-radius:0 3px 3px 0}
+  .script-call-read b{color:var(--gold-d)}
+  .script-live-log{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}
+  .script-live-log label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#4a5048;display:block;margin-bottom:3px}
+  .script-history{font-size:11px;color:#6a7066;margin-top:8px}
+  .script-history b{color:var(--field)}
   /* ---------- Personnel mix sliders ---------- */
   .pers-row{display:grid;grid-template-columns:42px 1fr 44px;gap:8px;align-items:center;padding:3px 0}
   .pers-row label{font-family:"SFMono-Regular",ui-monospace,monospace;font-weight:800;font-size:12px;color:var(--field)}
@@ -660,6 +678,7 @@
           <button class="btn ghost sm" id="btn-script-csv">⤓ CSV</button>
         </div>
       </div>
+      <div id="script-caller"></div>
       <div id="script-list" style="margin-top:12px"></div>
     </div>
     <div class="card" id="twom-card" style="display:none">
@@ -1412,7 +1431,7 @@ let scout=loadJSON(LS.scout)||defaultScout();
 
 // run/pass band defaults per identity (run% min,max)
 const IDENTITY_RP={balanced:[45,58],run:[52,68],pass:[28,42],spread:[38,52],pro:[46,60]};
-function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,twoMin:null};}
+function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,scriptState:null,twoMin:null};}
 function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){return d;}}
 function save(k,v){try{localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch(e){toast('Storage unavailable');}}
@@ -2447,6 +2466,96 @@ function buildListText(){
      makes it clearly wrong pre-snap) and a "circle condition" (if it works, use it again)
    · Every scripted play is a PROBE: purpose + what to watch + observation options
    ============================================================ */
+const SCRIPT_SIT_OPTS=[
+  {down:'1',dist:'med', label:'1st & 10'},
+  {down:'1',dist:'short',label:'1st & Short'},
+  {down:'2',dist:'short',label:'2nd & Short'},
+  {down:'2',dist:'med',  label:'2nd & Med'},
+  {down:'2',dist:'long', label:'2nd & Long'},
+  {down:'3',dist:'short',label:'3rd & Short'},
+  {down:'3',dist:'med',  label:'3rd & Med'},
+  {down:'3',dist:'long', label:'3rd & Long'},
+  {down:'4',dist:'short',label:'4th & Short'},
+  {down:'4',dist:'med',  label:'4th & Med'}
+];
+const SCRIPT_SIT_LABEL=Object.fromEntries(SCRIPT_SIT_OPTS.map(o=>[o.down+'|'+o.dist,o.label]));
+function scriptSitKey(sit){return (sit&&sit.down?String(sit.down):'1')+'|'+(sit&&sit.dist?String(sit.dist):'med');}
+function scriptSitLabel(sit){return SCRIPT_SIT_LABEL[scriptSitKey(sit)]||'1st & 10';}
+function liteScriptPlay(pl){return{formation:pl.formation,play:pl.play,concept:pl.concept,family:pl.family,pers:pl.pers,motion:pl.motion};}
+function classifyScriptRoleFromText(spec){
+  const txt=((spec.purpose||'')+' '+(spec.readLabel||'')).toLowerCase();
+  if(/motion|man \/ zone|force player/.test(txt)) return 'motion_probe';
+  if(/front|box|run-fit|base run|establish run/.test(txt)) return 'run_fit_probe';
+  if(/pressure|blitz/.test(txt)) return 'pressure_probe';
+  if(/shot|shell|mofc|mofo|safety/.test(txt)) return 'shell_probe';
+  if(/short-yardage|score attempt|conversion/.test(txt)) return 'conversion_probe';
+  if(/bunch|condensed|communication|matchup/.test(txt)) return 'matchup_probe';
+  if(/screen|rpo/.test(txt)) return 'space_probe';
+  return 'general_probe';
+}
+function scriptVariantScore(pl,sit,spec,role){
+  const down=String(sit.down), dist=sit.dist;
+  const c=pl.concept, f=pl.family;
+  const run=isRunFamily(f), pass=f==='pass', scr=f==='screen', opt=f==='option_rpo';
+  const quick=['Quick Game','Slants','Stick','Spot','Spacing','Mesh','Shallow'].includes(c);
+  const power=['Power / Power O','Dive','Trap','Counter','Inside Zone','HB Base / Zone'].includes(c);
+  const shot=AGGR_SHOT_CONCEPTS.includes(c);
+  let s=(ingame&&ingame.concepts[c]?ingame.concepts[c].w:1);
+  s*=Math.max(0.05,ddFit(pl,down,dist));
+  if(role==='motion_probe'){ if(pl.motion>=1)s*=1.8; else s*=0.55; if(dist==='long'&&(pass||scr||quick||opt))s*=1.3; }
+  if(role==='run_fit_probe'){ if(run||opt)s*=1.45; if(dist==='long'&&run&&!scr)s*=0.55; if(dist==='long'&&(quick||scr))s*=1.45; }
+  if(role==='pressure_probe'){ if(scr||quick||c==='Draw')s*=1.8; if(shot&&!quick)s*=0.7; }
+  if(role==='shell_probe'){ if(shot||['Smash','Flood','Sail','Y Cross','Curls / Curl Flats'].includes(c))s*=1.55; if(dist==='short'&&(run||opt))s*=1.15; }
+  if(role==='conversion_probe'){ if(dist==='short'&&(power||quick||opt))s*=2.0; if(dist==='long'&&(quick||scr||['Mesh','Flood','Sail','Y Cross'].includes(c)))s*=1.5; }
+  if(role==='matchup_probe'){ if(/bunch|stack|nasty|condensed/i.test(pl.formation))s*=1.45; if(['Mesh','Spacing','Wheel','Smash','Spot'].includes(c))s*=1.4; }
+  if(role==='space_probe'){ if(scr||opt||quick)s*=1.55; if(dist==='long'&&(scr||quick))s*=1.25; }
+  if(down==='1'&&dist==='med'){ if(run||opt||quick)s*=1.15; }
+  if(dist==='long'){ if(pass||scr)s*=1.25; if(run&&!['Draw'].includes(c))s*=0.65; }
+  if(dist==='short'){ if(power||quick||opt)s*=1.35; if(shot)s*=0.75; }
+  if(spec && spec.defaultConcept && c===spec.defaultConcept)s*=1.08;
+  // stable tiny jitter so ties do not always choose the same kind of play
+  const seed=((pl.play.length*31+pl.formation.length*17+c.length*13)>>>0)%100;
+  s*=0.95+seed/1000;
+  return s;
+}
+function selectScriptVariant(spec, sit, role, defaultPl){
+  const preds=[spec.pred].concat(spec.fallbacks||[]).filter(Boolean);
+  let pool=[];
+  for(const pred of preds){
+    pool=playbook.plays.filter(p=>{try{return pred(p);}catch(e){return false;}});
+    if(pool.length)break;
+  }
+  if(!pool.length && defaultPl) pool=[defaultPl];
+  if(!pool.length) return null;
+  const enrichedSpec={...spec,defaultConcept:defaultPl?defaultPl.concept:''};
+  pool.sort((a,b)=>scriptVariantScore(b,sit,enrichedSpec,role)-scriptVariantScore(a,sit,enrichedSpec,role));
+  return liteScriptPlay(pool[0]);
+}
+function buildScriptVariants(spec, defaultPl, defaultSit){
+  const role=spec.role||classifyScriptRoleFromText(spec);
+  const variants={};
+  for(const sit of SCRIPT_SIT_OPTS){
+    const v=selectScriptVariant(spec,sit,role,defaultPl);
+    if(v)variants[scriptSitKey(sit)]=v;
+  }
+  if(defaultPl)variants[scriptSitKey(defaultSit)]=liteScriptPlay(defaultPl);
+  return {role,variants};
+}
+function ensureScriptState(){
+  if(!scout.scriptState) scout.scriptState={idx:0,situation:{down:'1',dist:'med'},history:[]};
+  if(!scout.scriptState.situation) scout.scriptState.situation={down:'1',dist:'med'};
+  if(!Array.isArray(scout.scriptState.history)) scout.scriptState.history=[];
+  const max=Math.max(0,(scout.script?scout.script.length:1)-1);
+  scout.scriptState.idx=Math.max(0,Math.min(max,Number(scout.scriptState.idx)||0));
+  return scout.scriptState;
+}
+function currentScriptVariant(item,sit){
+  if(!item)return null;
+  const k=scriptSitKey(sit);
+  const v=item.variants&&item.variants[k];
+  return v||liteScriptPlay(item);
+}
+
 function buildOpeningScript(){
   if(!playbook) return null;
   const used=new Set();
@@ -2483,19 +2592,24 @@ function buildOpeningScript(){
     const pl=pickPlay(spec.pred, spec.fallbacks);
     if(!pl) return;
     // Infer a sensible default down & distance from the play's concept/family
-    // so each script card starts pre-populated — user can change it inline
+    // so each script card starts pre-populated — user can change it inline.
+    // Also build a situation-specific variant menu for the live script caller.
     const sitDefault=spec.sit||inferScriptSit(pl);
+    const built=buildScriptVariants(spec,pl,sitDefault);
     items.push({
       n:items.length+1,
       setLabel: spec.setLabel||'',
       formation:pl.formation, play:pl.play, concept:pl.concept, family:pl.family, pers:pl.pers, motion:pl.motion,
-      situation:sitDefault,       // {down:'1', dist:'med'} — user-editable
+      situation:sitDefault,       // {down:'1', dist:'med'} — user-editable / printable default
+      scriptRole:built.role,
+      variants:built.variants,    // live caller choices keyed by down|distance
       purpose:spec.purpose,
       readLabel:spec.readLabel,
       scratch:spec.scratch||'',
       circle:spec.circle||'',
       observe:spec.observe,
-      observed:null
+      observed:null,
+      lastLogged:null
     });
   }
 
@@ -2774,39 +2888,50 @@ function buildOpeningScript(){
   }
 
   scout.script=items;
+  scout.scriptState={idx:0,situation:{down:'1',dist:'med'},history:[]};
   save(LS.scout,scout);
   return items;
 }
 
 /* apply a script observation -> confirm reads AND count the scripted play in adaptive tracking */
-function applyScriptObservation(idx,obsIdx){
+function applyScriptObservation(idx,obsIdx,variant,situation){
   if(!scout.script||!scout.script[idx])return '';
   const item=scout.script[idx];
   const obs=item.observe[obsIdx];
+  const called=variant||liteScriptPlay(item);
   item.observed=obsIdx;
+  item.lastLogged={
+    t:Date.now(),
+    situation:situation||item.situation||{down:'1',dist:'med'},
+    formation:called.formation,play:called.play,concept:called.concept,family:called.family,pers:called.pers,motion:called.motion,
+    observation:obs.label
+  };
   if(!ingame) seedIngameFromBook();
   const R=ingame.reads; R.confirmed=R.confirmed||{};
   const sets=obs.sets||{};
   Object.keys(sets).forEach(k=>{ R[k]=sets[k]; R.confirmed[k]=true; });
 
-  // ── Log the scripted play into adaptive tracking ──
-  // Infer outcome from the observation label:
-  //   If it revealed a clean advantage (light box, boot wide open, traveled w/ motion → man exposed,
-  //   blitzed into screen, etc.) → success
-  //   If defense was neutral / disciplined → neutral
-  //   If defense stuffed / pressured the concept → failure with a reason
+  // ── Log the actual situation-specific script call into adaptive tracking ──
   const label=(obs.label||'').toLowerCase();
-  let outcome='neutral', reason='';
-  if(/creased|light box|flew up|boot wide open|blitzed.*screen|man.*exposed|big gain|sprung|score/.test(label)){
+  let outcome='neutral', reason='', reaction='';
+  if(/creased|light box|flew up|boot wide open|blitzed.*screen|man.*exposed|big gain|sprung|score|converted|gained/.test(label)){
     outcome='success';
-  } else if(/stuffed|loaded box|pressured.*boot|sacked|negative|tfl|stayed disciplined/.test(label)){
+  } else if(/stuffed|loaded box|pressured.*boot|sacked|negative|tfl|stayed disciplined|covered up|stopped/.test(label)){
     outcome='failure';
-    if(/box|stuffed|loaded/.test(label)) reason='Box count / run fit';
+    if(/box|stuffed|loaded|stopped/.test(label)) reason='Box count / run fit';
     else if(/pressured|blitz/.test(label)) reason='Pressure / blitz';
-    else if(/coverage|man|zone/.test(label)) reason='Coverage (zone match)';
+    else if(/coverage|man|zone|covered/.test(label)) reason='Coverage (zone match)';
   }
-  // also log to ingame.log so liveRunShare() counts it
-  logResult(item.concept, outcome, reason);
+  if(/overflow|fast flow/.test(label)) reaction='lb_overflow';
+  else if(/edge.*crash|squeez/.test(label)) reaction='edge_crash';
+  else if(/safety.*insert|spun/.test(label)) reaction='safety_insert';
+  else if(/loaded box|stuffed|7\+|8\+/.test(label)) reaction='loaded_box';
+  else if(/light box/.test(label)) reaction='light_box';
+  else if(/blitz|pressure/.test(label)) reaction='pressure';
+  else if(/man/.test(label)) reaction='man';
+  else if(/zone/.test(label)) reaction='zone';
+
+  logResult(called.concept,outcome,reason,reaction,called);
 
   save(LS.scout,scout); save(LS.ig,ingame);
   return obs.note||'';
@@ -3076,20 +3201,82 @@ function renderReadsSummary(sel){
     box.appendChild(chip);
   });
 }
+function renderScriptCaller(){
+  const box=$('#script-caller'); if(!box)return; box.innerHTML='';
+  const items=scout.script||[];
+  if(!items.length){box.style.display='none';return;}
+  box.style.display='block';
+  const state=ensureScriptState();
+  const item=items[state.idx];
+  const sit=state.situation||item.situation||{down:'1',dist:'med'};
+  const variant=currentScriptVariant(item,sit);
+  const wrap=el('div','script-live');
+  const top=el('div','script-live-top');
+  const titleBox=el('div');
+  titleBox.appendChild(el('div','script-live-kicker','Live opening script caller'));
+  titleBox.appendChild(el('div','script-live-title',`Objective ${state.idx+1} of ${items.length}: ${item.readLabel||'probe the defense'}`));
+  titleBox.appendChild(el('div','script-live-sub','Choose the actual down/distance, call the shown variant, then log what the defense did. The objective stays the same even if the play changes.'));
+  top.appendChild(titleBox);
+  const controls=el('div','script-live-controls');
+  const sitBox=el('div');sitBox.appendChild(el('label',null,'Current down/distance'));
+  const sitSel=el('select');
+  SCRIPT_SIT_OPTS.forEach(o=>{const opt=el('option');opt.value=o.down+'|'+o.dist;opt.textContent=o.label;sitSel.appendChild(opt);});
+  sitSel.value=scriptSitKey(sit);
+  sitSel.addEventListener('change',()=>{const[d,di]=sitSel.value.split('|');state.situation={down:d,dist:di};save(LS.scout,scout);renderScriptCaller();});
+  sitBox.appendChild(sitSel);controls.appendChild(sitBox);
+  const prev=el('button','btn ghost sm','◀ Back');prev.disabled=state.idx<=0;prev.addEventListener('click',()=>{state.idx=Math.max(0,state.idx-1);save(LS.scout,scout);renderScriptCaller();});controls.appendChild(prev);
+  const next=el('button','btn ghost sm','Next ▶');next.disabled=state.idx>=items.length-1;next.addEventListener('click',()=>{state.idx=Math.min(items.length-1,state.idx+1);save(LS.scout,scout);renderScriptCaller();});controls.appendChild(next);
+  const reset=el('button','btn danger sm','Reset caller');reset.addEventListener('click',()=>{scout.scriptState={idx:0,situation:{down:'1',dist:'med'},history:[]};save(LS.scout,scout);renderScriptCaller();toast('Script caller reset');});controls.appendChild(reset);
+  top.appendChild(controls);wrap.appendChild(top);
+
+  const call=el('div','script-call');
+  call.appendChild(el('div','script-call-play',`${variant.formation} — ${variant.play}`));
+  const meta=el('div','script-call-meta');
+  meta.appendChild(persPill(variant.pers));
+  meta.appendChild(famPill(variant.family));
+  const cc=el('span','pill');cc.style.cssText='background:#eee;color:#444';cc.textContent=variant.concept;meta.appendChild(cc);
+  if(variant.motion===2)meta.appendChild(el('span','pill motion','Move'));
+  else if(variant.motion===1){const ms=el('span','pill');ms.style.cssText='background:#efe7d4;color:#9a7320';ms.textContent='Form';meta.appendChild(ms);}
+  const sitBadge=el('span','pill');sitBadge.style.cssText='background:var(--gold);color:var(--ink)';sitBadge.textContent=scriptSitLabel(sit);meta.appendChild(sitBadge);
+  if(item.scriptRole){const rb=el('span','pill');rb.style.cssText='background:#e7eef7;color:#2f5891';rb.textContent=item.scriptRole.replace(/_/g,' ');meta.appendChild(rb);}
+  call.appendChild(meta);
+  call.appendChild(el('div','script-call-purpose',item.purpose));
+  const rd=el('div','script-call-read');rd.innerHTML=`<b>What this call is telling you:</b> ${item.readLabel}`;call.appendChild(rd);
+  if(item.scratch){const scr=el('div');scr.style.cssText='font-size:11px;color:#b84020;margin-top:7px;background:#fdf3f1;border-left:3px solid #e7b3a8;padding:5px 8px;border-radius:0 3px 3px 0';scr.innerHTML=`<b>✕ Scratch/check if:</b> ${item.scratch}`;call.appendChild(scr);}
+  const log=el('div','script-live-log');
+  const logCell=el('div');logCell.style.minWidth='260px';logCell.appendChild(el('label',null,'Defense/result observed'));
+  const obsSel=el('select');
+  const o0=el('option');o0.value='';o0.textContent='— log and advance —';obsSel.appendChild(o0);
+  item.observe.forEach((ob,i)=>{const o=el('option');o.value=String(i);o.textContent=ob.label;obsSel.appendChild(o);});
+  obsSel.addEventListener('change',()=>{
+    if(obsSel.value==='')return;
+    const note=applyScriptObservation(state.idx,Number(obsSel.value),variant,sit);
+    state.history.push({idx:state.idx+1,situation:scriptSitLabel(sit),play:variant.play,concept:variant.concept,observation:item.observe[Number(obsSel.value)].label,note:note||'',t:Date.now()});
+    if(state.history.length>30)state.history=state.history.slice(-30);
+    if(state.idx<items.length-1) state.idx++;
+    save(LS.scout,scout);
+    renderReadsSummary('#reads-summary');renderReadsSummary('#ig-reads-summary');renderPosture();renderRunPassMeter();renderBoard();renderIngameStats();renderOpeningScript();
+    toast(note?'Logged + advanced: '+note:'Script call logged + advanced');
+  });
+  logCell.appendChild(obsSel);log.appendChild(logCell);
+  call.appendChild(log);
+  if(item.lastLogged){
+    const lg=el('div','script-history',`Last logged for this objective: <b>${scriptSitLabel(item.lastLogged.situation)}</b> · ${item.lastLogged.play} · ${item.lastLogged.observation}`);
+    call.appendChild(lg);
+  }
+  if(state.history&&state.history.length){
+    const last=state.history[state.history.length-1];
+    const hist=el('div','script-history',`Last script call: <b>#${last.idx}</b> ${last.situation} · ${last.play} · ${last.observation}`);
+    call.appendChild(hist);
+  }
+  wrap.appendChild(call);
+  box.appendChild(wrap);
+}
+
 function renderOpeningScript(){
+  renderScriptCaller();
   const list=$('#script-list'); list.innerHTML='';
-  const SIT_OPTS=[
-    {down:'1',dist:'med', label:'1st & 10'},
-    {down:'1',dist:'short',label:'1st & Short'},
-    {down:'2',dist:'short',label:'2nd & Short'},
-    {down:'2',dist:'med',  label:'2nd & Med'},
-    {down:'2',dist:'long', label:'2nd & Long'},
-    {down:'3',dist:'short',label:'3rd & Short'},
-    {down:'3',dist:'med',  label:'3rd & Med'},
-    {down:'3',dist:'long', label:'3rd & Long'},
-    {down:'4',dist:'short',label:'4th & Short'},
-    {down:'4',dist:'med',  label:'4th & Med'},
-  ];
+  const SIT_OPTS=SCRIPT_SIT_OPTS;
   let lastSetLabel='';
   (scout.script||[]).forEach((it,idx)=>{
     if(it.setLabel && it.setLabel!==lastSetLabel){
@@ -3154,7 +3341,7 @@ function renderOpeningScript(){
     if(it.observed!=null)sel.value=String(it.observed);
     sel.addEventListener('change',()=>{
       if(sel.value==='')return;
-      const note=applyScriptObservation(idx,Number(sel.value));
+      const note=applyScriptObservation(idx,Number(sel.value),currentScriptVariant(it,it.situation||{down:'1',dist:'med'}),it.situation||{down:'1',dist:'med'});
       renderReadsSummary('#reads-summary');renderReadsSummary('#ig-reads-summary');renderPosture();renderRunPassMeter();
       const done=obsWrap.querySelector('.done'); const msg=note?('✓ '+note):'✓ logged';
       if(done)done.textContent=msg; else {const d=el('span','done',msg);obsWrap.appendChild(d);}
@@ -4235,8 +4422,8 @@ $('#btn-build-script').addEventListener('click',()=>{
   const items=buildOpeningScript();
   $('#script-card').style.display='block';
   renderOpeningScript(); renderReadsEditor(); renderReadsSummary('#reads-summary');
-  $('#sc-status').textContent=`✓ Opening script built — ${items.length} scripted calls. Log each reaction to lock in reads.`;
-  toast('Opening script built');
+  $('#sc-status').textContent=`✓ Opening script built — ${items.length} script objectives with down/distance variants. Use the Live Script Caller to choose the next call by situation.`;
+  toast('Opening script decision tree built');
   $('#script-card').scrollIntoView({behavior:'smooth',block:'nearest'});
 });
 
