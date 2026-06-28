@@ -1035,6 +1035,50 @@ const DEF_REACTIONS=[
 ];
 const REACTION_LABEL=Object.fromEntries(DEF_REACTIONS.map(r=>[r.v,r.l.replace('— ','').replace(' —','')]));
 
+/* Neutral is not failure. It is a no-value/no-harm result that should
+   preserve the concept unless the diagnosis says the concept itself was bad. */
+const NEUTRAL_REASONS_BASE=[
+  {v:'',l:'— neutral diagnosis (optional) —'},
+  {v:'execution_ok',l:'Execution issue / not the concept'},
+  {v:'defense_good_call',l:'Defense guessed right / good call'},
+  {v:'no_clear_info',l:'No clear information'}
+];
+const NEUTRAL_RUN_REASONS=[
+  {v:'run_no_gain',l:'Run: no gain / stalemate'},
+  {v:'run_no_movement',l:'Run: no movement up front'},
+  {v:'run_missed_block',l:'Run: missed block'},
+  {v:'run_loaded_box',l:'Run: loaded box'},
+  {v:'run_lb_fast_flow',l:'Run: LB fast flow / overflow'},
+  {v:'run_edge_squeeze',l:'Run: edge squeezed / crashed'},
+  {v:'run_edge_widen',l:'Run: edge widened / feathered'}
+];
+const NEUTRAL_PASS_REASONS=[
+  {v:'pass_incomplete',l:'Pass: incomplete / no harm'},
+  {v:'pass_drop',l:'Pass: drop'},
+  {v:'pass_bad_throw',l:'Pass: missed throw'},
+  {v:'pass_covered',l:'Pass: covered well'},
+  {v:'pass_pressure_throwaway',l:'Pass: pressure / throwaway'},
+  {v:'pass_qb_read',l:'Pass: QB read issue'}
+];
+const NEUTRAL_REASON_LABEL=Object.fromEntries([...NEUTRAL_REASONS_BASE,...NEUTRAL_RUN_REASONS,...NEUTRAL_PASS_REASONS].map(r=>[r.v,r.l]));
+const NEUTRAL_TO_REACTION={
+  run_loaded_box:'loaded_box', run_lb_fast_flow:'lb_overflow', run_edge_squeeze:'edge_crash', run_edge_widen:'edge_widen',
+  pass_covered:'zone_coverage', pass_pressure_throwaway:'blitz_pressure', defense_good_call:'no_adjustment'
+};
+const EXECUTION_NEUTRALS=new Set(['execution_ok','run_missed_block','pass_drop','pass_bad_throw','pass_qb_read']);
+const CONCEPT_INFO_NEUTRALS=new Set(['run_no_movement','run_loaded_box','pass_covered','pass_pressure_throwaway']);
+function neutralReasonText(r){return NEUTRAL_REASON_LABEL[r]||r||'';}
+function isNeutralExecution(r){return EXECUTION_NEUTRALS.has(r);}
+function isNeutralConceptInfo(r){return CONCEPT_INFO_NEUTRALS.has(r);}
+function neutralReaction(reason,reaction){return reaction||NEUTRAL_TO_REACTION[reason]||'';}
+function neutralOptionsForPlay(pl){
+  const run=pl&&isRunFamily(pl.family);
+  const list=[...NEUTRAL_REASONS_BASE];
+  if(run) list.splice(1,0,...NEUTRAL_RUN_REASONS);
+  else list.splice(1,0,...NEUTRAL_PASS_REASONS);
+  return list;
+}
+
 const COACH_BRAIN={
   "Inside Zone":{
     series:"Inside Zone Series", role:"base run", runFamily:"zone", actionFamily:"run",
@@ -1285,27 +1329,37 @@ function coachBrainMult(pl){
   const last=ingame.lastPlay;
   const lastBrain=brainForConcept(last.concept);
   const thisBrain=brainForConcept(pl.concept);
+  const answers=(last.answerConcepts&&last.answerConcepts.length)?last.answerConcepts:(last.reaction?answerConcepts(last.concept,last.reaction):[]);
   let m=1;
-  if(last.reaction){
-    const answers=answerConcepts(last.concept,last.reaction);
-    if(answers.includes(pl.concept)) m*=1.9;
-    if(lastBrain&&thisBrain&&lastBrain.series===thisBrain.series&&pl.concept!==last.concept) m*=1.18;
-    if(last.outcome==='failure'&&pl.concept===last.concept) m*=0.62;
-    if(last.outcome==='neutral'&&pl.concept===last.concept) m*=0.86;
-  } else if(last.outcome==='success'){
-    if(pl.concept===last.concept) m*=1.12;
-    if(lastBrain&&thisBrain&&lastBrain.series===thisBrain.series&&pl.concept!==last.concept) m*=1.05;
+
+  // If the last call gave us information, promote the answer inside the same series.
+  if(answers.includes(pl.concept)){
+    m*= last.outcome==='failure'?2.05 : last.outcome==='neutral'?1.6 : 1.2;
   }
-  return Math.max(0.45,Math.min(2.4,m));
+  if(lastBrain&&thisBrain&&lastBrain.series===thisBrain.series&&pl.concept!==last.concept){
+    m*= last.outcome==='failure'?1.22 : last.outcome==='neutral'?1.14 : 1.05;
+  }
+  // Neutral is not a cut. It just says: don't blindly repeat the exact same call.
+  if(pl.concept===last.concept){
+    if(last.outcome==='failure') m*=0.62;
+    else if(last.outcome==='neutral') m*= last.neutralExecution ? 0.96 : 0.82;
+    else if(last.outcome==='success') m*=1.12;
+  }
+  return Math.max(0.45,Math.min(2.55,m));
 }
 function coachBrainNoteFor(pl){
   const b=brainForConcept(pl.concept);
   if(!b||b.series==='Changeup') return '';
   let txt=`${b.series} · ${b.role}`;
   if(b.creates&&b.creates.length) txt+=` · creates ${b.creates.slice(0,2).join(' / ')}`;
-  if(ingame&&ingame.lastPlay&&ingame.lastPlay.reaction){
-    const ans=answerConcepts(ingame.lastPlay.concept,ingame.lastPlay.reaction);
-    if(ans.includes(pl.concept)) txt=`ANSWER: ${pl.concept} vs ${reactionText(ingame.lastPlay.reaction)} · `+txt;
+  if(ingame&&ingame.lastPlay){
+    const last=ingame.lastPlay;
+    const ans=(last.answerConcepts&&last.answerConcepts.length)?last.answerConcepts:(last.reaction?answerConcepts(last.concept,last.reaction):[]);
+    if(ans.includes(pl.concept)){
+      const why=last.reaction?reactionText(last.reaction):(last.neutralReason?neutralReasonText(last.neutralReason):'last look');
+      const label=last.outcome==='neutral'?'NEUTRAL ANSWER':'ANSWER';
+      txt=`${label}: ${pl.concept} vs ${why} · `+txt;
+    }
   }
   return txt;
 }
@@ -1314,6 +1368,17 @@ function coachBrainLogNote(concept,reaction){
   const ans=answerConcepts(concept,reaction);
   if(!ans.length) return `Coach brain saved the look: ${reactionText(reaction)}.`;
   return `Coach brain saved ${reactionText(reaction)}. Next suggestions will promote: ${ans.join(', ')}.`;
+}
+function promoteCoachBrainAnswers(concept,reaction,amount=0.12){
+  const answers=answerConcepts(concept,reaction);
+  const out=[];
+  for(const a of answers){
+    if(!ingame.concepts[a]) ingame.concepts[a]={w:W_BASE,base:W_BASE,calls:0,success:0,neutral:0,failure:0,reasons:{}};
+    const c=ingame.concepts[a];
+    c.w=Math.min(W_MAX,c.w+amount);
+    out.push(a);
+  }
+  return out;
 }
 
 // situations per concept (for build list)
@@ -1702,6 +1767,9 @@ function logResult(concept,outcome,reason,reaction,play){
   }
   const c=ingame.concepts[concept];
   c.calls++; c[outcome]++;
+  const rawReason=reason||'';
+  const effectiveReaction=outcome==='neutral'?neutralReaction(rawReason,reaction):(reaction||'');
+  let answerList=[];
   let note='';
 
   if(outcome==='success'){
@@ -1710,24 +1778,49 @@ function logResult(concept,outcome,reason,reaction,play){
     c.w=Math.min(cap,c.w+BOOST_SUCCESS);
     note=`${concept} boosted (working) → weight ${c.w.toFixed(2)}`;
   } else if(outcome==='neutral'){
-    // gentle pull toward base
-    c.w=c.w+(c.base-c.w)*0.15;
-    note=`${concept} logged neutral`;
+    // Neutral = no value / no harm. Preserve the concept, but let the diagnosis guide the next answer.
+    c.neutralReasons=c.neutralReasons||{};
+    if(rawReason) c.neutralReasons[rawReason]=(c.neutralReasons[rawReason]||0)+1;
+    const label=neutralReasonText(rawReason);
+    const exec=isNeutralExecution(rawReason);
+    const conceptInfo=isNeutralConceptInfo(rawReason);
+
+    if(exec){
+      // Drop, missed block, missed throw, etc. — do not punish the concept.
+      c.w=c.w+(c.base-c.w)*0.05;
+      note=`Neutral logged${label?' — '+label:''}. ${concept} protected; diagnosis says execution, not the call.`;
+    } else if(conceptInfo){
+      // The play gave useful football information, but it was not a damaging failure.
+      c.w=Math.max(W_MIN,c.w-0.03);
+      note=`Neutral logged${label?' — '+label:''}. ${concept} only nudged slightly; use the answer, not a hard cut.`;
+    } else {
+      // No gain / incomplete / no info: tiny drift toward baseline, no penalty.
+      c.w=c.w+(c.base-c.w)*0.08;
+      note=`Neutral logged${label?' — '+label:''}. ${concept} preserved; exact repeat will be cooled slightly.`;
+    }
+
+    if(effectiveReaction && !exec){
+      answerList=promoteCoachBrainAnswers(concept,effectiveReaction,conceptInfo?0.14:0.10);
+      if(answerList.length) note+=` Promoted series answers: ${answerList.join(', ')}.`;
+    }
   } else { // failure
     c.w=Math.max(W_MIN,c.w-0.12);
-    if(reason){
-      c.reasons[reason]=(c.reasons[reason]||0)+1;
-      if(c.reasons[reason]>=FAIL_REPEAT){
+    if(rawReason){
+      c.reasons[rawReason]=(c.reasons[rawReason]||0)+1;
+      if(c.reasons[rawReason]>=FAIL_REPEAT){
         // repeated same-reason failure: cut hard + promote built-in answers
         c.w=Math.max(W_MIN,c.w-FAIL_CUT);
-        const promoted=promoteAnswers(concept,reason);
-        const diag=FAIL_DIAGNOSIS[reason]?' — '+FAIL_DIAGNOSIS[reason]:'';
-        note=`${concept} keeps failing vs ${reason}${diag}. Cut to ${c.w.toFixed(2)}. Promoted: ${promoted.join(', ')||'—'}`;
+        const promoted=promoteAnswers(concept,rawReason);
+        const diag=FAIL_DIAGNOSIS[rawReason]?' — '+FAIL_DIAGNOSIS[rawReason]:'';
+        note=`${concept} keeps failing vs ${rawReason}${diag}. Cut to ${c.w.toFixed(2)}. Promoted: ${promoted.join(', ')||'—'}`;
       } else {
-        note=`${concept} failure logged (${reason})`;
+        note=`${concept} failure logged (${rawReason})`;
       }
     } else {
       note=`${concept} failure logged`;
+    }
+    if(effectiveReaction){
+      answerList=answerConcepts(concept,effectiveReaction);
     }
   }
 
@@ -1735,6 +1828,7 @@ function logResult(concept,outcome,reason,reaction,play){
   applyOvercallTrim(concept);
 
   const brain=brainForConcept(concept);
+  if(!answerList.length && effectiveReaction) answerList=answerConcepts(concept,effectiveReaction);
   if(play){
     ingame.lastPlay={
       t:Date.now(),
@@ -1742,16 +1836,19 @@ function logResult(concept,outcome,reason,reaction,play){
       series:brain?brain.series:'',
       role:brain?brain.role:'',
       outcome,
-      reason:reason||'',
-      reaction:reaction||'',
+      reason:outcome==='neutral'?'':rawReason,
+      neutralReason:outcome==='neutral'?rawReason:'',
+      neutralExecution:outcome==='neutral'?isNeutralExecution(rawReason):false,
+      reaction:effectiveReaction||'',
+      answerConcepts:answerList,
       formation:play.formation||'',
       play:play.play||''
     };
   }
-  const brainNote=coachBrainLogNote(concept,reaction);
-  if(brainNote) note=note?note+' '+brainNote:brainNote;
+  const brainNote=coachBrainLogNote(concept,effectiveReaction);
+  if(brainNote && outcome!=='neutral') note=note?note+' '+brainNote:brainNote;
 
-  ingame.log.unshift({t:Date.now(),concept,outcome,reason:reason||'',reaction:reaction||'',series:brain?brain.series:''});
+  ingame.log.unshift({t:Date.now(),concept,outcome,reason:outcome==='neutral'?'':rawReason,neutralReason:outcome==='neutral'?rawReason:'',reaction:effectiveReaction||'',series:brain?brain.series:''});
   ingame.log=ingame.log.slice(0,60);
   save(LS.ig,ingame);
   return note;
@@ -3769,20 +3866,26 @@ function renderSuggestion(plays){
 
     // ── Result buttons ──
     const rw=el('div','pc-results');
-    rw.appendChild(el('div','pc-results-label','I ran this play — result:'));
+    rw.appendChild(el('div','pc-results-label','I ran this play — result / diagnosis:'));
     const btns=el('div','pc-result-btns');
     const reactWrap=el('div','pc-fail-reason');
     reactWrap.style.display='block';
     const rSel=el('select');
     DEF_REACTIONS.forEach(r=>{const o=el('option');o.value=r.v;o.textContent=r.l;rSel.appendChild(o);});
     reactWrap.appendChild(rSel);
+
+    const neutralSel=el('div','pc-fail-reason');neutralSel.style.display='none';
+    const nSel=el('select');
+    neutralOptionsForPlay(pl).forEach(r=>{const o=el('option');o.value=r.v;o.textContent=r.l;nSel.appendChild(o);});
+    neutralSel.appendChild(nSel);
+
     const failSel=el('div','pc-fail-reason');failSel.style.display='none';
     const fSel=el('select');
     FAIL_REASONS.forEach(r=>{const o=el('option');o.value=r.v;o.textContent=r.l;fSel.appendChild(o);});
     failSel.appendChild(fSel);
 
     function logThis(outcome){
-      const reason=(outcome==='failure')?fSel.value:'';
+      const reason=outcome==='failure'?(fSel.value||''):(outcome==='neutral'?(nSel.value||''):'');
       const reaction=rSel.value||'';
       const note=logResult(pl.concept,outcome,reason,reaction,pl);
       // mark card
@@ -3791,13 +3894,14 @@ function renderSuggestion(plays){
       // replace result area with confirmation + adjustment note
       rw.innerHTML='';
       const lg=el('div','pc-logged '+(outcome==='success'?'ok':outcome==='neutral'?'mid':'bad'));
-      lg.textContent=(outcome==='success'?'✓ Success':outcome==='neutral'?'~ Neutral':'✕ Failure')+(reason?' — '+reason:'')+(reaction?' · '+reactionText(reaction):'');
+      const reasonLabel=outcome==='neutral'?neutralReasonText(reason):reason;
+      lg.textContent=(outcome==='success'?'✓ Success':outcome==='neutral'?'~ Neutral':'✕ Failure')+(reasonLabel?' — '+reasonLabel:'')+(reaction?' · '+reactionText(reaction):'');
       rw.appendChild(lg);
       if(note){const adj=el('div','pc-adj',note);rw.appendChild(adj);}
       // refresh board + meter
       renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');
       renderIngameStats();
-      toast(pl.concept+' → '+(outcome==='success'?'boosted':outcome==='neutral'?'neutral':'cut'));
+      toast(pl.concept+' → '+(outcome==='success'?'boosted':outcome==='neutral'?'preserved':'cut'));
     }
 
     ['success','neutral','failure'].forEach(out=>{
@@ -3807,16 +3911,23 @@ function renderSuggestion(plays){
       b.addEventListener('click',()=>{
         if(out==='failure'){
           failSel.style.display=failSel.style.display==='none'?'block':'none';
+          neutralSel.style.display='none';
           if(failSel.style.display==='none') logThis('failure');
+        } else if(out==='neutral'){
+          neutralSel.style.display=neutralSel.style.display==='none'?'block':'none';
+          failSel.style.display='none';
+          if(neutralSel.style.display==='none') logThis('neutral');
         } else { logThis(out); }
       });
       btns.appendChild(b);
     });
-    // Confirm failure with reason
+    // Confirm neutral / failure with selected diagnosis
+    nSel.addEventListener('change',()=>{ if(nSel.value!=='') logThis('neutral'); });
     fSel.addEventListener('change',()=>{ if(fSel.value!=='') logThis('failure'); });
 
     rw.appendChild(reactWrap);
     rw.appendChild(btns);
+    rw.appendChild(neutralSel);
     rw.appendChild(failSel);
     card.appendChild(rw);
     cards.appendChild(card);

@@ -1,16 +1,50 @@
-# Call Sheet — Coach Brain v1
+# Call Sheet — Coach Brain v2
 
-This is the first "coach brain" version of the call sheet app.
+This version adds improved neutral-result logging to Coach Brain v1.
 
-## What changed
+## What changed in v2
 
-This version adds a football knowledge layer above the raw play database:
+Neutral is now treated as **no value / no harm**, not as a failed concept.
 
-- Concept series, such as Power Series, Wide Zone Series, Quick Game Series, Mesh/Man-Beater Series, Screen Series, etc.
+When logging a play in the In-Game tab:
+
+- **Success** still boosts the concept.
+- **Neutral** now opens a diagnosis selector.
+- **Failure** still opens the failure-reason selector.
+
+Neutral diagnoses include separate run and pass options, such as:
+
+- Run: no gain / stalemate
+- Run: no movement up front
+- Run: missed block
+- Run: loaded box
+- Run: LB fast flow / overflow
+- Pass: incomplete / no harm
+- Pass: drop
+- Pass: missed throw
+- Pass: covered well
+- Pass: pressure / throwaway
+
+## How neutral now works
+
+Neutral results preserve the concept instead of cutting it.
+
+Examples:
+
+- **No-gain run**: the concept is preserved, exact repeat is cooled slightly, and the series answer can be promoted.
+- **Dropped pass**: the concept is protected because the diagnosis is execution, not play design.
+- **Covered pass**: the concept is only nudged slightly, while answers are promoted.
+- **Loaded box / LB fast flow / edge squeeze**: the coach brain promotes the correct series answers.
+
+This keeps a no-gain Power or Inside Zone from being treated like a bad call while still using the defensive information to suggest a better next answer.
+
+## Coach Brain v1 features retained
+
+- Concept series, such as Power Series, Wide Zone Series, Quick Game Series, Man-Beater Series, Screen Series, etc.
 - Base / constraint / answer roles for concepts.
 - Defensive reaction tags, such as LB overflow, edge crash, safety insert, loaded box, overhang widen/squeeze, man, zone, and blitz.
-- In-game answer boosting. After a play is logged, the app remembers the concept, series, result, and defensive reaction. The next suggestion pool is boosted toward answers from the same series.
-- Suggestion cards now show a coach-brain note explaining the series and what the play creates.
+- In-game answer boosting based on last play + defensive reaction.
+- Suggestion cards that show a coach-brain note explaining the series and what the play creates.
 
 ## How to publish on GitHub Pages
 
