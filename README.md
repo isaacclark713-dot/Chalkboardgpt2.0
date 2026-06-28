@@ -1,22 +1,20 @@
-# Call Sheet — Coach Brain v4
+# Call Sheet — Coach Brain v5
 
-Static GitHub Pages version of the call-sheet app.
+Static GitHub Pages version.
 
-## v4 changes
+## v5 changes
 
-- Adds exact down-and-distance controls in the In-Game caller.
-- Adds exact yards-to-go in the Live Opening Script Caller.
-- Adds Core Concept Call Targets on the Philosophy page.
-- Connects pregame Scout inputs to the starting concept board and suggestion weighting.
-- Adds concept target diversity guardrails so a high-weight concept does not dominate every call.
+- Opening Script Caller now uses the same base scoring logic as the regular In-Game caller.
+- Script calls are selected by fast down/distance range buttons instead of exact yard entry.
+- The script objective is now a bonus layered on top of the normal call engine, not a rigid play list.
+- In-Game fast buttons remain the primary way to choose situation.
 
 ## Publish on GitHub Pages
 
-1. Create a GitHub repository.
-2. Upload the contents of this folder, not the zip file.
-3. Go to Settings → Pages.
-4. Choose Deploy from a branch.
-5. Choose `main` and `/ root`.
-6. Save.
+1. Upload all files in this folder to a GitHub repository.
+2. Go to Settings → Pages.
+3. Choose Deploy from a branch.
+4. Select the main branch and root folder.
+5. Save.
 
-The app stores the playbook and local changes in the user's browser storage. Use the built-in download/upload playbook backup feature to move the exact setup between devices.
+The app stores playbooks and game data in each browser's local storage. Use the built-in backup/download options to move data across devices.

@@ -318,6 +318,11 @@
   .exact-dd-row input[type=number]{height:34px;padding:6px 8px}
   .exact-dd-readout{font-size:11.5px;font-weight:700;color:var(--field);align-self:center;padding-top:15px}
 
+  /* v5: fast situation ranges only; exact yard entry is intentionally hidden for speed */
+  #ig-exact-dd{display:none!important}
+  .script-live-controls .dd-btn{padding:6px 8px;min-width:86px}
+  .script-live-controls .dd-btn.on{background:var(--field);color:#fff;border-color:var(--field)}
+
 
 </style>
 </head>
@@ -2088,38 +2093,49 @@ function zoneFit(pl, zone){
   return 1.0;
 }
 
-function suggestPlay(down, dist, zone, yards){
-  if(!playbook){return null;}
-  if(!ingame) seedIngameFromBook();
-  _suggestCallN++;
+function runPassNudgesFor(zone){
   const band=effectiveBand();
   const share=liveRunShare();
   let runNudge=1, passNudge=1;
-  // In two-minute / goal-line, suppress the run/pass balance nudge — situation overrides balance
   const overrideBalance=zone==='twominute'||zone==='goalline';
   if(!overrideBalance && share!=null){
     if(share*100>band.hi){ passNudge=1.3; runNudge=0.78; }
     else if(share*100<band.lo){ runNudge=1.3; passNudge=0.78; }
   }
-
-  const scored=playbook.plays.map(pl=>{
-    const c=ingame.concepts[pl.concept]||{w:W_BASE};
-    let s=c.w;
-    s*=ddFit(pl,down,dist,yards);
-    s*=zoneFit(pl,zone);               // ← territory layer
-    s*=readMult(pl);
-    s*=scoutConceptMultFor(pl.concept,pl.family);
-    s*=conceptTargetGameMult(pl);
-    s*=coachBrainMult(pl);              // ← series / constraint answer layer
-    if(!overrideBalance){
-      if(isRunFamily(pl.family)) s*=runNudge; else s*=passNudge;
-    }
-    if(AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=band.shotMult;
-    if(pl.concept==='Other / Unknown') s*=0.5;
-    const mf=pl.motion===2?1.4:pl.motion===1?0.6:0;
-    if(mf>0) s*=(1+motion/100*mf); else s*=(1-motion/100*0.3);
-    return {pl,s};
-  }).sort((a,b)=>b.s-a.s);
+  return {band,share,runNudge,passNudge,overrideBalance};
+}
+function coreCallScore(pl,down,dist,zone,yards,ctx){
+  if(!ingame) seedIngameFromBook();
+  const info=(ctx&&ctx.nudges)?ctx.nudges:runPassNudgesFor(zone);
+  const band=info.band;
+  const c=ingame.concepts[pl.concept]||{w:W_BASE};
+  let s=c.w;
+  s*=ddFit(pl,down,dist,yards);
+  if(s<=0)return 0;
+  s*=zoneFit(pl,zone);
+  s*=readMult(pl);
+  s*=scoutConceptMultFor(pl.concept,pl.family);
+  s*=conceptTargetGameMult(pl);
+  s*=coachBrainMult(pl);
+  if(!info.overrideBalance){
+    if(isRunFamily(pl.family)) s*=info.runNudge; else s*=info.passNudge;
+  }
+  if(AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=band.shotMult;
+  if(pl.concept==='Other / Unknown') s*=0.5;
+  const mf=pl.motion===2?1.4:pl.motion===1?0.6:0;
+  if(mf>0) s*=(1+motion/100*mf); else s*=(1-motion/100*0.3);
+  return Math.max(0,s);
+}
+function suggestPlay(down, dist, zone, yards){
+  if(!playbook){return null;}
+  if(!ingame) seedIngameFromBook();
+  _suggestCallN++;
+  const nudges=runPassNudgesFor(zone);
+  const scored=playbook.plays
+    .map(pl=>({pl,s:coreCallScore(pl,down,dist,zone,yards,{nudges})}))
+    .filter(x=>x.s>0)
+    .sort((a,b)=>b.s-a.s);
+  if(!scored.length)return [];
 
   /* ── Weighted-random lottery across the top pool ──────────────────
      Pool = top 20 by merit score. Lottery weight = score^SHARPNESS.
@@ -2643,43 +2659,70 @@ function classifyScriptRoleFromText(spec){
   if(/screen|rpo/.test(txt)) return 'space_probe';
   return 'general_probe';
 }
-function scriptVariantScore(pl,sit,spec,role){
-  const down=String(sit.down), dist=sit.dist;
+function scriptObjectiveMult(pl,itemOrSpec,role,defaultPl){
   const c=pl.concept, f=pl.family;
-  const run=isRunFamily(f), pass=f==='pass', scr=f==='screen', opt=f==='option_rpo';
+  const item=itemOrSpec||{};
+  const baseConcept=(defaultPl&&defaultPl.concept)||item.concept||item.defaultConcept||'';
+  const baseFamily=(defaultPl&&defaultPl.family)||item.family||'';
+  let m=1;
+
+  // Keep the script objective alive without turning it into a rigid play list.
+  if(baseConcept && c===baseConcept)m*=1.35;
+  else if(baseFamily && f===baseFamily)m*=1.08;
+
+  const run=isRunFamily(f), scr=f==='screen', opt=f==='option_rpo', pass=f==='pass';
   const quick=['Quick Game','Slants','Stick','Spot','Spacing','Mesh','Shallow'].includes(c);
   const power=['Power / Power O','Dive','Trap','Counter','Inside Zone','HB Base / Zone'].includes(c);
   const shot=AGGR_SHOT_CONCEPTS.includes(c);
-  let s=(ingame&&ingame.concepts[c]?ingame.concepts[c].w:1);
-  s*=Math.max(0.05,ddFit(pl,down,dist,sit.yards));
-  if(role==='motion_probe'){ if(pl.motion>=1)s*=1.8; else s*=0.55; if(dist==='long'&&(pass||scr||quick||opt))s*=1.3; }
-  if(role==='run_fit_probe'){ if(run||opt)s*=1.45; if(dist==='long'&&run&&!scr)s*=0.55; if(dist==='long'&&(quick||scr))s*=1.45; }
-  if(role==='pressure_probe'){ if(scr||quick||c==='Draw')s*=1.8; if(shot&&!quick)s*=0.7; }
-  if(role==='shell_probe'){ if(shot||['Smash','Flood','Sail','Y Cross','Curls / Curl Flats'].includes(c))s*=1.55; if(dist==='short'&&(run||opt))s*=1.15; }
-  if(role==='conversion_probe'){ if(dist==='short'&&(power||quick||opt))s*=2.0; if(dist==='long'&&(quick||scr||['Mesh','Flood','Sail','Y Cross'].includes(c)))s*=1.5; }
-  if(role==='matchup_probe'){ if(/bunch|stack|nasty|condensed/i.test(pl.formation))s*=1.45; if(['Mesh','Spacing','Wheel','Smash','Spot'].includes(c))s*=1.4; }
-  if(role==='space_probe'){ if(scr||opt||quick)s*=1.55; if(dist==='long'&&(scr||quick))s*=1.25; }
-  if(down==='1'&&dist==='med'){ if(run||opt||quick)s*=1.15; }
-  if(dist==='long'){ if(pass||scr)s*=1.25; if(run&&!['Draw'].includes(c))s*=0.65; }
-  if(dist==='short'){ if(power||quick||opt)s*=1.35; if(shot)s*=0.75; }
-  if(spec && spec.defaultConcept && c===spec.defaultConcept)s*=1.08;
+  const roleName=role||item.scriptRole||item.role||'general_probe';
+
+  if(roleName==='motion_probe'){
+    if(pl.motion>=1)m*=2.05; else m*=0.62;
+    if(run||opt||quick||scr)m*=1.16;
+  } else if(roleName==='run_fit_probe'){
+    if(run||opt)m*=1.70;
+    if(power)m*=1.15;
+    if(quick||scr)m*=1.05; // down/distance may make this the correct variant
+  } else if(roleName==='pressure_probe'){
+    if(scr||quick||c==='Draw')m*=2.10;
+    if(shot&&!quick)m*=0.65;
+  } else if(roleName==='shell_probe'){
+    if(shot||['Smash','Flood','Sail','Y Cross','Curls / Curl Flats','Dagger','Post'].includes(c))m*=1.85;
+    if(run||opt)m*=0.92;
+  } else if(roleName==='conversion_probe'){
+    if(power||quick||opt)m*=1.90;
+    if(scr)m*=0.82;
+  } else if(roleName==='matchup_probe'){
+    if(/bunch|stack|nasty|condensed/i.test(pl.formation))m*=1.55;
+    if(['Mesh','Spacing','Wheel','Smash','Spot','Shallow'].includes(c))m*=1.55;
+  } else if(roleName==='space_probe'){
+    if(scr||opt||quick)m*=1.80;
+  }
+
+  // If the original scripted spec's predicate/fallbacks still exist in runtime, honor them.
+  if(item.pred){try{if(item.pred(pl))m*=1.55;}catch(e){}}
+  if(item.fallbacks&&Array.isArray(item.fallbacks)){
+    try{if(item.fallbacks.some(fn=>fn&&fn(pl)))m*=1.22;}catch(e){}
+  }
+  return m;
+}
+function scriptVariantScore(pl,sit,spec,role,defaultPl){
+  const down=String(sit.down||'1'), dist=sit.dist||'med';
+  const yards=sit.yards||yardsForBucket(down,dist);
+  const base=coreCallScore(pl,down,dist,'normal',yards);
+  if(base<=0)return 0;
+  const s=base*scriptObjectiveMult(pl,spec,role,defaultPl);
   // stable tiny jitter so ties do not always choose the same kind of play
-  const seed=((pl.play.length*31+pl.formation.length*17+c.length*13)>>>0)%100;
-  s*=0.95+seed/1000;
-  return s;
+  const seed=((pl.play.length*31+pl.formation.length*17+pl.concept.length*13)>>>0)%100;
+  return s*(0.95+seed/1000);
 }
 function selectScriptVariant(spec, sit, role, defaultPl){
-  const preds=[spec.pred].concat(spec.fallbacks||[]).filter(Boolean);
-  let pool=[];
-  for(const pred of preds){
-    pool=playbook.plays.filter(p=>{try{return pred(p);}catch(e){return false;}});
-    if(pool.length)break;
-  }
-  if(!pool.length && defaultPl) pool=[defaultPl];
-  if(!pool.length) return null;
-  const enrichedSpec={...spec,defaultConcept:defaultPl?defaultPl.concept:''};
-  pool.sort((a,b)=>scriptVariantScore(b,sit,enrichedSpec,role)-scriptVariantScore(a,sit,enrichedSpec,role));
-  return liteScriptPlay(pool[0]);
+  if(!playbook||!playbook.plays||!playbook.plays.length)return defaultPl?liteScriptPlay(defaultPl):null;
+  const scored=playbook.plays
+    .map(pl=>({pl,s:scriptVariantScore(pl,sit,spec,role,defaultPl)}))
+    .filter(x=>x.s>0)
+    .sort((a,b)=>b.s-a.s);
+  return scored.length?liteScriptPlay(scored[0]):(defaultPl?liteScriptPlay(defaultPl):null);
 }
 function buildScriptVariants(spec, defaultPl, defaultSit){
   const role=spec.role||classifyScriptRoleFromText(spec);
@@ -2692,9 +2735,11 @@ function buildScriptVariants(spec, defaultPl, defaultSit){
   return {role,variants};
 }
 function ensureScriptState(){
-  if(!scout.scriptState) scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};
-  if(!scout.scriptState.situation) scout.scriptState.situation={down:'1',dist:'med',yards:10};
-  if(!scout.scriptState.situation.yards) scout.scriptState.situation.yards=yardsForBucket(scout.scriptState.situation.down,scout.scriptState.situation.dist);
+  if(!scout.scriptState) scout.scriptState={idx:0,situation:{down:'1',dist:'med'},history:[]};
+  if(!scout.scriptState.situation) scout.scriptState.situation={down:'1',dist:'med'};
+  // v5: use fast down/distance buckets. Yards are inferred only internally for scoring.
+  scout.scriptState.situation={down:String(scout.scriptState.situation.down||'1'),dist:scout.scriptState.situation.dist||'med'};
+  scout.scriptState.situation.yards=yardsForBucket(scout.scriptState.situation.down,scout.scriptState.situation.dist);
   if(!Array.isArray(scout.scriptState.history)) scout.scriptState.history=[];
   const max=Math.max(0,(scout.script?scout.script.length:1)-1);
   scout.scriptState.idx=Math.max(0,Math.min(max,Number(scout.scriptState.idx)||0));
@@ -2702,7 +2747,18 @@ function ensureScriptState(){
 }
 function currentScriptVariant(item,sit){
   if(!item)return null;
-  const k=scriptSitKey(sit);
+  const bucket={down:String((sit&&sit.down)||'1'),dist:(sit&&sit.dist)||'med'};
+  bucket.yards=yardsForBucket(bucket.down,bucket.dist);
+
+  // Prefer a live score, using the same base logic as the In-Game caller, with a script-objective bonus.
+  if(playbook&&ingame&&playbook.plays&&playbook.plays.length){
+    const scored=playbook.plays
+      .map(pl=>({pl,s:scriptVariantScore(pl,bucket,item,item.scriptRole,item)}))
+      .filter(x=>x.s>0)
+      .sort((a,b)=>b.s-a.s);
+    if(scored.length)return liteScriptPlay(scored[0]);
+  }
+  const k=scriptSitKey(bucket);
   const v=item.variants&&item.variants[k];
   return v||liteScriptPlay(item);
 }
@@ -3366,30 +3422,33 @@ function renderScriptCaller(){
   const titleBox=el('div');
   titleBox.appendChild(el('div','script-live-kicker','Live opening script caller'));
   titleBox.appendChild(el('div','script-live-title',`Objective ${state.idx+1} of ${items.length}: ${item.readLabel||'probe the defense'}`));
-  titleBox.appendChild(el('div','script-live-sub','Enter the actual down and yards-to-go, call the shown variant, then log what the defense did. The objective stays the same even if the play changes.'));
+  titleBox.appendChild(el('div','script-live-sub','Tap the current down/distance range. The caller uses the same scoring logic as In-Game, then adds this script objective as a bonus so the call still gathers the information you wanted.'));
   top.appendChild(titleBox);
+
   const controls=el('div','script-live-controls');
-  const downBox=el('div');downBox.appendChild(el('label',null,'Down'));
-  const downSel=el('select');
-  [['1','1st'],['2','2nd'],['3','3rd'],['4','4th']].forEach(([v,l])=>{const opt=el('option');opt.value=v;opt.textContent=l;downSel.appendChild(opt);});
-  downSel.value=String(sit.down||'1');
-  downBox.appendChild(downSel);controls.appendChild(downBox);
-  const yardsBox=el('div');yardsBox.appendChild(el('label',null,'Yards'));
-  const yardsInp=el('input'); yardsInp.type='number'; yardsInp.min='1'; yardsInp.max='30'; yardsInp.value=String(sit.yards||yardsForBucket(sit.down,sit.dist));
-  yardsBox.appendChild(yardsInp);controls.appendChild(yardsBox);
-  const applyScriptSit=()=>{
-    const d=downSel.value; const y=Math.max(1,Math.min(30,Number(yardsInp.value)||10));
-    state.situation={down:d,dist:distBucketFromYards(y),yards:y};
-    save(LS.scout,scout);renderScriptCaller();
-  };
-  downSel.addEventListener('change',applyScriptSit);
-  yardsInp.addEventListener('change',applyScriptSit);
-  const prev=el('button','btn ghost sm','◀ Back');prev.disabled=state.idx<=0;prev.addEventListener('click',()=>{state.idx=Math.max(0,state.idx-1);save(LS.scout,scout);renderScriptCaller();});controls.appendChild(prev);
-  const next=el('button','btn ghost sm','Next ▶');next.disabled=state.idx>=items.length-1;next.addEventListener('click',()=>{state.idx=Math.min(items.length-1,state.idx+1);save(LS.scout,scout);renderScriptCaller();});controls.appendChild(next);
-  const reset=el('button','btn danger sm','Reset caller');reset.addEventListener('click',()=>{scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};save(LS.scout,scout);renderScriptCaller();toast('Script caller reset');});controls.appendChild(reset);
+  SCRIPT_SIT_OPTS.forEach(o=>{
+    const b=el('button','dd-btn '+(scriptSitKey(sit)===scriptSitKey(o)?'on':''));
+    b.type='button';
+    b.dataset.down=o.down;b.dataset.dist=o.dist;
+    b.innerHTML=`<span class="dd-main">${o.label}</span><span class="dd-sub">${o.dist==='short'?'≤2 yds':o.dist==='med'?(o.down==='1'?'balanced':'3–6 yds'):'7+ yds'}</span>`;
+    b.addEventListener('click',()=>{
+      state.situation={down:o.down,dist:o.dist,yards:yardsForBucket(o.down,o.dist)};
+      save(LS.scout,scout);renderScriptCaller();
+    });
+    controls.appendChild(b);
+  });
+  const nav=el('div');nav.style.cssText='display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;width:100%';
+  const prev=el('button','btn ghost sm','◀ Back');prev.disabled=state.idx<=0;prev.addEventListener('click',()=>{state.idx=Math.max(0,state.idx-1);save(LS.scout,scout);renderScriptCaller();});nav.appendChild(prev);
+  const next=el('button','btn ghost sm','Next objective ▶');next.disabled=state.idx>=items.length-1;next.addEventListener('click',()=>{state.idx=Math.min(items.length-1,state.idx+1);save(LS.scout,scout);renderScriptCaller();});nav.appendChild(next);
+  const reset=el('button','btn danger sm','Reset caller');reset.addEventListener('click',()=>{scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};save(LS.scout,scout);renderScriptCaller();toast('Script caller reset');});nav.appendChild(reset);
+  controls.appendChild(nav);
   top.appendChild(controls);wrap.appendChild(top);
 
   const call=el('div','script-call');
+  if(!variant){
+    call.appendChild(el('div','empty','No script variant available. Generate a base playbook first.'));
+    wrap.appendChild(call);box.appendChild(wrap);return;
+  }
   call.appendChild(el('div','script-call-play',`${variant.formation} — ${variant.play}`));
   const meta=el('div','script-call-meta');
   meta.appendChild(persPill(variant.pers));
@@ -3397,7 +3456,7 @@ function renderScriptCaller(){
   const cc=el('span','pill');cc.style.cssText='background:#eee;color:#444';cc.textContent=variant.concept;meta.appendChild(cc);
   if(variant.motion===2)meta.appendChild(el('span','pill motion','Move'));
   else if(variant.motion===1){const ms=el('span','pill');ms.style.cssText='background:#efe7d4;color:#9a7320';ms.textContent='Form';meta.appendChild(ms);}
-  const sitBadge=el('span','pill');sitBadge.style.cssText='background:var(--gold);color:var(--ink)';sitBadge.textContent=sit.yards?`${sitLabelExact(sit.down,sit.yards)} (${sit.dist})`:scriptSitLabel(sit);meta.appendChild(sitBadge);
+  const sitBadge=el('span','pill');sitBadge.style.cssText='background:var(--gold);color:var(--ink)';sitBadge.textContent=scriptSitLabel(sit);meta.appendChild(sitBadge);
   if(item.scriptRole){const rb=el('span','pill');rb.style.cssText='background:#e7eef7;color:#2f5891';rb.textContent=item.scriptRole.replace(/_/g,' ');meta.appendChild(rb);}
   call.appendChild(meta);
   call.appendChild(el('div','script-call-purpose',item.purpose));
@@ -3411,11 +3470,11 @@ function renderScriptCaller(){
   obsSel.addEventListener('change',()=>{
     if(obsSel.value==='')return;
     const note=applyScriptObservation(state.idx,Number(obsSel.value),variant,sit);
-    state.history.push({idx:state.idx+1,situation:(sit.yards?`${sitLabelExact(sit.down,sit.yards)} (${sit.dist})`:scriptSitLabel(sit)),play:variant.play,concept:variant.concept,observation:item.observe[Number(obsSel.value)].label,note:note||'',t:Date.now()});
+    state.history.push({idx:state.idx+1,situation:scriptSitLabel(sit),play:variant.play,concept:variant.concept,observation:item.observe[Number(obsSel.value)].label,note:note||'',t:Date.now()});
     if(state.history.length>30)state.history=state.history.slice(-30);
     if(state.idx<items.length-1) state.idx++;
     save(LS.scout,scout);
-    renderReadsSummary('#reads-summary');renderReadsSummary('#ig-reads-summary');renderPosture();renderRunPassMeter();renderBoard();renderIngameStats();renderOpeningScript();
+    renderReadsSummary('#reads-summary');renderReadsSummary('#ig-reads-summary');renderPosture();renderRunPassMeter();renderBoard();renderIngameStats();renderOpeningScript();renderScriptCaller();
     toast(note?'Logged + advanced: '+note:'Script call logged + advanced');
   });
   logCell.appendChild(obsSel);log.appendChild(logCell);
@@ -4552,7 +4611,7 @@ $('#btn-csv').addEventListener('click',()=>{
   toast('CSV downloaded');
 });
 
-// in-game — exact down & distance + quick button grid
+// in-game — fast down/distance range buttons
 let _igDown='1', _igDist='med', _igYards=10, _igZone='normal';
 function updateIgExactControls(fromGrid=false){
   const dSel=$('#ig-down-exact'), yInp=$('#ig-yards-exact'), rd=$('#ig-dd-readout');
