@@ -947,7 +947,7 @@
     <!-- ── Formation & Play Intent Tags ── -->
     <div class="card">
       <h2>Formation &amp; Play Intent Tags</h2>
-      <p class="desc">The app auto-tags each play from its formation name, play name, family, concept, personnel, and motion. These tags explain what the play is trying to stress. Correct any wrong tag here — your edits are saved and will override the auto-tagger.</p>
+      <p class="desc">The app auto-tags each play from its formation name, play name, family, concept, personnel, and motion. These tags now include Play IQ details — route family, read type, timing, coverage fit, protection stress, hot answer, and install confidence. Correct any wrong tag here — your edits are saved and will override the auto-tagger.</p>
 
       <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:2;min-width:190px">
@@ -985,12 +985,13 @@
         <table id="intent-table">
           <thead><tr>
             <th>Formation</th><th>Play</th><th>Concept</th><th>Surface</th><th>Motion purpose</th>
-            <th>Run scheme</th><th>Pass structure</th><th>Series</th><th>Conflict</th><th>Stress</th><th>Edited</th>
+            <th>Run scheme</th><th>Pass structure</th><th>Series</th><th>Conflict</th><th>Stress</th>
+            <th>Route</th><th>Read</th><th>Timing</th><th>Beats</th><th>Protection</th><th>Hot</th><th>Install</th><th>Edited</th>
           </tr></thead>
           <tbody id="intent-tbody"></tbody>
         </table>
       </div>
-      <div class="hint" style="margin-top:8px">These tags also drive the diagnosis panel. For example: motion-purpose tags trigger motion-response questions; screen tags trigger screen-picture questions; draw tags trigger draw-picture questions.</div>
+      <div class="hint" style="margin-top:8px">These tags drive the diagnosis panel, in-game scoring, sequencing, and the opening-script question tree. For example: motion-purpose tags trigger motion-response questions; pass-IQ tags tell the caller whether a concept is good vs man, zone, pressure, match, or needs time.</div>
     </div>
 
     <!-- ── CSV Upload ── -->
@@ -2586,6 +2587,55 @@ function runPassNudgesFor(zone){
   }
   return {band,share,runNudge,passNudge,overrideBalance};
 }
+
+function playIQFit(pl,down,dist,zone,yards){
+  const t=intentSafe(pl)||{};
+  let m=1;
+  const press=(ingame&&ingame.reads&&ingame.reads.pressure)||'';
+  const cov=(ingame&&ingame.reads&&ingame.reads.coverage)||'';
+  const shell=(ingame&&ingame.reads&&ingame.reads.mof)||'';
+  const long=dist==='long'||Number(yards||0)>=7;
+  const short=dist==='short'||Number(yards||0)<=2;
+
+  // Protection + timing: do not call long-developing stuff into known pressure unless protected/hot.
+  if(press==='blitz'){
+    if(['low','max_protect'].includes(t.requiresProtection)||['built_in','checkdown','yes'].includes(t.hasHot)) m*=1.18;
+    if(t.requiresProtection==='high'&&t.hasHot==='no') m*=0.56;
+    if(t.beatsCoverage==='pressure'||t.passStructure==='screen'||t.passStructure==='draw') m*=1.25;
+  }
+  if(long){
+    if(['quick','screen','draw','stick_spacing','slant'].includes(t.routeFamily)||t.hasHot==='built_in') m*=1.10;
+    if(t.routeTiming==='long_developing'&&press==='blitz') m*=0.72;
+  }
+  if(short){
+    if(['low','medium'].includes(t.requiresProtection)||t.hasHot==='built_in'||t.playType==='run') m*=1.12;
+    if(t.routeTiming==='long_developing') m*=0.64;
+  }
+  if(zone==='redzone'||zone==='goalline'){
+    if(t.weakVs==='compressed_field') m*=0.70;
+    if(['quick','stick_spacing','slant','screen'].includes(t.routeFamily)||['power','inside_zone','duo'].includes(t.runScheme)) m*=1.10;
+  }
+
+  // Coverage fit: these are not absolutes; they nudge the caller toward route families that answer the look.
+  if(cov==='man'){
+    if(t.beatsCoverage==='man'||['mesh_shallow','slant','screen'].includes(t.routeFamily)) m*=1.22;
+    if(t.weakVs==='tight_man') m*=0.78;
+  } else if(cov==='zone'){
+    if(t.beatsCoverage==='zone'||['stick_spacing','flood_sail','smash_corner'].includes(t.routeFamily)) m*=1.18;
+    if(t.weakVs==='zone_drop') m*=0.82;
+  }
+  if(shell==='single'){
+    if(['verts_seams','flood_sail','play_action'].includes(t.routeFamily)||t.beatsCoverage==='mofc') m*=1.10;
+  } else if(shell==='two'){
+    if(['smash_corner','stick_spacing','draw','screen'].includes(t.routeFamily)||t.beatsCoverage==='mofo') m*=1.10;
+  }
+
+  // Install confidence keeps the app from being too cute in high-leverage downs.
+  if((down==='3'||down==='4') && ['trusted','critical_down'].includes(t.installConfidence)) m*=1.10;
+  if((down==='3'||down==='4') && t.installConfidence==='emergency') m*=0.48;
+  return Math.max(0.45,Math.min(1.75,m));
+}
+
 function coreCallScore(pl,down,dist,zone,yards,ctx){
   if(!ingame) seedIngameFromBook();
   const info=(ctx&&ctx.nudges)?ctx.nudges:runPassNudgesFor(zone);
@@ -2600,6 +2650,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=conceptTargetGameMult(pl);
   s*=coachBrainMult(pl);
   s*=sequenceFit(pl);
+  s*=playIQFit(pl,down,dist,zone,yards);
   if(!info.overrideBalance){
     if(isRunFamily(pl.family)) s*=info.runNudge; else s*=info.passNudge;
   }
@@ -3184,6 +3235,35 @@ function scriptObjectiveMult(pl,itemOrSpec,role,defaultPl){
     if(['Mesh','Spacing','Wheel','Smash','Spot','Shallow'].includes(c))m*=1.55;
   } else if(roleName==='space_probe'){
     if(scr||opt||quick)m*=1.80;
+  } else if(roleName==='force_probe'){
+    const t=intentSafe(pl)||{};
+    if(t.conflictDefender==='force'||t.primaryStress==='force_conflict'||t.runScheme==='wide_zone'||t.runScheme==='sweep_toss')m*=1.95;
+    if(scr||opt)m*=1.25;
+  } else if(roleName==='boot_edge_probe'){
+    const t=intentSafe(pl)||{};
+    if(t.passStructure==='boot'||c==='Boot / Play Action'||t.primaryStress==='eye_discipline')m*=2.05;
+    if(t.conflictDefender==='edge')m*=1.25;
+  } else if(roleName==='apex_probe'){
+    const t=intentSafe(pl)||{};
+    if(opt||t.conflictDefender==='apex'||t.primaryStress==='apex_conflict')m*=2.05;
+    if(quick||scr)m*=1.20;
+  } else if(roleName==='coverage_probe'){
+    const t=intentSafe(pl)||{};
+    if(pass||quick||['Mesh','Stick','Spacing','Smash','Flood','Curls / Curl Flats'].includes(c))m*=1.75;
+    if(['man','zone','match','mofc','mofo'].includes(t.beatsCoverage))m*=1.15;
+  } else if(roleName==='pressure_empty_probe'){
+    const t=intentSafe(pl)||{};
+    if(t.surface==='empty'||/empty|5wr|5 wr/i.test(pl.formation))m*=1.55;
+    if(scr||quick||t.hasHot==='built_in'||c==='Draw')m*=1.55;
+    if(t.requiresProtection==='high'&&t.hasHot==='no')m*=0.55;
+  } else if(roleName==='screen_retrace_probe'){
+    const t=intentSafe(pl)||{};
+    if(scr||t.passStructure==='screen')m*=2.20;
+    if(c==='Draw')m*=1.25;
+  } else if(roleName==='redzone_probe'){
+    const t=intentSafe(pl)||{};
+    if(power||quick||opt)m*=1.65;
+    if(t.routeTiming==='long_developing')m*=0.55;
   }
 
   // If the original scripted spec's predicate/fallbacks still exist in runtime, honor them.
@@ -3255,24 +3335,20 @@ function buildOpeningScript(){
   const used=new Set();
   const items=[];
   const size=playbook.plays.length;
-  const wantShots=scout.shell==='single';
-  const pressureHeavy=scout.press==='blitz';
-  const baseHeavy=scout.pers==='base';
   const scriptTarget = size>=140?15 : size>=80?12 : 8;
+  const usedConcepts=new Set();
 
-  const usedConcepts=new Set();  // script-level: avoid the same concept appearing more than twice
-
-  /* ── Helper: pick best matching play, track used ── */
   function pickPlay(pred, fallbacks){
     const tryFn=fn=>{
-      // prefer plays whose concept hasn't appeared in the script yet
       const pool=playbook.plays.filter(p=>fn(p)&&!used.has(p.formation+'|'+p.play));
       if(!pool.length) return null;
       pool.sort((a,b)=>{
-        // first: prefer unseen concepts; second: prefer higher in-game weight
+        const ai=intentSafe(a)||{}, bi=intentSafe(b)||{};
         const aNew=!usedConcepts.has(a.concept)?1:0, bNew=!usedConcepts.has(b.concept)?1:0;
         if(bNew!==aNew)return bNew-aNew;
-        return ((ingame&&ingame.concepts[b.concept]?ingame.concepts[b.concept].w:1)-(ingame&&ingame.concepts[a.concept]?ingame.concepts[a.concept].w:1));
+        const aw=(ingame&&ingame.concepts[a.concept]?ingame.concepts[a.concept].w:1) * (ai.confidence||0.75);
+        const bw=(ingame&&ingame.concepts[b.concept]?ingame.concepts[b.concept].w:1) * (bi.confidence||0.75);
+        return bw-aw;
       });
       return pool[0];
     };
@@ -3282,23 +3358,21 @@ function buildOpeningScript(){
     return pl;
   }
 
-  function add(spec){
+  function addQuestion(spec){
     const pl=pickPlay(spec.pred, spec.fallbacks);
     if(!pl) return;
-    // Infer a sensible default down & distance from the play's concept/family
-    // so each script card starts pre-populated — user can change it inline.
-    // Also build a situation-specific variant menu for the live script caller.
-    const sitDefault=spec.sit||inferScriptSit(pl);
+    const sitDefault=spec.sit||inferScriptSit(pl,spec.role);
     const built=buildScriptVariants(spec,pl,sitDefault);
     items.push({
       n:items.length+1,
-      setLabel: spec.setLabel||'',
+      setLabel:spec.setLabel||'',
+      question:spec.question,
       formation:pl.formation, play:pl.play, concept:pl.concept, family:pl.family, pers:pl.pers, motion:pl.motion,
-      situation:sitDefault,       // {down:'1', dist:'med'} — user-editable / printable default
-      scriptRole:built.role,
-      variants:built.variants,    // live caller choices keyed by down|distance
+      situation:sitDefault,
+      scriptRole:spec.role||built.role,
+      variants:built.variants,
       purpose:spec.purpose,
-      readLabel:spec.readLabel,
+      readLabel:spec.question||spec.readLabel,
       scratch:spec.scratch||'',
       circle:spec.circle||'',
       observe:spec.observe,
@@ -3307,285 +3381,208 @@ function buildOpeningScript(){
     });
   }
 
-  /* Suggest the most natural situation for a scripted play by concept/family */
-  function inferScriptSit(pl){
-    const c=pl.concept, f=pl.family;
-    if(["Power / Power O","Dive","Inside Zone","HB Base / Zone"].includes(c)) return {down:'1',dist:'med'};
-    if(["Outside Zone / Stretch","Counter","Trap","Sweep","Jet Sweep"].includes(c)) return {down:'1',dist:'med'};
-    if(["Boot / Play Action","Fake Jet"].includes(c)) return {down:'1',dist:'short'};
-    if(["Option / RPO","Jet Touch Pass"].includes(c)) return {down:'1',dist:'med'};
-    if(f==='screen') return {down:'2',dist:'long'};
-    if(c==='Draw') return {down:'3',dist:'long'};
+  function inferScriptSit(pl,role){
+    const c=pl.concept, f=pl.family, t=intentSafe(pl)||{};
+    if(role==='coverage_probe') return {down:'3',dist:'med'};
+    if(role==='pressure_empty_probe') return {down:'2',dist:'long'};
+    if(role==='screen_retrace_probe') return {down:'2',dist:'long'};
+    if(role==='conversion_probe') return {down:'3',dist:'short'};
+    if(role==='shell_probe') return {down:'2',dist:'med'};
+    if(role==='redzone_probe') return {down:'2',dist:'short'};
+    if(["Power / Power O","Dive","Inside Zone","HB Base / Zone","Counter","Outside Zone / Stretch"].includes(c)) return {down:'1',dist:'med'};
+    if(["Boot / Play Action","Fake Jet"].includes(c)||t.passStructure==='boot') return {down:'1',dist:'short'};
+    if(f==='screen'||c==='Draw') return {down:'2',dist:'long'};
     if(["Mesh","Stick","Spot","Spacing","Quick Game","Slants","Shallow"].includes(c)) return {down:'3',dist:'med'};
-    if(["Verticals / Four Verticals","Post","Dagger","Go Routes"].includes(c)) return {down:'2',dist:'med'};
-    if(["Smash","Flood","Sail","Y Cross","Curls / Curl Flats"].includes(c)) return {down:'2',dist:'med'};
-    if(["Bench / Corner Strike","Wheel"].includes(c)) return {down:'3',dist:'med'};
-    if(f==='play_action') return {down:'1',dist:'short'};
+    if(["Verticals / Four Verticals","Post","Dagger","Go Routes","Smash","Flood","Sail","Y Cross"].includes(c)) return {down:'2',dist:'med'};
     return {down:'1',dist:'med'};
   }
 
-  /* ════════════════════════════════════════════════════
-     SET 1 — BASE FORMATION  (plays 1-3)
-     Goal: establish your base look, read the front & box,
-     install the run threat. Walsh: "establish formations
-     so the defense must reveal its adjustments."
-     ════════════════════════════════════════════════════ */
-
-  // Play 1 — 1st-and-10 BASE RUN
-  // "The most important thing about the first play is finding out where they're going to be."
-  add({
-    setLabel:'SET 1 · Base formation — establish run, read front',
-    pred:p=>p.family==='run'&&["Inside Zone","Outside Zone / Stretch","HB Base / Zone","Power / Power O"].includes(p.concept)&&p.pers!=='10',
-    fallbacks:[p=>p.family==='run'&&p.pers!=='10', p=>isRunFamily(p.family)],
-    purpose:"1st-and-10: establish the run to read front alignment, box count, and how force fits. Walsh's first test — force them to declare.",
-    readLabel:"front alignment → run-fit read",
-    scratch:"If you see 8+ in the box pre-snap, check to quick game or back-side RPO.",
-    circle:"If it creases for 5+, mark it — run it again on a 1st down in Q2.",
-    observe:[
-      {label:"Gained 4+ / light box",sets:{box:'light'},note:"light box confirmed — keep running, add a surface or motion"},
-      {label:"Stuffed / 7+ in box",sets:{box:'heavy'},note:"heavy box — go to PA/boot & throw the matchup on the next run look"},
-      {label:"Even read / neutral",sets:{},note:"neutral — no strong tell yet, continue probing"}
-    ]
-  });
-
-  // Play 2 — 1st-and-10 MOTION PLAY (same or adjacent formation)
-  // "Motion to see how the defense adjusts — travel = man, bump/static = zone"
-  add({
-    setLabel:'',
-    pred:p=>p.motion>=1&&(p.family==='run'||p.family==='option_rpo'),
-    fallbacks:[p=>p.motion>=1, p=>p.family==='option_rpo'],
-    purpose:"1st-and-10: send motion across to ID man vs zone and find the force player. The single most important pre-snap diagnostic in the script.",
-    readLabel:"motion reaction → man / zone / rotation",
-    scratch:"If defense is already disguising pre-snap with late rotation, audible to the base run and watch the post-snap alignment.",
-    circle:"If you ID man cleanly, rub/pick concepts go to the top of the in-game menu.",
-    observe:[
-      {label:"Defender traveled with motion (man)",sets:{coverage:'man'},note:"MAN — now promote mesh, shallow, wheel, return routes, rubs. Kill zone-only concepts."},
-      {label:"Defense bumped / slid (zone)",sets:{coverage:'zone'},note:"ZONE — promote stick, spacing, flood, drift. Kill man-beaters."},
-      {label:"Safety spun hard to motion side",sets:{coverage:'zone',mof:'single'},note:"single-high rotation — attack the opposite seam, boot away from rotation"},
-      {label:"No reaction / static (zone)",sets:{coverage:'zone'},note:"static zone — snap under the soft leverage, quick game goes up in weight"}
-    ]
-  });
-
-  // Play 3 — 2nd situation (early 2nd-and-med OR 1st-and-10 stress)
-  // Boot or quick game off the same base look — "set up certain things for later" (Walsh)
-  add({
-    setLabel:'',
-    pred:p=>p.concept==='Boot / Play Action'&&p.motion<=1,
-    fallbacks:[p=>p.family==='play_action', p=>["Quick Game","Stick","Spot"].includes(p.concept)],
-    purpose:"2nd-and-medium (or 1st-and-10 STRESS): boot/PA off the run look to test LB run-keys. The same picture that just ran — do linebackers fly upfield?",
-    readLabel:"LB run-fit → boot / PA premium",
-    scratch:"If pressure is expected (scout says blitz), check to a hot/quick concept instead.",
-    circle:"If LBs flew up and the window opened, boot goes to the top of your PA menu all game.",
-    observe:[
-      {label:"LBs flew — boot was wide open",sets:{lbFit:'aggressive'},note:"boot/PA & crossers live all game — aggressive linebackers are yours"},
-      {label:"LBs stayed home / disciplined",sets:{lbFit:'disciplined'},note:"PA is less free — lean quick game and RPO to keep them honest"},
-      {label:"Pressure / blitz picked it up",sets:{pressure:'blitz'},note:"boot is compromised vs pressure — screen and hot routes are the answer"}
-    ]
-  });
-
-  /* ════════════════════════════════════════════════════
-     SET 2 — FORMATION CYCLE  (plays 4-6)
-     Goal: shift to a different personnel/formation cluster.
-     Walsh: "establish FORMATIONS — see what adjustments
-     the opponent will make." Force them to declare their
-     sub package, nickel response, and coverage family.
-     ════════════════════════════════════════════════════ */
-
-  // Play 4 — 1st-and-10, different formation family (detach TE / spread or change pers)
-  add({
-    setLabel:'SET 2 · Formation cycle — force sub-package declaration',
-    pred:p=>["Stick","Spot","Quick Game","Option / RPO","Spacing"].includes(p.concept)&&HEAVY_PERS.has(p.pers),
-    fallbacks:[p=>["Stick","Spot","Quick Game","Option / RPO"].includes(p.concept)&&p.pers!=='21'&&p.pers!=='22'&&p.pers!=='23', p=>p.family==='pass'&&p.pers!=='10'],
-    purpose:"1st-and-10 in a NEW formation cluster: detach TE or shift personnel. Does the defense sub to nickel? Do they stay base? Sully: 'catch them in a sub-package they can be exploited from.'",
-    readLabel:"personnel response → nickel sub / base stay",
-    scratch:"If they're already in nickel, this answers the question immediately — run it and note the box number.",
-    circle:"If they stay base against spread = matchup advantage to exploit all game.",
-    observe:[
-      {label:"Stayed base (no nickel sub)",sets:{personnel:'base-stays'},note:"base personnel vs spread — TE/PA matchup LIVE, exploit mismatches all game"},
-      {label:"Subbed to nickel (light box)",sets:{personnel:'subs-nickel',box:'light'},note:"nickel confirmed — run it right back at the lighter bodies"},
-      {label:"No clear sub / disguised",sets:{},note:"keep cycling formations to force a clearer declaration"}
-    ]
-  });
-
-  // Play 5 — 2nd-and-short or 2nd-and-med from new formation
-  // Stress the nickel / base response with a run back into it
-  add({
-    setLabel:'',
-    pred:p=>p.family==='run'&&["Counter","Power / Power O","Inside Zone","Outside Zone / Stretch"].includes(p.concept),
-    fallbacks:[p=>p.family==='run', p=>isRunFamily(p.family)],
-    purpose:"2nd-and-short/med STRESS: run back into the nickel or base answer from play 4. If they stayed base, you have numbers — run it. If they subbed nickel, their run fits are lighter.",
-    readLabel:"run efficiency vs their sub answer",
-    scratch:"If distance became long on 2nd down, pivot to a screen or quick concept instead.",
-    circle:"If the run finds an interior crease vs nickel personnel, mark gap runs as premium vs this team.",
-    observe:[
-      {label:"Gashed it / open interior",sets:{box:'light'},note:"they can't cover AND stop the run — attack the mismatch every series"},
-      {label:"Stuffed / TFL",sets:{box:'heavy'},note:"stout run defense — shift weight toward quick passing game"},
-      {label:"Gained 3-4 / manageable",sets:{},note:"no strong tell — keep gathering"}
-    ]
-  });
-
-  // Play 6 — 3rd-and-medium from the new formation (conversion play + coverage confirm)
-  add({
-    setLabel:'',
-    pred:p=>["Mesh","Stick","Spot","Spacing","Curls / Curl Flats"].includes(p.concept),
-    fallbacks:[p=>["Quick Game","Slants","Shallow"].includes(p.concept), p=>p.family==='pass'],
-    purpose:"3rd-and-medium BREAK: conversion concept that also confirms coverage shell. Man coverage = rubs/mesh open. Zone = spacing/stick find the window. First real 3rd-down read of the game.",
-    readLabel:"3rd-down coverage → man / zone identification",
-    scratch:"If it's 3rd-and-long due to a bad 2nd down, switch to a shot play or screen — don't throw into a crowded zone.",
-    circle:"Whichever side of the field this concept found yards on — come back to that leverage in Q2.",
-    observe:[
-      {label:"Rub/pick created the opening (man)",sets:{coverage:'man'},note:"MAN confirmed on 3rd down — promote rubs, bunches, mesh, return routes"},
-      {label:"Found the zone window (zone)",sets:{coverage:'zone'},note:"ZONE on 3rd — promote stick, spacing, curls; kill pure man-beaters"},
-      {label:"Covered up / no gain",sets:{},note:"defense won this rep — note what they showed and adjust the 3rd-down menu"}
-    ]
-  });
-
-  /* ════════════════════════════════════════════════════
-     SET 3 — STRESS THE ASSUMPTION  (plays 7-9)
-     Defense now has a read on you. Attack what they think
-     they know. Reid: "sneak in a play early just to get
-     an initial look at something you plan to use later."
-     ════════════════════════════════════════════════════ */
-
-  // Play 7 — 1st-and-10 opposite tendency (if ran, now pass; if spread, go heavy)
-  const mixedFamily = pressureHeavy ? 'screen' : (baseHeavy ? 'pass' : 'run');
-  add({
-    setLabel:'SET 3 · Stress the assumption — attack what they think they know',
-    pred:p=>p.family===mixedFamily&&p.concept!=='Other / Unknown',
-    fallbacks:[p=>p.family==='pass'&&!AGGR_SHOT_CONCEPTS.includes(p.concept), p=>p.family==='run'],
-    purpose:"1st-and-10 STRESS: flip the tendency. If the defense is confident in their run-fit after Sets 1-2, attack with a pass concept off the same look. Reid: 'see things you might not get to see in a live game.'",
-    readLabel:"tendency flip → do they over-correct?",
-    scratch:"If the previous drive stalled, stay on script — don't chase. The flip itself is the probe.",
-    circle:"If the play-action or quick pass found a big window, note the specific defender who was in conflict — target him all game.",
-    observe:[
-      {label:"Over-committed to run stop — pass was wide open",sets:{},note:"they over-corrected — keep flipping tendencies, exploit the over-reaction"},
-      {label:"Defense balanced / correct answer",sets:{},note:"well-scouted defense — must earn yards, vary personnel and motion"},
-      {label:"Pressure got home early",sets:{pressure:'blitz'},note:"they're bringing it — hot routes and screens go to top of the menu"}
-    ]
-  });
-
-  // Play 8 — Measured DEEP SHOT (confirm middle of field / safety alignment)
-  // "A deep shot to force two-high safety, then plan passes behind that safety" (Script Guide)
-  add({
-    setLabel:'',
-    pred: wantShots
-      ? p=>["Post","Dagger","Y Cross","Go Routes"].includes(p.concept)
-      : p=>["Verticals / Four Verticals","Smash","Sail","Flood"].includes(p.concept),
-    fallbacks:[p=>AGGR_SHOT_CONCEPTS.includes(p.concept), p=>p.family==='pass'],
-    purpose:"1st-and-10 BREAK: take a measured shot to confirm MOFC vs MOFO. 'One high safety came down into the box — the deep shot rewards the offense.' (Script Guide). Sets up the entire second half of the game plan.",
-    readLabel:"shell confirm → single-high or two-high",
-    scratch:"If 1st down was a gain and you have field position inside the +35, save the shot for 2nd-and-short instead.",
-    circle:"If the safety rotates late and the shot connects, this look goes on the aggressive call list for the remainder of the game.",
-    observe:[
-      {label:"One-high / MOFC (single safety deep)",sets:{mof:'single'},note:"single-high confirmed — posts, seam-benders, and dig routes are live all game"},
-      {label:"Two-high / MOFO (safeties split)",sets:{mof:'two'},note:"two-high — run it & attack seams/crossers between the safeties, smash concept is live"},
-      {label:"Disguised / late rotation",sets:{},note:"defense is disguising — add a pre-snap motion on the next shot attempt to force an early declare"}
-    ]
-  });
-
-  // Play 9 — 2nd-and-med continuation / RPO off base look
-  // Stress concept to complement the shot
-  add({
-    setLabel:'',
-    pred:p=>["Option / RPO","Jet Touch Pass","Screen","Draw"].includes(p.concept),
-    fallbacks:[p=>p.family==='option_rpo'||p.family==='screen', p=>p.family==='run'],
-    purpose:"2nd-and-medium: RPO/screen off the same look as the shot — if the defense sank safeties on the deep shot, the short RPO/screen attacks the vacated space. Classic Shanahan 'layer.'",
-    readLabel:"safety depth → RPO / screen vs deep drop",
-    scratch:"If it's actually 2nd-and-long, check to a conversion pass instead.",
-    circle:"If the screen broke for big gain after a deep shot, this pairing is gold — script it together again.",
-    observe:[
-      {label:"Safeties sank deep — screen / RPO wide open",sets:{lbFit:'aggressive'},note:"deep drop created space short — RPOs and screens are hot all game"},
-      {label:"Safeties stayed — covered short",sets:{},note:"well-disciplined — need to get 1-on-1 matchups, run it or check to quick game"},
-      {label:"Pressure / blitz on screen",sets:{pressure:'blitz'},note:"they're blitzing screens — protect next time, look for draw or slant check"}
-    ]
-  });
-
-  /* ════════════════════════════════════════════════════
-     SET 4 — MATCHUP EXPLOIT + CONTINGENCY  (plays 10-12+)
-     Only built for books ≥80 plays.
-     Walsh: "find out where your matchups are early."
-     These plays are circled or scratched based on what
-     Sets 1-3 revealed. They are the intelligence payoff.
-     ════════════════════════════════════════════════════ */
-
-  if(size>=80 && items.length < scriptTarget){
-    // Play 10 — Condensed / bunch: pressure coverage communication
-    add({
-      setLabel:'SET 4 · Matchup exploit — cash in the intelligence',
-      pred:p=>p.concept==='Mesh'||(p.concept==='Spacing'&&/bunch|stack|nasty/i.test(p.formation)),
-      fallbacks:[p=>/bunch|stack|nasty/i.test(p.formation), p=>["Mesh","Spacing","Wheel"].includes(p.concept)],
-      purpose:"1st-and-10 MATCHUP: bunch/condensed to pressure coverage communication. 'Compresses spacing and raises the price of communication errors.' (Offense File). If man, the picks spring it. If zone, spacing finds the window.",
-      readLabel:"bunch reaction → communication stress / matchup exposed",
-      scratch:"If coverage is confirmed zone AND disciplined, skip this and go straight to flood/dagger instead.",
-      circle:"If picks/rubs sprung open routes, bunch concepts go to the top of Q2 red zone menu.",
+  const Q=[
+    {
+      setLabel:'QUESTION TREE · Pre-snap motion & force',
+      question:'How do they handle motion?', role:'motion_probe', sit:{down:'1',dist:'med'},
+      pred:p=>p.motion>=1,
+      fallbacks:[p=>p.motion>=1||/motion|jet|orbit/i.test(p.play), p=>p.family==='option_rpo'||p.family==='screen'],
+      purpose:'Use the first script objective to make the defense declare motion rules. We are not just calling a play — we are asking whether they bump, travel, spin, widen, or ignore motion.',
+      scratch:'If they already declared motion pre-snap on the sideline or by alignment, keep the objective but choose the best down/distance variant.',
+      circle:'If motion creates leverage or a clean tell, keep using that motion family until they adjust.',
       observe:[
-        {label:"Picks / rubs sprung it (man)",sets:{coverage:'man'},note:"man is vulnerable to traffic — bunch rubs and return routes go in all game"},
-        {label:"Passed off cleanly (zone)",sets:{coverage:'zone'},note:"zone communication is solid — use spacing/snag from bunch, not rubs"},
-        {label:"Pressured out of it",sets:{pressure:'blitz'},note:"they blitz bunch — quick pop or slant check is the answer"}
+        {label:'Defender traveled with motion — man tell',sets:{coverage:'man'},note:'Man tell. Promote mesh, shallow, rubs, return routes, and motion stacks.'},
+        {label:'Defense bumped/slid — zone or match tell',sets:{coverage:'zone'},note:'Bump tell. Promote flood, stick, spacing, and same-picture runs at the lightened area.'},
+        {label:'Safety spun down/rotated with motion',sets:{coverage:'zone',mof:'single'},note:'Rotation tell. Attack opposite seam/glance or come back with boot away.'},
+        {label:'Overhang widened hard with motion',sets:{},note:'Motion widened force. Run inside/power/counter back into the space.'},
+        {label:'No meaningful motion adjustment',sets:{},note:'Static response. Keep stressing motion until they pay for it.'}
       ]
-    });
-  }
-
-  if(size>=80 && items.length < scriptTarget){
-    // Play 11 — Short yardage or score-early concept
-    // "I want to score in twelve plays the first time I have the ball" (Script Guide)
-    add({
-      setLabel:'',
-      pred:p=>["Power / Power O","Inside Zone","Dive"].includes(p.concept)&&p.pers!=='10',
-      fallbacks:[p=>p.family==='run', p=>["Quick Game","Slants"].includes(p.concept)],
-      purpose:"2nd/3rd-and-short SCORE ATTEMPT: power run or quick conversion to put points on the board early. 'Score in twelve plays the first time.' If you can get a first down or score here, the script has done its job.",
-      readLabel:"short-yardage stop — do they have the numbers?",
-      scratch:"If it's not actually short yardage, skip to next scripted play.",
-      circle:"If it converts, keep this personnel package in the game for the next series.",
+    },
+    {
+      setLabel:'QUESTION TREE · Run fit / force / box',
+      question:'Who is the force player?', role:'force_probe', sit:{down:'1',dist:'med'},
+      pred:p=>{const t=intentSafe(p)||{};return t.conflictDefender==='force'||t.runScheme==='wide_zone'||t.runScheme==='sweep_toss'||p.concept==='Outside Zone / Stretch';},
+      fallbacks:[p=>p.family==='run'&&p.pers!=='10', p=>p.family==='screen'||p.family==='option_rpo'],
+      purpose:'Stress the perimeter/surface so you can identify whether corner, nickel, safety, or OLB is force and whether they can tackle in space.',
+      scratch:'If the edge is badly out-leveraged pre-snap, use a quick perimeter throw instead and still record force.',
+      circle:'If the force player is late or poor at tackling, keep attacking perimeter and crack/replace rules.',
       observe:[
-        {label:"Converted / scored",sets:{},note:"scoring drive complete — stay on script, you have momentum"},
-        {label:"Stopped at the line",sets:{box:'heavy'},note:"goal-line defense is solid — note their stunt and use draw or boot next short-yardage"},
-        {label:"Neutral gain",sets:{},note:"manageable — continue the drive"}
+        {label:'Corner was force',sets:{force:'corner'},note:'Corner force. Use crack/replace, bubbles, or runs that make the corner tackle.'},
+        {label:'Nickel/apex was force',sets:{force:'nickel'},note:'Nickel force. Attack him with RPO, arc, crack, or inside if he widens.'},
+        {label:'Safety was force / inserted',sets:{force:'safety',mof:'single'},note:'Safety force. PA/glance/seam and boot alerts are live.'},
+        {label:'OLB/Sam was force',sets:{force:'sam'},note:'OLB force. Test his space tackle and boot discipline.'}
       ]
-    });
-  }
-
-  if(size>=80 && items.length < scriptTarget){
-    // Play 12 — Blitz response probe (test whether pressure changes based on score/field pos)
-    add({
-      setLabel:'',
-      pred:p=>p.family==='screen'||(["Slants","Quick Game","Draw"].includes(p.concept)),
-      fallbacks:[p=>p.family==='screen', p=>["Slants","Quick Game"].includes(p.concept)],
-      purpose:"1st-and-10 BLITZ PROBE: call a screen or quick concept to test whether they bring pressure now that the game has an early tone. 'Include at least one hurry-up or silent count play to force substitutions and reveal blitz tendencies.' (Script Guide).",
-      readLabel:"pressure read — are they blitzing early?",
-      scratch:"If no signs of pressure, save this and run a run play instead.",
-      circle:"If screen beats the blitz for big gain, RB/TE screen goes on the hot list for this game.",
+    },
+    {
+      setLabel:'QUESTION TREE · Split flow / boot discipline',
+      question:'Does the edge chase boot?', role:'boot_edge_probe', sit:{down:'1',dist:'short'},
+      pred:p=>{const t=intentSafe(p)||{};return t.passStructure==='boot'||p.concept==='Boot / Play Action'||/boot|naked|keeper|waggle/i.test(p.play);},
+      fallbacks:[p=>p.family==='play_action', p=>['Flood','Y Cross','Sail'].includes(p.concept)],
+      purpose:'Show run action and find out if the backside edge chases, squeezes, sits, or contains. This determines whether boot/keeper/leak is a weapon.',
+      scratch:'If pressure/edge contain is obvious, get to a quick answer and log that boot is not free.',
+      circle:'If the edge chases and LBs bite, boot and crossers are priority calls.',
       observe:[
-        {label:"Blitzed into the screen / screen won",sets:{pressure:'blitz'},note:"blitzing confirmed — screens and quick game are live weapons, promote them"},
-        {label:"Sat back / dropped 7-8",sets:{pressure:'passive'},note:"passive coverage — shots and PA have time to develop; draw also available"},
-        {label:"Neutral read",sets:{},note:""}
+        {label:'Edge chased/squeezed run action',sets:{lbFit:'aggressive'},note:'Boot/keeper/leak are live. Come back with same picture.'},
+        {label:'Edge sat/contained boot',sets:{lbFit:'disciplined'},note:'Boot is capped. Run inside, quick game, or screen behind contain.'},
+        {label:'LBs bit hard, crosser open',sets:{lbFit:'aggressive'},note:'PA crossers and Y cross are live.'},
+        {label:'Pressure killed the action',sets:{pressure:'blitz'},note:'Protect it or replace it with quick/screen.'}
       ]
-    });
-  }
-
-  /* Extended script for deep books (140+ plays) */
-  if(size>=140 && items.length < scriptTarget){
-    add({
-      setLabel:'SET 5 · Extended — boundary & empty (deep books only)',
-      pred:p=>p.pers==='10'||/empty/i.test(p.formation),
-      fallbacks:[p=>["Smash","Bench / Corner Strike","Flood"].includes(p.concept)],
-      purpose:"EMPTY / BOUNDARY: force a coverage declaration and test the bumper answer. 'Empty to force base to cover with insufficient adjust time.' (Offense File). Also tests boundary leverage.",
-      readLabel:"empty answer → bumper or locked man",
-      scratch:"If score is close and you need a conversion, skip empty and run a reliable 3rd-down concept.",
-      circle:"If empty creates a clean matchup, note which position group they leave exposed.",
+    },
+    {
+      setLabel:'QUESTION TREE · Interior run answers',
+      question:'Can we run into the box they are giving us?', role:'run_fit_probe', sit:{down:'1',dist:'med'},
+      pred:p=>p.family==='run'&&['Inside Zone','Power / Power O','Counter','Duo','HB Base / Zone','Dive'].includes(p.concept),
+      fallbacks:[p=>p.family==='run', p=>p.family==='option_rpo'],
+      purpose:'Make the defense prove how it wants to fit your core run. This checks box count, LB flow, DL movement, and whether your base run has a real crease.',
+      scratch:'If they overload the box, convert the question to RPO/PA and record heavy-box behavior.',
+      circle:'If the run creates 4+ and the box is fair, this becomes a base call until they add a body.',
       observe:[
-        {label:"Pressured empty (blitz)",sets:{pressure:'blitz'},note:"keep a hot answer / bumper; empty draws pressure from this team"},
-        {label:"Locked man coverage",sets:{coverage:'man'},note:"empty reveals man — bring motion and rub concepts into the empty package"},
-        {label:"Played zone / dropped",sets:{coverage:'zone'},note:"zone vs empty — find the seam, stick/spot or seam route from the TE"}
+        {label:'Light box / run created 4+',sets:{box:'light'},note:'Run it until they spin down. Core run is live.'},
+        {label:'Loaded box / stuffed',sets:{box:'heavy'},note:'Heavy box. PA/RPO/screens/perimeter answers move up.'},
+        {label:'LB fast flow / overflow',sets:{lbFit:'aggressive'},note:'Counter, boot, and reverse/return are live.'},
+        {label:'DL won / no movement',sets:{},note:'Do not kill the whole series; note whether this was execution or structure.'}
       ]
-    });
-  }
+    },
+    {
+      setLabel:'QUESTION TREE · Conflict defender',
+      question:'Can we isolate the apex?', role:'apex_probe', sit:{down:'1',dist:'med'},
+      pred:p=>{const t=intentSafe(p)||{};return p.family==='option_rpo'||t.conflictDefender==='apex'||t.primaryStress==='apex_conflict';},
+      fallbacks:[p=>p.family==='screen'||['Stick','Quick Game','Slants'].includes(p.concept), p=>p.family==='run'],
+      purpose:'Put the apex/overhang in conflict. Does he squeeze the run, widen to access, hang inside, or trigger fast?',
+      scratch:'If the apex is walked out or the throw is capped, hand/run the box or use another answer.',
+      circle:'If the apex is wrong twice, keep isolating him until the defense changes structure.',
+      observe:[
+        {label:'Apex squeezed inside',sets:{},note:'Throw access/bubble/quick now.'},
+        {label:'Apex widened with access',sets:{box:'light'},note:'Run inside/downhill.'},
+        {label:'Apex sat balanced',sets:{},note:'Need motion, stack, or another conflict.'},
+        {label:'Safety inserted over apex',sets:{mof:'single'},note:'Glance/seam/post window is live.'}
+      ]
+    },
+    {
+      setLabel:'QUESTION TREE · 3rd-down coverage',
+      question:'Are they man or zone on 3rd down?', role:'coverage_probe', sit:{down:'3',dist:'med'},
+      pred:p=>p.family==='pass'&&['Mesh','Stick','Spacing','Spot','Smash','Flood','Curls / Curl Flats','Slants','Quick Game'].includes(p.concept),
+      fallbacks:[p=>p.family==='pass', p=>p.family==='screen'],
+      purpose:'Use a conversion call to identify 3rd-down coverage family. This question builds your money-down menu.',
+      scratch:'If it becomes 3rd-and-long, let the live caller choose the long-yardage variant but keep the coverage question.',
+      circle:'If a coverage family is confirmed, use the right 3rd-down bucket for the rest of the half.',
+      observe:[
+        {label:'Man coverage / rubs mattered',sets:{coverage:'man'},note:'Promote mesh, shallow, bunch, stacks, slants, wheels.'},
+        {label:'Zone coverage / window throw',sets:{coverage:'zone'},note:'Promote stick, spacing, flood, smash, curl-flat.'},
+        {label:'Match coverage / carried routes',sets:{coverage:'zone'},note:'Treat as match; use motion, stacks, and leverage routes.'},
+        {label:'Pressure dictated the throw',sets:{pressure:'blitz'},note:'3rd-down protection/hot answer is required.'}
+      ]
+    },
+    {
+      setLabel:'QUESTION TREE · Pressure checks',
+      question:'Do they pressure empty or long-yardage?', role:'pressure_empty_probe', sit:{down:'2',dist:'long'},
+      pred:p=>{const t=intentSafe(p)||{};return t.surface==='empty'||/empty|5wr|5 wr/i.test(p.formation)||t.hasHot==='built_in'||p.family==='screen'||p.concept==='Draw';},
+      fallbacks:[p=>p.family==='screen'||p.concept==='Draw'||['Slants','Quick Game','Stick'].includes(p.concept), p=>p.family==='pass'],
+      purpose:'Force the pressure check. If they bring it, your answer package must be hot/screen/draw; if they drop, you can hold the ball longer.',
+      scratch:'If you cannot protect the chosen look, use the quick/hot variant and still record pressure.',
+      circle:'If they show a predictable pressure check, the app will keep pushing hot answers until they stop.',
+      observe:[
+        {label:'Pressure / blitz came',sets:{pressure:'blitz'},note:'Hot, screen, draw, and max-protect answers move up.'},
+        {label:'Dropped 7-8 / passive rush',sets:{pressure:'passive'},note:'Intermediate routes and shots have more time.'},
+        {label:'Locked man with pressure look',sets:{coverage:'man',pressure:'blitz'},note:'Use rubs and fast man-beaters with protection.'}
+      ]
+    },
+    {
+      setLabel:'QUESTION TREE · Screen/draw discipline',
+      question:'Do they retrace screens or drop out for draw?', role:'screen_retrace_probe', sit:{down:'2',dist:'long'},
+      pred:p=>p.family==='screen'||p.concept==='Draw'||/screen|draw/i.test(p.play),
+      fallbacks:[p=>p.family==='screen', p=>p.concept==='Draw', p=>['Quick Game','Slants'].includes(p.concept)],
+      purpose:'Test rush discipline. Screens punish rush/pressure; draw punishes coverage drop and pass-rush lanes.',
+      scratch:'If they are not rushing, do not force a screen — use the variant that still asks the draw/space question.',
+      circle:'If screen/draw is clean, it becomes the answer to pressure and long yardage.',
+      observe:[
+        {label:'Screen was wide open / poor retrace',sets:{pressure:'blitz'},note:'Screen game is live.'},
+        {label:'Defense retraced / all over screen',sets:{},note:'Screens need constraint or protection; use draw/quick instead.'},
+        {label:'Coverage dropped, draw lane opened',sets:{pressure:'passive'},note:'Draw is live vs drop-eight/soft rush.'},
+        {label:'Spy/contain sat on draw',sets:{},note:'Do not overuse draw; work quick game/screens.'}
+      ]
+    },
+    {
+      setLabel:'QUESTION TREE · Safety shell',
+      question:'Does the shell give us MOFC or MOFO answers?', role:'shell_probe', sit:{down:'2',dist:'med'},
+      pred:p=>['Smash','Flood','Sail','Y Cross','Verticals / Four Verticals','Post','Dagger','Go Routes'].includes(p.concept),
+      fallbacks:[p=>p.family==='play_action', p=>p.family==='pass'&&!['Quick Game','Stick'].includes(p.concept)],
+      purpose:'Make the safeties declare middle-open/middle-closed rules and whether shots, seams, crossers, or corner routes are there.',
+      scratch:'If protection is bad or pressure is likely, take the quick/screen variant.',
+      circle:'If the shell declares early, tag your shot menu by shell for the rest of the game.',
+      observe:[
+        {label:'Single-high / MOFC',sets:{mof:'single'},note:'Seams, post, glance, and PA shots get promoted.'},
+        {label:'Two-high / MOFO',sets:{mof:'two'},note:'Smash, hole shots, draw, and run box-count answers get promoted.'},
+        {label:'Rotated late',sets:{},note:'Motion/formation is affecting the shell; keep stressing it.'}
+      ]
+    },
+    {
+      setLabel:'QUESTION TREE · Bunch/condensed communication',
+      question:'How do they handle bunch/stack/condensed?', role:'matchup_probe', sit:{down:'1',dist:'med'},
+      pred:p=>/bunch|stack|nasty|tight|condensed/i.test(p.formation)||['Mesh','Spacing','Wheel','Smash'].includes(p.concept),
+      fallbacks:[p=>['Mesh','Spacing','Wheel','Smash','Spot'].includes(p.concept), p=>p.family==='pass'],
+      purpose:'Stress coverage communication. Do they banjo, lock, zone off, or bust assignments?',
+      scratch:'If they show clean zone checks, use spacing/flood instead of pure rub.',
+      circle:'If condensed/bunch creates leverage, carry it into red zone and 3rd down.',
+      observe:[
+        {label:'Lock man / rubs worked',sets:{coverage:'man'},note:'Bunch rubs and return routes are live.'},
+        {label:'Banjo/passed off cleanly',sets:{coverage:'zone'},note:'Use spacing, flood, and settle routes rather than relying on rubs.'},
+        {label:'Communication bust',sets:{},note:'Keep using condensed/stacks until they fix it.'}
+      ]
+    },
+    {
+      setLabel:'QUESTION TREE · Conversion package',
+      question:'What is our best short-yardage answer?', role:'conversion_probe', sit:{down:'3',dist:'short'},
+      pred:p=>['Power / Power O','Inside Zone','Dive','Duo','Quick Game','Slants','Option / RPO'].includes(p.concept),
+      fallbacks:[p=>p.family==='run', p=>p.family==='pass'],
+      purpose:'Identify the play you trust when you must stay on the field. This is install confidence plus defensive numbers, not just concept weight.',
+      scratch:'If it is not short yardage, let the live caller choose the right variant and move this objective later.',
+      circle:'If it converts cleanly, keep it as the game’s first short-yardage answer.',
+      observe:[
+        {label:'Converted cleanly',sets:{},note:'This package is trusted.'},
+        {label:'Stopped by numbers/heavy box',sets:{box:'heavy'},note:'Need play-action, RPO, or perimeter answer in short yardage.'},
+        {label:'Execution issue, play was there',sets:{},note:'Do not kill the call; mark execution.'}
+      ]
+    },
+    {
+      setLabel:'QUESTION TREE · Compressed field / red zone',
+      question:'How do they defend compressed space?', role:'redzone_probe', sit:{down:'2',dist:'short'},
+      pred:p=>['Power / Power O','Inside Zone','Duo','Quick Game','Slants','Stick','Smash','Mesh','Boot / Play Action'].includes(p.concept),
+      fallbacks:[p=>p.family==='run'||p.family==='pass', p=>p.family==='play_action'],
+      purpose:'Build the red-zone menu early: can we run it, isolate quick leverage, or hit boot/PA without the field shrinking us?',
+      scratch:'If you are not near the red zone, treat this as a short-yardage/compressed-space rehearsal.',
+      circle:'If it wins, tag it as a red-zone call.',
+      observe:[
+        {label:'Quick leverage won',sets:{coverage:'man'},note:'Quick game/rubs are good red-zone answers.'},
+        {label:'Box dominated / run won',sets:{box:'light'},note:'Downhill red-zone runs are live.'},
+        {label:'Compressed field covered it',sets:{},note:'Need motion, bunch, boot, or misdirection.'}
+      ]
+    }
+  ];
 
+  Q.slice(0,scriptTarget).forEach(addQuestion);
   scout.script=items;
   scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};
   save(LS.scout,scout);
   return items;
 }
+
 
 /* apply a script observation -> confirm reads AND count the scripted play in adaptive tracking */
 function applyScriptObservation(idx,obsIdx,variant,situation){
@@ -3638,11 +3635,11 @@ function scriptCSV(){
     '2|long':'2nd & Long','3|short':'3rd & Short','3|med':'3rd & Med','3|long':'3rd & Long',
     '4|short':'4th & Short','4|med':'4th & Med'
   };
-  const head=['#','Situation','Set','Formation','Personnel','Play','Concept','Purpose','Read','Scratch if','Circle if'];
+  const head=['#','Situation','Set','Question','Formation','Personnel','Play','Concept','Purpose','Read','Scratch if','Circle if'];
   const esc=v=>/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
   return [head.join(',')].concat(rows.map(r=>{
     const sit=r.situation?SIT_LABEL[r.situation.down+'|'+r.situation.dist]||'':''
-    return [r.n,sit,r.setLabel||'',r.formation,r.pers,r.play,r.concept,r.purpose,r.readLabel,r.scratch||'',r.circle||''].map(String).map(esc).join(',');
+    return [r.n,sit,r.setLabel||'',r.question||r.readLabel||'',r.formation,r.pers,r.play,r.concept,r.purpose,r.readLabel,r.scratch||'',r.circle||''].map(String).map(esc).join(',');
   })).join('\n');
 }
 function scriptText(){
@@ -3657,6 +3654,7 @@ function scriptText(){
     if(r.setLabel&&r.setLabel!==lastSet){lastSet=r.setLabel;out+='\n── '+r.setLabel+' ──\n';}
     const sit=r.situation?'['+( SIT_LABEL[r.situation.down+'|'+r.situation.dist]||'' )+'] ':'';
     out+=`${r.n}. ${sit}${r.formation} [${r.pers}] — ${r.play}  (${r.concept})\n`;
+    out+=`   Question: ${r.question||r.readLabel}\n`;
     out+=`   Purpose: ${r.purpose}\n`;
     out+=`   Read: ${r.readLabel}\n`;
     if(r.scratch)out+=`   ✕ Scratch if: ${r.scratch}\n`;
@@ -3908,8 +3906,8 @@ function renderScriptCaller(){
   const top=el('div','script-live-top');
   const titleBox=el('div');
   titleBox.appendChild(el('div','script-live-kicker','Live opening script caller'));
-  titleBox.appendChild(el('div','script-live-title',`Objective ${state.idx+1} of ${items.length}: ${item.readLabel||'probe the defense'}`));
-  titleBox.appendChild(el('div','script-live-sub','Tap the current down/distance range. The caller uses the same scoring logic as In-Game, then adds this script objective as a bonus so the call still gathers the information you wanted.'));
+  titleBox.appendChild(el('div','script-live-title',`Question ${state.idx+1} of ${items.length}: ${item.question||item.readLabel||'probe the defense'}`));
+  titleBox.appendChild(el('div','script-live-sub','Tap the current down/distance range. The caller uses the same scoring logic as In-Game, then adds this scout question as a bonus so the call still fits the current situation while collecting the information you wanted.'));
   top.appendChild(titleBox);
 
   const controls=el('div','script-live-controls');
@@ -3947,7 +3945,7 @@ function renderScriptCaller(){
   if(item.scriptRole){const rb=el('span','pill');rb.style.cssText='background:#e7eef7;color:#2f5891';rb.textContent=item.scriptRole.replace(/_/g,' ');meta.appendChild(rb);}
   call.appendChild(meta);
   call.appendChild(el('div','script-call-purpose',item.purpose));
-  const rd=el('div','script-call-read');rd.innerHTML=`<b>What this call is telling you:</b> ${item.readLabel}`;call.appendChild(rd);
+  const rd=el('div','script-call-read');rd.innerHTML=`<b>Scout question:</b> ${item.question||item.readLabel}`;call.appendChild(rd);
   if(item.scratch){const scr=el('div');scr.style.cssText='font-size:11px;color:#b84020;margin-top:7px;background:#fdf3f1;border-left:3px solid #e7b3a8;padding:5px 8px;border-radius:0 3px 3px 0';scr.innerHTML=`<b>✕ Scratch/check if:</b> ${item.scratch}`;call.appendChild(scr);}
   const log=el('div','script-live-log');
   const logCell=el('div');logCell.style.minWidth='260px';logCell.appendChild(el('label',null,'Defense/result observed'));
@@ -4153,7 +4151,15 @@ const INTENT_OPTIONS={
   passStructure:['auto','none','quick_game','dropback','play_action','boot','rpo_access','screen','shot','draw'],
   series:['auto','Inside Zone Series','Wide Zone Series','Duo/Downhill Series','Power Series','Counter Series','Trap/Wham Series','Perimeter Series','Jet Series','RPO Access Series','Quick Game Series','Play-Action/Boot Series','Flood/Sail Series','Man-Beater Series','Screen Series','Vertical Series','Smash/Corner Series','Draw Series','Changeup'],
   conflictDefender:['auto','none','apex','edge','force','playside_lb','backside_lb','safety','corner','nickel','box','coverage_shell','pass_rush'],
-  primaryStress:['auto','none','box_count','extra_gap','horizontal_stretch','vertical_stretch','eye_discipline','coverage_leverage','man_zone_id','apex_conflict','force_conflict','lb_flow','protection_stress','space_perimeter','short_yardage']
+  primaryStress:['auto','none','box_count','extra_gap','horizontal_stretch','vertical_stretch','eye_discipline','coverage_leverage','man_zone_id','apex_conflict','force_conflict','lb_flow','protection_stress','space_perimeter','short_yardage'],
+  routeFamily:['auto','none','quick','stick_spacing','slant','mesh_shallow','flood_sail','smash_corner','verts_seams','dagger_dig','crossers','screen','rpo_access','draw','checkdown'],
+  readType:['auto','none','one_read','half_field','full_field','pure_progression','key_defender','alert_access','hot_answer'],
+  routeTiming:['auto','none','quick','intermediate','long_developing','delayed'],
+  beatsCoverage:['auto','balanced','man','zone','match','mofc','mofo','pressure','soft_coverage','redzone'],
+  weakVs:['auto','none','pressure','tight_man','zone_drop','match_carry','edge_contain','loaded_box','retrace','compressed_field'],
+  requiresProtection:['auto','none','low','medium','high','max_protect'],
+  hasHot:['auto','yes','no','built_in','checkdown'],
+  installConfidence:['auto','emergency','installed','repped','trusted','critical_down']
 };
 function tagKey(formation,play){return corrKey(formation,play);}
 function getIntentPatch(formation,play){return _intentOverrides[tagKey(formation,play)]||null;}
@@ -4339,9 +4345,69 @@ function autoIntentTags(pl){
   else if(/jailbreak/.test(text)) screenType='jailbreak';
   else if(passStructure==='screen') screenType='standard';
 
+  // v9 Play IQ — route detail / timing / protection / hot answer.
+  let routeFamily='none';
+  if(passStructure==='screen') routeFamily='screen';
+  else if(passStructure==='draw') routeFamily='draw';
+  else if(passStructure==='rpo_access') routeFamily='rpo_access';
+  else if(/mesh|shallow|drive/.test(text)) routeFamily='mesh_shallow';
+  else if(/flood|sail|y cross|cross/.test(text)) routeFamily='flood_sail';
+  else if(/smash|corner|bench/.test(text)) routeFamily='smash_corner';
+  else if(/verts|vertical|seam|go|fade|post/.test(text)) routeFamily='verts_seams';
+  else if(/dagger|dig|drive/.test(text)) routeFamily='dagger_dig';
+  else if(/stick|spacing|spot|snag/.test(text)) routeFamily='stick_spacing';
+  else if(/slant/.test(text)) routeFamily='slant';
+  else if(passStructure==='quick_game') routeFamily='quick';
+  else if(fam==='pass'||fam==='play_action') routeFamily='checkdown';
+
+  let readType='none';
+  if(passStructure==='screen'||passStructure==='rpo_access') readType='key_defender';
+  else if(routeFamily==='quick'||routeFamily==='stick_spacing'||routeFamily==='slant') readType='one_read';
+  else if(['flood_sail','smash_corner','mesh_shallow','verts_seams'].includes(routeFamily)) readType='half_field';
+  else if(['dagger_dig','crossers'].includes(routeFamily)) readType='pure_progression';
+  else if(fam==='pass'||fam==='play_action') readType='half_field';
+
+  let routeTiming='none';
+  if(passStructure==='screen'||passStructure==='rpo_access'||passStructure==='quick_game'||routeFamily==='quick'||routeFamily==='slant'||routeFamily==='stick_spacing') routeTiming='quick';
+  else if(passStructure==='boot'||passStructure==='play_action'||['flood_sail','smash_corner','mesh_shallow','dagger_dig'].includes(routeFamily)) routeTiming='intermediate';
+  else if(passStructure==='shot'||routeFamily==='verts_seams') routeTiming='long_developing';
+  else if(passStructure==='draw') routeTiming='delayed';
+
+  let beatsCoverage='balanced';
+  if(routeFamily==='mesh_shallow'||routeFamily==='slant') beatsCoverage='man';
+  else if(['stick_spacing','flood_sail','smash_corner'].includes(routeFamily)) beatsCoverage='zone';
+  else if(['verts_seams','dagger_dig'].includes(routeFamily)) beatsCoverage='mofc';
+  else if(passStructure==='screen'||passStructure==='draw') beatsCoverage='pressure';
+  else if(passStructure==='rpo_access') beatsCoverage='soft_coverage';
+
+  let weakVs='none';
+  if(routeTiming==='long_developing') weakVs='pressure';
+  else if(routeFamily==='mesh_shallow') weakVs='zone_drop';
+  else if(routeFamily==='stick_spacing') weakVs='tight_man';
+  else if(passStructure==='screen') weakVs='retrace';
+  else if(passStructure==='draw') weakVs='loaded_box';
+  else if(passStructure==='boot') weakVs='edge_contain';
+
+  let requiresProtection='none';
+  if(routeTiming==='quick'||passStructure==='screen'||passStructure==='rpo_access') requiresProtection='low';
+  else if(routeTiming==='intermediate') requiresProtection='medium';
+  else if(routeTiming==='long_developing') requiresProtection='high';
+  if(/max protect|max pro|protect/.test(text)) requiresProtection='max_protect';
+
+  let hasHot='no';
+  if(['quick_game','screen','rpo_access'].includes(passStructure)||['quick','slant','stick_spacing'].includes(routeFamily)) hasHot='built_in';
+  else if(/check|arrow|flat|swing|shallow/.test(text)) hasHot='checkdown';
+  if(fam==='run') hasHot='none';
+
+  let installConfidence='repped';
+  if(pl.concept==='Other / Unknown') installConfidence='installed';
+  if(['Inside Zone','Power / Power O','Counter','Stick','Quick Game','Screen','Boot / Play Action'].includes(pl.concept)) installConfidence='trusted';
+  if(['Verticals / Four Verticals','Dagger','Post','Go Routes'].includes(pl.concept)) installConfidence='repped';
+
   const confidence=(pl.concept&&pl.concept!=='Other / Unknown'?0.78:0.55) + (playType!=='unknown'?0.08:0) + (motionType!=='none'?0.04:0);
   return {
     playType,surface,spacing,backfield,motionType,motionPurpose,runScheme,pointOfAttack,passStructure,screenType,actionFamily,series,role,conflictDefender,primaryStress,timing,protection,
+    routeFamily,readType,routeTiming,beatsCoverage,weakVs,requiresProtection,hasHot,installConfidence,
     confidence:Math.max(0.45,Math.min(0.94,confidence))
   };
 }
@@ -4412,7 +4478,7 @@ function renderIntentTable(){
     tr.appendChild(el('td',null,p.formation));
     tr.appendChild(el('td',null,p.play));
     tr.appendChild(el('td',null,p.concept));
-    ['surface','motionPurpose','runScheme','passStructure','series','conflictDefender','primaryStress'].forEach(field=>{
+    ['surface','motionPurpose','runScheme','passStructure','series','conflictDefender','primaryStress','routeFamily','readType','routeTiming','beatsCoverage','requiresProtection','hasHot','installConfidence'].forEach(field=>{
       const td=el('td'); td.appendChild(makeIntentSel(p.formation,p.play,field,t[field])); tr.appendChild(td);
     });
     const ed=el('td','intent-edited-cell');
@@ -4421,7 +4487,7 @@ function renderIntentTable(){
     tbody.appendChild(tr);
   });
   if(rows.length>PAGE){
-    const tr=el('tr');const td=el('td');td.colSpan=11;td.style.cssText='padding:10px;text-align:center;color:#8a908a;font-size:12px';
+    const tr=el('tr');const td=el('td');td.colSpan=18;td.style.cssText='padding:10px;text-align:center;color:#8a908a;font-size:12px';
     td.textContent='Showing first '+PAGE+' of '+rows.length+' — search or filter to narrow.';
     tr.appendChild(td);tbody.appendChild(tr);
   }
@@ -4429,12 +4495,12 @@ function renderIntentTable(){
 function exportIntentTags(){
   const rows=intentRows();
   if(!rows.length){toast('No intent tags to export');return;}
-  const head=['Formation','Play','Concept','Play Type','Surface','Motion Purpose','Run Scheme','Pass Structure','Series','Conflict Defender','Primary Stress','Edited'];
+  const head=['Formation','Play','Concept','Play Type','Surface','Motion Purpose','Run Scheme','Pass Structure','Series','Conflict Defender','Primary Stress','Route Family','Read Type','Route Timing','Beats Coverage','Weak Vs','Requires Protection','Has Hot','Install Confidence','Edited'];
   const esc=v=>/[",\n]/.test(String(v))?'"'+String(v).replace(/"/g,'""')+'"':String(v);
   const body=rows.map(p=>{
     const t=getIntentTags(p);
     const edited=!!getIntentPatch(p.formation,p.play);
-    return [p.formation,p.play,p.concept,t.playType,t.surface,t.motionPurpose,t.runScheme,t.passStructure,t.series,t.conflictDefender,t.primaryStress,edited?'yes':'no'].map(esc).join(',');
+    return [p.formation,p.play,p.concept,t.playType,t.surface,t.motionPurpose,t.runScheme,t.passStructure,t.series,t.conflictDefender,t.primaryStress,t.routeFamily,t.readType,t.routeTiming,t.beatsCoverage,t.weakVs,t.requiresProtection,t.hasHot,t.installConfidence,edited?'yes':'no'].map(esc).join(',');
   });
   const blob=new Blob([[head.join(','),...body].join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='play_intent_tags.csv';document.body.appendChild(a);a.click();a.remove();
@@ -4453,7 +4519,15 @@ function extractIntentFromCSV(parts,cols){
     playType:['play_type','playtype'],
     actionFamily:['action_family'],
     pointOfAttack:['point_of_attack','poa'],
-    screenType:['screen_type']
+    screenType:['screen_type'],
+    routeFamily:['route_family','routefamily'],
+    readType:['read_type','readtype'],
+    routeTiming:['route_timing','timing'],
+    beatsCoverage:['beats_coverage','beats','beats_vs'],
+    weakVs:['weak_vs','weakness','bad_vs'],
+    requiresProtection:['requires_protection','protection','protection_need'],
+    hasHot:['has_hot','hot','hot_answer'],
+    installConfidence:['install_confidence','install','confidence']
   };
   const out={};
   Object.entries(alias).forEach(([field,names])=>{

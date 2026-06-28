@@ -1,24 +1,26 @@
-# Call Sheet Coach Brain v8
+# Call Sheet Coach Brain v9
 
-Static single-file football call-sheet app with Coach Brain v8.
+This version adds Play IQ tags and an opening-script question tree.
 
-## What v8 adds
+## What is new in v9
 
-- Drive Sequencing Brain that tracks the last 12 calls.
-- Defensive tells gathered from the tailored diagnosis panel.
-- Pending answer concepts that expire over the next few calls.
-- Same-picture / different-stress scoring boost.
-- Self-scout guardrail that cools exact repeated formation+play calls and same picture/same concept overuse.
-- Next-call suggestions now multiply the regular in-game score by sequence fit.
-- A live sequence card shows what was just shown, what the defense told you, and the pending answers.
+- Opening script is built around scout questions instead of fixed play slots.
+- Live script caller still uses the same scoring engine as the In-Game caller.
+- Script objectives ask things like: how do they handle motion, who is force, does the edge chase boot, can we isolate the apex, are they man or zone on 3rd down, and do they pressure empty/long yardage.
+- Formation & Play Intent Tags now include Play IQ fields:
+  - route family
+  - read type
+  - route timing
+  - coverage fit
+  - weak-vs tag
+  - protection requirement
+  - hot answer
+  - install confidence
+- Play IQ tags are auto-generated from formation/play/concept names and can be edited on the Data tab.
+- Uploaded CSVs are auto-tagged and can also include expanded intent/Play IQ columns.
 
 ## GitHub Pages
 
-1. Create a GitHub repository.
-2. Upload the contents of this folder.
-3. Go to Settings -> Pages.
-4. Choose Deploy from a branch.
-5. Select main and / root.
-6. Save.
+Upload the contents of this folder to a GitHub repository, then enable Pages from Settings → Pages → Deploy from a branch → main / root.
 
-The app stores saved playbooks, uploaded databases, tag edits, and game data in the user's browser storage. Use the app's backup/download tools to move the same setup between devices.
+The app is static. User data is stored in each browser's local storage. Use the app's backup/download feature to move a playbook between devices.
