@@ -332,6 +332,13 @@
   .script-live-controls .dd-btn.on{background:var(--field);color:#fff;border-color:var(--field)}
 
 
+
+  /* ---------- Intent tag editor ---------- */
+  .intent-edited td{background:#f3f8ff}
+  .intent-auto{font-size:9px;font-weight:800;color:#8a908a;text-transform:uppercase;letter-spacing:.04em}
+  .intent-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:9.5px;font-weight:800;background:#dfeeff;color:#2f5891;margin-left:4px}
+  .intent-sel{width:100%;min-width:120px;padding:4px 5px;font-size:11.5px;font-family:inherit;border:1px solid #bfcbd8;border-radius:2px;background:#f8fbff}
+
 </style>
 </head>
 <body>
@@ -907,6 +914,56 @@
       <div class="hint" style="margin-top:8px">Click any cell in the Concept, Family, or Pers column to edit it inline. Changes save instantly. After correcting, regenerate your base playbook to apply them.</div>
     </div>
 
+
+    <!-- ── Formation & Play Intent Tags ── -->
+    <div class="card">
+      <h2>Formation &amp; Play Intent Tags</h2>
+      <p class="desc">The app auto-tags each play from its formation name, play name, family, concept, personnel, and motion. These tags explain what the play is trying to stress. Correct any wrong tag here — your edits are saved and will override the auto-tagger.</p>
+
+      <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:2;min-width:190px">
+          <label class="fld">Search intent tags</label>
+          <input type="text" id="intent-search" placeholder="formation, play, concept, series, stress…">
+        </div>
+        <div style="flex:1;min-width:130px">
+          <label class="fld">Show</label>
+          <select id="intent-source">
+            <option value="db">Full active DB</option>
+            <option value="book">Saved book only</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:130px">
+          <label class="fld">Play type</label>
+          <select id="intent-type">
+            <option value="">All</option>
+            <option value="run">Run</option>
+            <option value="pass">Pass</option>
+            <option value="play_action">Play Action / Boot</option>
+            <option value="rpo">RPO / Read</option>
+            <option value="screen">Screen</option>
+            <option value="draw">Draw</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:7px">
+          <button class="btn ghost sm" id="btn-intent-export">⤓ Export tags</button>
+          <button class="btn danger sm" id="btn-intent-reset">Reset tag edits</button>
+        </div>
+      </div>
+
+      <div class="statchips" id="intent-stats"></div>
+
+      <div class="tbl-wrap" style="max-height:520px">
+        <table id="intent-table">
+          <thead><tr>
+            <th>Formation</th><th>Play</th><th>Concept</th><th>Surface</th><th>Motion purpose</th>
+            <th>Run scheme</th><th>Pass structure</th><th>Series</th><th>Conflict</th><th>Stress</th><th>Edited</th>
+          </tr></thead>
+          <tbody id="intent-tbody"></tbody>
+        </table>
+      </div>
+      <div class="hint" style="margin-top:8px">These tags also drive the diagnosis panel. For example: motion-purpose tags trigger motion-response questions; screen tags trigger screen-picture questions; draw tags trigger draw-picture questions.</div>
+    </div>
+
     <!-- ── CSV Upload ── -->
     <div class="card">
       <h2>Upload Play Database</h2>
@@ -1241,17 +1298,45 @@ const DIAG_OPTIONS={
 const DIAG_OPTION_MAP={};
 Object.values(DIAG_OPTIONS).flat().forEach(o=>{ if(o.v) DIAG_OPTION_MAP[o.v]=o; });
 function conceptNameLower(pl){return ((pl&&pl.concept)||'')+' '+((pl&&pl.play)||'')+' '+((pl&&pl.formation)||'');}
-function isPassish(pl){return !!pl && (pl.family==='pass'||pl.family==='play_action'||pl.family==='screen'||pl.family==='option_rpo');}
-function isScreenPlay(pl){return !!pl && (pl.family==='screen'||/screen|slip|tunnel|bubble|now/i.test(conceptNameLower(pl)));}
-function isDrawPlay(pl){return !!pl && /draw/i.test(conceptNameLower(pl));}
-function isRpoPlay(pl){return !!pl && (pl.family==='option_rpo'||/rpo|read|option|glance|bubble/i.test(conceptNameLower(pl)));}
-function isPlayActionLike(pl){return !!pl && (pl.family==='play_action'||/boot|naked|play action|pa |waggle|keeper|roll/i.test(conceptNameLower(pl)));}
-function isQuickLike(pl){return !!pl && ['Quick Game','Slants','Stick','Spot','Spacing','Mesh','Shallow','Curls / Curl Flats'].includes(pl.concept);}
-function isShotLike(pl){return !!pl && (AGGR_SHOT_CONCEPTS.includes(pl.concept)||/vertical|four verts|post|go|shot|wheel|dagger|sail|y cross|corner/i.test(conceptNameLower(pl)));}
+function intentSafe(pl){try{return getIntentTags(pl)||{};}catch(e){return {};}}
+function isPassish(pl){
+  if(!pl)return false;
+  const t=intentSafe(pl);
+  return ['pass','play_action','screen','rpo','draw'].includes(t.playType)||['dropback','quick_game','play_action','boot','rpo_access','screen','shot','draw'].includes(t.passStructure)||pl.family==='pass'||pl.family==='play_action'||pl.family==='screen'||pl.family==='option_rpo';
+}
+function isScreenPlay(pl){
+  const t=intentSafe(pl);
+  return !!pl && (t.playType==='screen'||t.passStructure==='screen'||pl.family==='screen'||/screen|slip|tunnel|bubble|now/i.test(conceptNameLower(pl)));
+}
+function isDrawPlay(pl){
+  const t=intentSafe(pl);
+  return !!pl && (t.playType==='draw'||t.runScheme==='draw'||t.passStructure==='draw'||/draw/i.test(conceptNameLower(pl)));
+}
+function isRpoPlay(pl){
+  const t=intentSafe(pl);
+  return !!pl && (t.playType==='rpo'||t.passStructure==='rpo_access'||pl.family==='option_rpo'||/rpo|read|option|glance|bubble/i.test(conceptNameLower(pl)));
+}
+function isPlayActionLike(pl){
+  const t=intentSafe(pl);
+  return !!pl && (t.playType==='play_action'||t.passStructure==='play_action'||t.passStructure==='boot'||pl.family==='play_action'||/boot|naked|play action|pa |waggle|keeper|roll/i.test(conceptNameLower(pl)));
+}
+function isQuickLike(pl){
+  const t=intentSafe(pl);
+  return !!pl && (t.passStructure==='quick_game'||['Quick Game','Slants','Stick','Spot','Spacing','Mesh','Shallow','Curls / Curl Flats'].includes(pl.concept));
+}
+function isShotLike(pl){
+  const t=intentSafe(pl);
+  return !!pl && (t.passStructure==='shot'||AGGR_SHOT_CONCEPTS.includes(pl.concept)||/vertical|four verts|post|go|shot|wheel|dagger|sail|y cross|corner/i.test(conceptNameLower(pl)));
+}
 function diagnosticSectionsForPlay(pl){
   const sections=[];
-  if(pl&&pl.motion>=1) sections.push({key:'motion',title:'Motion response',options:DIAG_OPTIONS.motion});
-  if(pl&&isRunFamily(pl.family)) sections.push({key:'runfit',title:'Run fit / box',options:DIAG_OPTIONS.runfit});
+  const t=intentSafe(pl);
+  const needsMotion=pl&&((pl.motion>=1)||(t.motionType&&t.motionType!=='none')||(t.motionPurpose&&t.motionPurpose!=='none'));
+  if(needsMotion) sections.push({key:'motion',title:'Motion response',options:DIAG_OPTIONS.motion});
+
+  const runish=pl&&(t.playType==='run'||['inside_zone','wide_zone','duo','power','counter','trap_wham','iso_dive','sweep_toss','option_read'].includes(t.runScheme)||isRunFamily(pl.family));
+  if(runish) sections.push({key:'runfit',title:'Run fit / box',options:DIAG_OPTIONS.runfit});
+
   if(isPassish(pl)||isDrawPlay(pl)) sections.push({key:'coverage',title:'Coverage / shell',options:DIAG_OPTIONS.coverage});
   if(isScreenPlay(pl)) sections.push({key:'screen',title:'Screen picture',options:DIAG_OPTIONS.screen});
   if(isDrawPlay(pl)) sections.push({key:'draw',title:'Draw picture',options:DIAG_OPTIONS.draw});
@@ -1259,6 +1344,10 @@ function diagnosticSectionsForPlay(pl){
   if(isPlayActionLike(pl)) sections.push({key:'playaction',title:'Run-action response',options:DIAG_OPTIONS.playaction});
   if(isQuickLike(pl)&&isPassish(pl)) sections.push({key:'quick',title:'Quick-game leverage',options:DIAG_OPTIONS.quick});
   if(isShotLike(pl)&&isPassish(pl)) sections.push({key:'shot',title:'Shot picture',options:DIAG_OPTIONS.shot});
+
+  // Intent-specific fallbacks make edited tags matter immediately.
+  if(t.conflictDefender==='apex'&&!sections.some(s=>s.key==='rpo')) sections.push({key:'rpo',title:'Apex / conflict defender',options:DIAG_OPTIONS.rpo});
+  if(t.primaryStress==='protection_stress'&&!sections.some(s=>s.key==='coverage')) sections.push({key:'coverage',title:'Coverage / pressure',options:DIAG_OPTIONS.coverage});
   if(!sections.length) sections.push({key:'general',title:'General diagnosis',options:DIAG_OPTIONS.general});
   return sections;
 }
@@ -2622,6 +2711,8 @@ function downloadPlaybookBackup(){
     philosophy,
     corrections:_corrections,
     formPers:_formPers,
+    intentOverrides:_intentOverrides,
+    customDbRows:_customDbRows,
     ingame:ingame||null,
     scout:scout||null,
     motion
@@ -2646,6 +2737,8 @@ function loadPlaybookBackup(file){
       if(bundle.philosophy){philosophy=bundle.philosophy;save(LS.ph,philosophy);}
       if(bundle.corrections){_corrections=bundle.corrections;save(LS_CORR,_corrections);}
       if(bundle.formPers){_formPers=bundle.formPers;save(LS_FORM_PERS,_formPers);}
+      if(bundle.intentOverrides){_intentOverrides=bundle.intentOverrides;save(LS_INTENT,_intentOverrides);}
+      if(bundle.customDbRows){_customDbRows=bundle.customDbRows;save(LS_CUSTOM_DB,_customDbRows);}
       if(bundle.ingame){ingame=bundle.ingame;save(LS.ig,ingame);}
       if(bundle.scout){scout=bundle.scout;save(LS.scout,scout);}
       if(bundle.motion!=null){motion=Number(bundle.motion);save(LS.motion,String(motion));}
@@ -3843,6 +3936,336 @@ let _corrections=loadJSON(LS_CORR)||{};         // play-level: concept/family/mo
 let _formPers=loadJSON(LS_FORM_PERS)||{};        // formation-level: {formationName: '10'|'11'|'12'|'21'}
 let _customDbRows=loadJSON(LS_CUSTOM_DB)||null;
 
+
+const LS_INTENT='callsheet_intent_tags_v1';
+let _intentOverrides=loadJSON(LS_INTENT)||{};   // {[formation|||play]: editable intent-tag patch}
+let _intentSearch='';
+let _intentSource='db';
+let _intentType='';
+
+const INTENT_OPTIONS={
+  surface:['auto','spread','trips','bunch','stack','empty','wing','y_off','nub','tight','i_form','pistol','full_house','unbalanced','condensed','balanced'],
+  motionPurpose:['auto','none','coverage_id','add_gap','change_strength','widen_force','apex_conflict','perimeter_leverage','eye_candy','matchup_leverage','communication_stress'],
+  runScheme:['auto','none','inside_zone','wide_zone','duo','power','counter','trap_wham','iso_dive','sweep_toss','draw','option_read','screen_run'],
+  passStructure:['auto','none','quick_game','dropback','play_action','boot','rpo_access','screen','shot','draw'],
+  series:['auto','Inside Zone Series','Wide Zone Series','Duo/Downhill Series','Power Series','Counter Series','Trap/Wham Series','Perimeter Series','Jet Series','RPO Access Series','Quick Game Series','Play-Action/Boot Series','Flood/Sail Series','Man-Beater Series','Screen Series','Vertical Series','Smash/Corner Series','Draw Series','Changeup'],
+  conflictDefender:['auto','none','apex','edge','force','playside_lb','backside_lb','safety','corner','nickel','box','coverage_shell','pass_rush'],
+  primaryStress:['auto','none','box_count','extra_gap','horizontal_stretch','vertical_stretch','eye_discipline','coverage_leverage','man_zone_id','apex_conflict','force_conflict','lb_flow','protection_stress','space_perimeter','short_yardage']
+};
+function tagKey(formation,play){return corrKey(formation,play);}
+function getIntentPatch(formation,play){return _intentOverrides[tagKey(formation,play)]||null;}
+function setIntentPatch(formation,play,patch){
+  const k=tagKey(formation,play);
+  const prev=getIntentPatch(formation,play)||{};
+  const next=Object.assign({},prev,patch);
+  Object.keys(next).forEach(f=>{ if(!next[f]||next[f]==='auto') delete next[f]; });
+  if(Object.keys(next).length) _intentOverrides[k]=next; else delete _intentOverrides[k];
+  save(LS_INTENT,_intentOverrides);
+}
+function resetIntentOverrides(){
+  _intentOverrides={};
+  save(LS_INTENT,_intentOverrides);
+}
+function intentOptionLabel(v){
+  if(v==='auto')return 'Auto';
+  if(v==='none')return 'None';
+  return String(v).replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
+}
+function playText(pl){return ((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')).toLowerCase();}
+function autoIntentTags(pl){
+  const text=playText(pl);
+  const form=(pl.formation||'').toLowerCase();
+  const play=(pl.play||'').toLowerCase();
+  const concept=(pl.concept||'').toLowerCase();
+  const brain=brainForConcept((pl&&pl.concept)||'Other / Unknown')||{};
+  const fam=(pl&&pl.family)||'unknown';
+
+  let surface='balanced';
+  if(/empty|5wr|5 wr/.test(form)) surface='empty';
+  else if(/bunch|cluster/.test(form)) surface='bunch';
+  else if(/stack|double stack/.test(form)) surface='stack';
+  else if(/quads/.test(form)) surface='trips';
+  else if(/trips|trey|trio/.test(form)) surface='trips';
+  else if(/wing/.test(form)) surface='wing';
+  else if(/y off|y-off|h back|h-back/.test(form)) surface='y_off';
+  else if(/nub/.test(form)) surface='nub';
+  else if(/i.?form|i-form/.test(form)) surface='i_form';
+  else if(/full.?house/.test(form)) surface='full_house';
+  else if(/pistol/.test(form)) surface='pistol';
+  else if(/tight|nasty|compressed|condensed/.test(form)) surface='condensed';
+  else if(/unbalanced| over /.test(form)) surface='unbalanced';
+  else if(/gun|spread|doubles/.test(form)) surface='spread';
+
+  let spacing='balanced';
+  if(['bunch','stack','condensed','tight','wing','y_off','nub'].includes(surface)) spacing='condensed';
+  if(['empty','spread','trips'].includes(surface)) spacing='spread';
+
+  let backfield='single_back';
+  if(/pistol/.test(form)) backfield='pistol';
+  else if(/gun/.test(form)) backfield='gun';
+  else if(/i.?form|i-form/.test(form)) backfield='i_back';
+  else if(/full.?house/.test(form)) backfield='full_house';
+  else if(/pony|split backs|two.?back|hb.?fb/.test(form)) backfield='two_back';
+  else if(/singleback|ace/.test(form)) backfield='under_center_single';
+
+  let motionType='none';
+  if(/orbit/.test(text)) motionType='orbit';
+  else if(/jet|fly|touch pass|sweep/.test(text)) motionType='jet';
+  else if(/shift|trade/.test(text)) motionType='shift_trade';
+  else if(/return/.test(text)) motionType='return';
+  else if(/motion/.test(text)) motionType='motion';
+  else if(pl.motion===2) motionType='motion';
+  else if(pl.motion===1) motionType='formation_disguise';
+
+  let runScheme='none';
+  if(/draw/.test(text)) runScheme='draw';
+  else if(/counter|gt|gh/.test(text)) runScheme='counter';
+  else if(/power/.test(text)) runScheme='power';
+  else if(/trap|wham/.test(text)) runScheme='trap_wham';
+  else if(/duo/.test(text)) runScheme='duo';
+  else if(/outside zone|wide zone|stretch/.test(text)) runScheme='wide_zone';
+  else if(/inside zone/.test(text)) runScheme='inside_zone';
+  else if(/\b(zone|base)\b/.test(text)) runScheme='inside_zone';
+  else if(/iso|dive|lead/.test(text)) runScheme='iso_dive';
+  else if(/sweep|toss|jet/.test(text)&&fam==='run') runScheme='sweep_toss';
+  else if(/read|option|bash/.test(text)) runScheme='option_read';
+  else if(fam==='run') runScheme=(brain.runFamily==='gap'?'power':brain.runFamily==='zone'?'inside_zone':'iso_dive');
+
+  let passStructure='none';
+  if(/draw/.test(text)) passStructure='draw';
+  else if(fam==='screen'||/screen|bubble|smoke|slip|tunnel|jailbreak/.test(text)) passStructure='screen';
+  else if(fam==='option_rpo'||/rpo|glance|peek|alert|read|option/.test(text)) passStructure='rpo_access';
+  else if(fam==='play_action'||/boot|naked|keeper|waggle|play.action|\bpa\b|leak/.test(text)) passStructure=/boot|naked|keeper|waggle/.test(text)?'boot':'play_action';
+  else if(/verts|vertical|post|go|shot|fade|seam|wheel|dagger/.test(text)) passStructure='shot';
+  else if(/stick|slant|quick|hitch|spot|spacing|now|smoke/.test(text)) passStructure='quick_game';
+  else if(fam==='pass') passStructure='dropback';
+
+  let playType=fam==='screen'?'screen':(passStructure==='draw'?'draw':(passStructure==='rpo_access'?'rpo':(fam==='play_action'?'play_action':(fam==='pass'?'pass':(fam==='run'?'run':fam)))));
+  if(passStructure==='screen') playType='screen';
+  if(passStructure==='draw') playType='draw';
+
+  let pointOfAttack='none';
+  if(['inside_zone','duo','iso_dive','trap_wham','draw'].includes(runScheme)) pointOfAttack='interior';
+  else if(['power','counter'].includes(runScheme)) pointOfAttack='c_gap_downhill';
+  else if(['wide_zone','sweep_toss','screen_run'].includes(runScheme)) pointOfAttack='perimeter';
+  else if(runScheme==='option_read') pointOfAttack='read_conflict';
+
+  let motionPurpose='none';
+  if(motionType!=='none'){
+    if(playType==='pass') motionPurpose='coverage_id';
+    if(playType==='rpo') motionPurpose='apex_conflict';
+    if(runScheme==='sweep_toss'||/jet/.test(motionType)) motionPurpose='perimeter_leverage';
+    if(['power','counter','inside_zone','duo','wide_zone'].includes(runScheme)) motionPurpose=/wing|y off|shift|trade/.test(text)?'add_gap':'widen_force';
+    if(/bunch|stack|orbit|return/.test(text)) motionPurpose='communication_stress';
+    if(motionPurpose==='none') motionPurpose='eye_candy';
+  }
+
+  let actionFamily=brain.actionFamily||'unknown';
+  if(runScheme==='power') actionFamily='Power';
+  else if(runScheme==='counter') actionFamily='Counter';
+  else if(runScheme==='inside_zone') actionFamily='Inside Zone';
+  else if(runScheme==='wide_zone') actionFamily='Wide Zone';
+  else if(runScheme==='draw') actionFamily='Draw';
+  else if(passStructure==='boot') actionFamily='Boot';
+  else if(passStructure==='screen') actionFamily='Screen';
+  else if(passStructure==='rpo_access') actionFamily='RPO';
+  else if(passStructure==='quick_game') actionFamily='Quick Game';
+
+  let series=(brain&&brain.series)||'Changeup';
+  if(runScheme==='inside_zone') series='Inside Zone Series';
+  if(runScheme==='wide_zone') series='Wide Zone Series';
+  if(runScheme==='duo'||runScheme==='iso_dive') series='Duo/Downhill Series';
+  if(runScheme==='power') series='Power Series';
+  if(runScheme==='counter') series='Counter Series';
+  if(runScheme==='trap_wham') series='Trap/Wham Series';
+  if(runScheme==='sweep_toss') series=/jet/.test(text)?'Jet Series':'Perimeter Series';
+  if(passStructure==='rpo_access') series='RPO Access Series';
+  if(passStructure==='quick_game') series='Quick Game Series';
+  if(passStructure==='screen') series='Screen Series';
+  if(passStructure==='boot'||passStructure==='play_action') series='Play-Action/Boot Series';
+  if(/flood|sail|y cross/.test(text)) series='Flood/Sail Series';
+  if(/mesh|shallow|drive/.test(text)) series='Man-Beater Series';
+  if(/smash|corner|bench/.test(text)) series='Smash/Corner Series';
+  if(passStructure==='shot') series='Vertical Series';
+  if(passStructure==='draw') series='Draw Series';
+
+  let role=(brain&&brain.role)||'changeup';
+  if(playType==='run' && ['inside_zone','wide_zone','duo','power'].includes(runScheme)) role='base run';
+  if(['counter','trap_wham','draw'].includes(runScheme)) role='constraint run';
+  if(playType==='rpo') role='conflict answer';
+  if(playType==='screen') role='space / pressure answer';
+  if(passStructure==='boot'||passStructure==='play_action') role='run-action constraint';
+  if(passStructure==='shot') role='shot / explosive';
+  if(passStructure==='quick_game') role='access / chain mover';
+
+  let conflictDefender='none';
+  if(playType==='rpo') conflictDefender='apex';
+  else if(passStructure==='screen') conflictDefender='pass_rush';
+  else if(passStructure==='boot'||passStructure==='play_action') conflictDefender='edge';
+  else if(['wide_zone','sweep_toss'].includes(runScheme)) conflictDefender='force';
+  else if(['power','counter','inside_zone','duo'].includes(runScheme)) conflictDefender='playside_lb';
+  else if(passStructure==='shot') conflictDefender='safety';
+  else if(passStructure==='quick_game'||passStructure==='dropback') conflictDefender='coverage_shell';
+
+  let primaryStress='none';
+  if(playType==='rpo') primaryStress='apex_conflict';
+  else if(passStructure==='screen') primaryStress='space_perimeter';
+  else if(passStructure==='boot'||passStructure==='play_action') primaryStress='eye_discipline';
+  else if(passStructure==='shot') primaryStress='vertical_stretch';
+  else if(passStructure==='quick_game'||passStructure==='dropback') primaryStress='coverage_leverage';
+  else if(runScheme==='wide_zone'||runScheme==='sweep_toss') primaryStress='horizontal_stretch';
+  else if(runScheme==='power'||runScheme==='counter') primaryStress='extra_gap';
+  else if(runScheme==='inside_zone'||runScheme==='duo'||runScheme==='iso_dive') primaryStress='box_count';
+  if(motionPurpose==='coverage_id') primaryStress='man_zone_id';
+  if(motionPurpose==='add_gap') primaryStress='extra_gap';
+
+  let timing='normal';
+  if(passStructure==='quick_game'||passStructure==='screen'||playType==='rpo') timing='quick';
+  if(passStructure==='shot') timing='long';
+  if(passStructure==='boot'||passStructure==='play_action') timing='intermediate';
+
+  let protection='normal';
+  if(passStructure==='shot'||passStructure==='play_action') protection='needs_time';
+  if(passStructure==='quick_game'||passStructure==='screen'||playType==='rpo') protection='built_in_answer';
+
+  let screenType='none';
+  if(/slip/.test(text)) screenType='slip';
+  else if(/tunnel/.test(text)) screenType='tunnel';
+  else if(/bubble/.test(text)) screenType='bubble';
+  else if(/smoke|now/.test(text)) screenType='smoke';
+  else if(/jailbreak/.test(text)) screenType='jailbreak';
+  else if(passStructure==='screen') screenType='standard';
+
+  const confidence=(pl.concept&&pl.concept!=='Other / Unknown'?0.78:0.55) + (playType!=='unknown'?0.08:0) + (motionType!=='none'?0.04:0);
+  return {
+    playType,surface,spacing,backfield,motionType,motionPurpose,runScheme,pointOfAttack,passStructure,screenType,actionFamily,series,role,conflictDefender,primaryStress,timing,protection,
+    confidence:Math.max(0.45,Math.min(0.94,confidence))
+  };
+}
+function mergeIntentTags(base,patch){
+  const out=Object.assign({},base||{});
+  Object.entries(patch||{}).forEach(([k,v])=>{ if(v&&v!=='auto') out[k]=v; });
+  return out;
+}
+function getIntentTags(pl){
+  if(!pl)return {};
+  const auto=(pl.intent&&typeof pl.intent==='object')?Object.assign({},autoIntentTags(pl),pl.intent):autoIntentTags(pl);
+  return mergeIntentTags(auto,getIntentPatch(pl.formation,pl.play));
+}
+function intentMatchesType(tags,type){
+  if(!type)return true;
+  if(type==='play_action')return tags.playType==='play_action'||tags.passStructure==='boot'||tags.passStructure==='play_action';
+  return tags.playType===type||tags.passStructure===type||tags.runScheme===type;
+}
+function intentRows(){
+  let plays=_intentSource==='book'&&playbook
+    ? playbook.plays.map(p=>Object.assign({},p))
+    : effectivePlays().filter(p=>p.family!=='unknown');
+  const seen=new Set(); plays=plays.filter(p=>{const k=corrKey(p.formation,p.play);if(seen.has(k))return false;seen.add(k);return true;});
+  if(_intentSearch){
+    const q=_intentSearch.toLowerCase();
+    plays=plays.filter(p=>{
+      const t=getIntentTags(p);
+      return (p.formation+' '+p.play+' '+p.concept+' '+Object.values(t).join(' ')).toLowerCase().includes(q);
+    });
+  }
+  if(_intentType) plays=plays.filter(p=>intentMatchesType(getIntentTags(p),_intentType));
+  return plays;
+}
+function renderIntentStats(rows){
+  const wrap=$('#intent-stats'); if(!wrap)return; wrap.innerHTML='';
+  const counts={run:0,pass:0,play_action:0,rpo:0,screen:0,draw:0,edited:Object.keys(_intentOverrides).length};
+  (rows||[]).forEach(p=>{const t=getIntentTags(p); if(counts[t.playType]!=null) counts[t.playType]++;});
+  [['Visible',rows.length],['Run',counts.run],['Pass',counts.pass],['PA/Boot',counts.play_action],['RPO',counts.rpo],['Screen',counts.screen],['Draw',counts.draw],['Edited',counts.edited]].forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));wrap.appendChild(c);});
+}
+function makeIntentSel(formation,play,field,current){
+  const sel=el('select','intent-sel');
+  const opts=INTENT_OPTIONS[field]||['auto'];
+  opts.forEach(v=>{const o=el('option');o.value=v;o.textContent=intentOptionLabel(v);sel.appendChild(o);});
+  const patch=getIntentPatch(formation,play)||{};
+  sel.value=patch[field]||'auto';
+  sel.title='Auto: '+intentOptionLabel(current||'none');
+  sel.addEventListener('change',()=>{
+    setIntentPatch(formation,play,{[field]:sel.value});
+    const row=sel.closest('tr'); if(row) row.classList.toggle('intent-edited',!!getIntentPatch(formation,play));
+    const editedCell=row&&row.querySelector('.intent-edited-cell');
+    if(editedCell) editedCell.innerHTML=getIntentPatch(formation,play)?'<span class="intent-badge">edited</span>':'<span class="intent-auto">auto</span>';
+    renderIntentStats(intentRows());
+    toast('Intent tag updated');
+  });
+  return sel;
+}
+function renderIntentTable(){
+  const tbody=$('#intent-tbody'); if(!tbody)return;
+  const rows=intentRows();
+  renderIntentStats(rows);
+  tbody.innerHTML='';
+  const PAGE=150;
+  rows.slice(0,PAGE).forEach(p=>{
+    const t=getIntentTags(p);
+    const k=tagKey(p.formation,p.play);
+    const tr=el('tr');
+    if(_intentOverrides[k]) tr.classList.add('intent-edited');
+    tr.appendChild(el('td',null,p.formation));
+    tr.appendChild(el('td',null,p.play));
+    tr.appendChild(el('td',null,p.concept));
+    ['surface','motionPurpose','runScheme','passStructure','series','conflictDefender','primaryStress'].forEach(field=>{
+      const td=el('td'); td.appendChild(makeIntentSel(p.formation,p.play,field,t[field])); tr.appendChild(td);
+    });
+    const ed=el('td','intent-edited-cell');
+    ed.innerHTML=_intentOverrides[k]?'<span class="intent-badge">edited</span>':'<span class="intent-auto">auto</span>';
+    tr.appendChild(ed);
+    tbody.appendChild(tr);
+  });
+  if(rows.length>PAGE){
+    const tr=el('tr');const td=el('td');td.colSpan=11;td.style.cssText='padding:10px;text-align:center;color:#8a908a;font-size:12px';
+    td.textContent='Showing first '+PAGE+' of '+rows.length+' — search or filter to narrow.';
+    tr.appendChild(td);tbody.appendChild(tr);
+  }
+}
+function exportIntentTags(){
+  const rows=intentRows();
+  if(!rows.length){toast('No intent tags to export');return;}
+  const head=['Formation','Play','Concept','Play Type','Surface','Motion Purpose','Run Scheme','Pass Structure','Series','Conflict Defender','Primary Stress','Edited'];
+  const esc=v=>/[",\n]/.test(String(v))?'"'+String(v).replace(/"/g,'""')+'"':String(v);
+  const body=rows.map(p=>{
+    const t=getIntentTags(p);
+    const edited=!!getIntentPatch(p.formation,p.play);
+    return [p.formation,p.play,p.concept,t.playType,t.surface,t.motionPurpose,t.runScheme,t.passStructure,t.series,t.conflictDefender,t.primaryStress,edited?'yes':'no'].map(esc).join(',');
+  });
+  const blob=new Blob([[head.join(','),...body].join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='play_intent_tags.csv';document.body.appendChild(a);a.click();a.remove();
+  toast('Intent tags exported');
+}
+function extractIntentFromCSV(parts,cols){
+  if(!cols||!cols.length)return {};
+  const alias={
+    surface:['surface','formation_surface'],
+    motionPurpose:['motion_purpose','motionpurpose'],
+    runScheme:['run_scheme','runscheme'],
+    passStructure:['pass_structure','passstructure'],
+    series:['series','play_series'],
+    conflictDefender:['conflict_defender','conflict'],
+    primaryStress:['primary_stress','stress'],
+    playType:['play_type','playtype'],
+    actionFamily:['action_family'],
+    pointOfAttack:['point_of_attack','poa'],
+    screenType:['screen_type']
+  };
+  const out={};
+  Object.entries(alias).forEach(([field,names])=>{
+    for(const name of names){
+      const i=cols.indexOf(name);
+      if(i>=0&&i<parts.length&&cleanCell(parts[i])){
+        out[field]=cleanCell(parts[i]);
+        break;
+      }
+    }
+  });
+  return out;
+}
+
+
 function corrKey(formation,play){return formation+'|||'+play;}
 function cleanCell(v){return String(v==null?'':v).replace(/^\uFEFF/,'').trim().replace(/\s+/g,' ');}
 function normDbPart(v){return cleanCell(v).toUpperCase();}
@@ -4221,6 +4644,7 @@ function parseUploadedCSV(text){
     const motRaw=get(motioni);
     const motion=(motRaw!==''&&!isNaN(Number(motRaw)))?Math.max(0,Math.min(2,Number(motRaw))):inferMotion(formation,play);
     const row={formation,play,family,concept,pers,motion};
+    row.intent=mergeIntentTags(autoIntentTags(row), extractIntentFromCSV(parts,cols));
     const k=dbKey(row.formation,row.play);
     if(seen.has(k)){skippedDuplicate++;continue;}
     seen.add(k);
@@ -4290,6 +4714,7 @@ function commitCSVUpload(){
   save(LS_CUSTOM_DB,_customDbRows);
   _csvPending=null;
   renderCsvDbStatus();
+  renderIntentTable();
   $('#csv-preview').style.display='none';
 
   const parts=[];
@@ -4335,6 +4760,7 @@ function effectivePlays(){
         pers:r.pers||prev.pers||inferPers(r.formation||''),
         motion:r.motion!=null?r.motion:(prev.motion||0),
         hasMotion:(r.motion!=null?r.motion:(prev.motion||0))>0,
+        intent:r.intent||prev.intent||null,
         uploaded:true
       });
     });
@@ -4441,6 +4867,12 @@ function renderSuggestion(plays){
       const bn=el('div','pc-beats',brainNote);
       bn.style.cssText='font-style:normal;color:var(--field);background:#f3f8f4;border-left:3px solid var(--cool);padding:6px 8px;border-radius:0 3px 3px 0;margin-top:6px';
       body.appendChild(bn);
+    }
+    const it=getIntentTags(pl);
+    if(it&&it.series){
+      const inote=el('div','pc-beats',`Intent: ${it.series} · ${intentOptionLabel(it.primaryStress||'none')} · ${intentOptionLabel(it.conflictDefender||'none')} conflict`);
+      inote.style.cssText='font-style:normal;color:#2f5891;background:#f6fbff;border-left:3px solid #8fb6df;padding:6px 8px;border-radius:0 3px 3px 0;margin-top:6px';
+      body.appendChild(inote);
     }
 
     // ── Audibles for this formation ──
@@ -4554,6 +4986,7 @@ function switchTab(name){
 /* ── Render the whole data tab ── */
 function renderDataTab(){
   renderCorrTable();
+  renderIntentTable();
   renderCsvDbStatus();
 }
 
@@ -4585,6 +5018,24 @@ $('#btn-corr-reset').addEventListener('click',()=>{
   if(!confirm('Reset ALL corrections? This cannot be undone.'))return;
   resetAllCorr();_corrSelected.clear();renderCorrTable();updateCorrBatch();
   toast('All corrections cleared');
+});
+
+
+/* ── Intent tag table controls ── */
+const intentSearchEl=$('#intent-search');
+if(intentSearchEl) intentSearchEl.addEventListener('input',e=>{_intentSearch=e.target.value;renderIntentTable();});
+const intentSourceEl=$('#intent-source');
+if(intentSourceEl) intentSourceEl.addEventListener('change',e=>{_intentSource=e.target.value;renderIntentTable();});
+const intentTypeEl=$('#intent-type');
+if(intentTypeEl) intentTypeEl.addEventListener('change',e=>{_intentType=e.target.value;renderIntentTable();});
+const intentExportBtn=$('#btn-intent-export');
+if(intentExportBtn) intentExportBtn.addEventListener('click',exportIntentTags);
+const intentResetBtn=$('#btn-intent-reset');
+if(intentResetBtn) intentResetBtn.addEventListener('click',()=>{
+  if(!confirm('Reset all manually edited intent tags? Auto-tags will remain.'))return;
+  resetIntentOverrides();
+  renderIntentTable();
+  toast('Intent tag edits reset — auto-tags still active');
 });
 
 /* ── CSV upload wiring ── */
@@ -4665,7 +5116,7 @@ function handleCsvFile(file){
     if(result.skippedDuplicate) notes.push(`${result.skippedDuplicate} duplicate row${result.skippedDuplicate!==1?'s':''} inside the CSV were collapsed`);
     if(result.skippedMissing) notes.push(`${result.skippedMissing} row${result.skippedMissing!==1?'s':''} missing formation/play were ignored`);
     const desc=document.createElement('div');
-    desc.innerHTML=parts.join(' · ')+'.'+(notes.length?`<br><span style="color:#8a7320;font-size:11px">${notes.join(' · ')}.</span>`:'')+'<br><span style="color:#2c7a52;font-size:11px">✓ Uploaded rows are now merged as database entries, including built-in matches. Your Data tab corrections are not affected.</span>';
+    desc.innerHTML=parts.join(' · ')+'.'+(notes.length?`<br><span style="color:#8a7320;font-size:11px">${notes.join(' · ')}.</span>`:'')+'<br><span style="color:#2c7a52;font-size:11px">✓ Uploaded rows are merged as database entries and auto-tagged for formation/play intent. You can edit those tags in the Intent Tags table above.</span>';
     const existing=$('#csv-preview-desc');
     if(existing){existing.innerHTML='';existing.appendChild(desc);}
 
@@ -4699,6 +5150,7 @@ $('#btn-csv-db-reset').addEventListener('click',()=>{
   _customDbRows=null;
   localStorage.removeItem(LS_CUSTOM_DB);
   renderCsvDbStatus();
+  renderIntentTable();
   toast('Custom database cleared — using built-in DB');
 });
 $$('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
