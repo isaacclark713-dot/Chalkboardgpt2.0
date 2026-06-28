@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Game Plan Builder</title>
+<title>Call Sheet — Coach Brain v8</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -238,6 +238,22 @@
   .pc-logged{font-size:11px;font-weight:700;padding:6px 0;display:flex;align-items:center;gap:6px}
   .pc-logged.ok{color:var(--cool-d)}.pc-logged.mid{color:#8a7320}.pc-logged.bad{color:var(--hot-d)}
   .pc-adj{font-size:10.5px;color:#5a6058;margin-top:4px;line-height:1.45;border-top:1px solid #eeece4;padding-top:6px}
+
+  /* ---------- Sequence brain ---------- */
+  .seq-card{border-left:4px solid var(--gold);background:#fffdf6}
+  .seq-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .seq-kicker{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--gold-d)}
+  .seq-title{font-weight:800;font-size:14px;color:var(--field);margin-top:2px}
+  .seq-sub{font-size:11.5px;color:#5a6058;margin-top:3px;line-height:1.45}
+  .seq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:11px}
+  @media(max-width:760px){.seq-grid{grid-template-columns:1fr}}
+  .seq-box{border:1px solid #e2e0d5;border-radius:4px;background:#fff;padding:9px 10px}
+  .seq-box h4{margin:0 0 5px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#8a908a}
+  .seq-chip{display:inline-block;border:1px solid #d8d6cb;border-radius:12px;background:#f6f5ef;padding:3px 8px;margin:2px;font-size:10.5px;font-weight:700;color:#4a5048}
+  .seq-chip.hot{background:#fff4d7;border-color:#e8c875;color:#8a650c}
+  .seq-chip.tell{background:#eef6ff;border-color:#c7dff5;color:#2f5891}
+  .seq-empty{font-size:12px;color:#8a908a;line-height:1.45}
+  .seq-why{font-size:10.5px;color:#6a7066;line-height:1.35;margin-top:5px}
   /* ---------- Script situation selector ---------- */
   .sp-sit{display:flex;align-items:center;gap:6px;margin:6px 0 0;flex-wrap:wrap}
   .sp-sit label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgba(245,243,236,.7)}
@@ -762,6 +778,19 @@
         <p class="desc" style="margin-bottom:10px">From your scout + script. These bias every suggestion. Edit on the Scout tab as the game evolves.</p>
         <div class="reads-summary" id="ig-reads-summary"></div>
       </div>
+    </div>
+
+
+    <div class="card seq-card" id="seq-card" style="display:none">
+      <div class="seq-top">
+        <div>
+          <div class="seq-kicker">Drive Sequencing Brain</div>
+          <h2 style="margin:0;font-size:14px">What did we show, what did they reveal, and what is the answer?</h2>
+          <div class="hint">After you log a play, this tracks the picture, defensive tells, and pending answers. The next-call engine now boosts same-picture constraints and punishes blind repeats.</div>
+        </div>
+        <button class="btn ghost sm" id="btn-seq-clear" type="button">Clear drive memory</button>
+      </div>
+      <div id="seq-summary" style="margin-top:10px"></div>
     </div>
 
     <div class="card" id="ig-call-card">
@@ -1671,7 +1700,8 @@ function coachBrainMult(pl){
 }
 function coachBrainNoteFor(pl){
   const b=brainForConcept(pl.concept);
-  if(!b||b.series==='Changeup') return '';
+  const seqNote=sequenceNoteFor(pl);
+  if(!b||b.series==='Changeup') return seqNote;
   let txt=`${b.series} · ${b.role}`;
   if(b.creates&&b.creates.length) txt+=` · creates ${b.creates.slice(0,2).join(' / ')}`;
   if(ingame&&ingame.lastPlay){
@@ -1683,6 +1713,7 @@ function coachBrainNoteFor(pl){
       txt=`${label}: ${pl.concept} vs ${why} · `+txt;
     }
   }
+  if(seqNote) txt=seqNote+' · '+txt;
   return txt;
 }
 function coachBrainLogNote(concept,reaction){
@@ -1701,6 +1732,176 @@ function promoteCoachBrainAnswers(concept,reaction,amount=0.12){
     out.push(a);
   }
   return out;
+}
+
+
+/* ============================================================
+   SEQUENCE BRAIN v8 — drive memory / same-picture answers
+   ------------------------------------------------------------
+   This layer turns tagged plays and diagnosis into a live plan:
+   what we showed, what the defense revealed, and which answers
+   should be promoted from similar pictures.
+   ============================================================ */
+function ensureSequenceState(){
+  if(!ingame) return null;
+  if(!ingame.sequence){
+    ingame.sequence={calls:[],tells:{},pendingAnswers:[],shownPictures:{},shownConceptPictures:{},updated:Date.now()};
+  }
+  if(!Array.isArray(ingame.sequence.calls)) ingame.sequence.calls=[];
+  if(!Array.isArray(ingame.sequence.pendingAnswers)) ingame.sequence.pendingAnswers=[];
+  ingame.sequence.tells=ingame.sequence.tells||{};
+  ingame.sequence.shownPictures=ingame.sequence.shownPictures||{};
+  ingame.sequence.shownConceptPictures=ingame.sequence.shownConceptPictures||{};
+  return ingame.sequence;
+}
+function sequenceTags(pl){
+  const t=intentSafe(pl)||{};
+  const b=brainForConcept(pl.concept)||{};
+  return {
+    formation:pl.formation||'', play:pl.play||'', concept:pl.concept||'', family:pl.family||'', pers:pl.pers||'', motion:pl.motion||0,
+    surface:t.surface||'unknown', motionType:t.motionType||'none', motionPurpose:t.motionPurpose||'none',
+    playType:t.playType||pl.family||'unknown', runScheme:t.runScheme||'', passStructure:t.passStructure||'',
+    series:t.series||b.series||'', actionFamily:t.actionFamily||b.actionFamily||b.runFamily||'',
+    conflictDefender:t.conflictDefender||'', primaryStress:t.primaryStress||'',
+    role:b.role||'', brainSeries:b.series||''
+  };
+}
+function sequencePictureKey(tags){
+  return [tags.pers||'',tags.surface||'',tags.motionType||'none',tags.motionPurpose||'none',tags.actionFamily||tags.runScheme||tags.passStructure||tags.family||''].join('|');
+}
+function sequenceConceptPictureKey(tags){return sequencePictureKey(tags)+'|'+(tags.concept||'');}
+function samePictureBonus(candidate,last){
+  if(!last||!last.tags) return 1;
+  const t=sequenceTags(candidate);
+  const lt=last.tags;
+  let m=1;
+  if(t.pers&&lt.pers&&t.pers===lt.pers) m*=1.08;
+  if(t.surface&&lt.surface&&t.surface===lt.surface) m*=1.10;
+  if(t.motionPurpose&&lt.motionPurpose&&t.motionPurpose!=='none'&&t.motionPurpose===lt.motionPurpose) m*=1.12;
+  if((t.actionFamily||t.series)&&(t.actionFamily===lt.actionFamily||t.series===lt.series)) m*=1.12;
+  if(t.primaryStress&&lt.primaryStress&&t.primaryStress!==lt.primaryStress) m*=1.18; // same picture, different stress point
+  return m;
+}
+function reactionAnswerConceptsForLog(pl,diag,baseAnswers){
+  const vals=(diag&&diag.picked)||[];
+  const reacts=(diag&&diag.reactions)||[];
+  const t=sequenceTags(pl);
+  const out=[...(baseAnswers||[])];
+  const add=(arr)=>arr.forEach(x=>{if(x&&!out.includes(x))out.push(x);});
+  reacts.forEach(r=>add(answerConcepts(pl.concept,r)));
+  vals.forEach(v=>{
+    if(v==='motion_follow_man') add(['Mesh','Shallow','Slants','Wheel']);
+    if(v==='motion_bump_zone') add(['Flood','Smash','Stick','Spacing']);
+    if(v==='motion_widen' || v==='motion_overhang_widen') add(['Inside Zone','Power / Power O','Counter','Duo']);
+    if(v==='motion_spin_down') add(['Post','Verticals / Four Verticals','Boot / Play Action']);
+    if(v==='run_lb_fast_flow' || v==='lb_fast_flow') add(['Counter','Boot / Play Action','Fake Jet','Screen']);
+    if(v==='run_edge_squeeze' || v==='edge_crash') add(['Boot / Play Action','Option / RPO','Outside Zone / Stretch']);
+    if(v==='run_edge_widen' || v==='edge_widen') add(['Inside Zone','Duo','Power / Power O','Counter']);
+    if(v==='run_loaded_box' || v==='loaded_box') add(['Option / RPO','Boot / Play Action','Screen','Quick Game']);
+    if(v==='screen_covered' || v==='screen_all_over') add(['Screen','Draw','Quick Game']);
+    if(v==='screen_wide_open') add(['Screen']);
+    if(v==='draw_drop' || v==='draw_box_vacated') add(['Draw']);
+    if(v==='draw_spy_sit' || v==='draw_dl_retrace') add(['Quick Game','Screen','Slants']);
+    if(v==='rpo_apex_squeeze') add(['Option / RPO','Quick Game','Screen']);
+    if(v==='rpo_apex_widen') add(['Inside Zone','Duo','Power / Power O']);
+    if(v==='pa_lbs_bite') add(['Boot / Play Action','Y Cross','Flood','Post']);
+    if(v==='pa_edge_contain') add(['Quick Game','Inside Zone','Screen']);
+    if(v==='coverage_man') add(['Mesh','Shallow','Slants','Wheel']);
+    if(v==='coverage_zone' || v==='coverage_match') add(['Flood','Smash','Stick','Spacing','Y Cross']);
+    if(v==='coverage_soft') add(['Quick Game','Curls / Curl Flats','Stick']);
+    if(v==='pressure' || v==='blitz') add(['Quick Game','Slants','Screen','Draw']);
+  });
+  // Intent-specific generic answers if the selected dropdowns were sparse.
+  if(t.primaryStress==='extra_gap' && reacts.includes('lb_overflow')) add(['Counter','Boot / Play Action']);
+  if(t.passStructure==='screen' && reacts.includes('blitz_pressure')) add(['Screen','Slants']);
+  return out.filter(Boolean);
+}
+function updateSequenceMemory(pl,outcome,diag,answers){
+  if(!pl||!ingame) return;
+  const seq=ensureSequenceState();
+  const tags=sequenceTags(pl);
+  const pkey=sequencePictureKey(tags), cpkey=sequenceConceptPictureKey(tags);
+  const reactions=(diag&&diag.reactions&&diag.reactions.length?diag.reactions:[]).filter(Boolean);
+  seq.calls.unshift({t:Date.now(),formation:pl.formation,play:pl.play,concept:pl.concept,outcome,tags,pictureKey:pkey,conceptPictureKey:cpkey,reactions,diagnosis:diag||{},answers:answers||[]});
+  seq.calls=seq.calls.slice(0,12);
+  seq.shownPictures[pkey]=(seq.shownPictures[pkey]||0)+1;
+  seq.shownConceptPictures[cpkey]=(seq.shownConceptPictures[cpkey]||0)+1;
+  reactions.forEach(r=>seq.tells[r]=(seq.tells[r]||0)+1);
+  // Decay old pending answers each logged call, then add new live answers.
+  seq.pendingAnswers=(seq.pendingAnswers||[]).map(a=>({...a,expires:(a.expires||3)-1,weight:(a.weight||1)*0.86})).filter(a=>a.expires>0&&a.weight>0.25);
+  const liveAnswers=reactionAnswerConceptsForLog(pl,diag,answers||[]);
+  liveAnswers.forEach((concept,i)=>{
+    const existing=seq.pendingAnswers.find(a=>a.concept===concept);
+    const reason=(reactions[0]?reactionText(reactions[0]):(diag&&diag.labels)||'last look');
+    if(existing){existing.weight=Math.min(1.8,(existing.weight||1)+0.45);existing.expires=Math.max(existing.expires||0,4);existing.reason=existing.reason||reason;}
+    else seq.pendingAnswers.push({concept,reason,sourceConcept:pl.concept,sourceSeries:tags.series||tags.brainSeries||'',sourcePicture:pkey,stress:tags.primaryStress,weight:1.15-(i*0.04),expires:4});
+  });
+  seq.pendingAnswers=seq.pendingAnswers.sort((a,b)=>(b.weight||1)-(a.weight||1)).slice(0,10);
+  seq.updated=Date.now();
+}
+function sequenceFit(pl){
+  if(!ingame||!ingame.sequence) return 1;
+  const seq=ensureSequenceState();
+  const last=seq.calls&&seq.calls[0];
+  const tags=sequenceTags(pl);
+  const pkey=sequencePictureKey(tags), cpkey=sequenceConceptPictureKey(tags);
+  let m=1;
+  const pending=(seq.pendingAnswers||[]).find(a=>a.concept===pl.concept);
+  if(pending){
+    m*=Math.min(2.15,1.25+(pending.weight||1)*0.32);
+    if(pending.sourcePicture===pkey) m*=1.18; // exact same picture with the answer concept
+  }
+  if(last){
+    m*=samePictureBonus(pl,last);
+    if(last.concept===pl.concept && (last.outcome==='neutral'||last.outcome==='failure')) m*=0.78;
+    if(last.formation===pl.formation && last.play===pl.play) m*=0.38; // never blindly repeat exact call
+    if((tags.series||tags.brainSeries) && (tags.series===last.tags.series || tags.brainSeries===last.tags.brainSeries) && tags.concept!==last.concept) m*=1.12;
+  }
+  const shownSameConceptPicture=seq.shownConceptPictures[cpkey]||0;
+  if(shownSameConceptPicture>=2) m*=0.72; // self-scout: same picture + same concept is getting stale
+  const shownPicture=seq.shownPictures[pkey]||0;
+  if(shownPicture>=2 && pending && tags.primaryStress!==pending.stress) m*=1.18; // shown picture is useful if it now hits elsewhere
+  if(shownPicture>=3 && !pending) m*=0.85;
+  return Math.max(0.42,Math.min(2.75,m));
+}
+function sequenceNoteFor(pl){
+  if(!ingame||!ingame.sequence) return '';
+  const seq=ensureSequenceState();
+  const tags=sequenceTags(pl);
+  const pending=(seq.pendingAnswers||[]).find(a=>a.concept===pl.concept);
+  if(pending){
+    return `SEQUENCE ANSWER: ${pl.concept} answers ${pending.reason||'last defensive tell'} from ${pending.sourceConcept||'the last picture'}`;
+  }
+  const last=seq.calls&&seq.calls[0];
+  if(last){
+    const pic=samePictureBonus(pl,last);
+    if(pic>1.38 && pl.concept!==last.concept) return `SAME-PICTURE CHANGEUP: looks related to ${last.concept}, attacks ${tags.primaryStress||pl.concept}`;
+  }
+  return '';
+}
+function clearSequenceMemory(){ if(!ingame)return; ingame.sequence={calls:[],tells:{},pendingAnswers:[],shownPictures:{},shownConceptPictures:{},updated:Date.now()}; save(LS.ig,ingame); renderSequencePanel(); }
+function renderSequencePanel(){
+  const card=$('#seq-card'), box=$('#seq-summary'); if(!card||!box)return;
+  if(!ingame||!ingame.sequence||!ingame.sequence.calls||!ingame.sequence.calls.length){card.style.display='none';box.innerHTML='';return;}
+  const seq=ensureSequenceState(); card.style.display='block'; box.innerHTML='';
+  const last=seq.calls[0];
+  const title=el('div','seq-title',`${last.formation} — ${last.play}`);
+  const sub=el('div','seq-sub',`Last shown: ${last.concept}${last.tags.series?' · '+last.tags.series:''}${last.tags.motionPurpose&&last.tags.motionPurpose!=='none'?' · motion: '+last.tags.motionPurpose:''}${last.tags.primaryStress?' · stress: '+last.tags.primaryStress:''}`);
+  box.appendChild(title); box.appendChild(sub);
+  const grid=el('div','seq-grid');
+  const tells=el('div','seq-box'); tells.appendChild(el('h4',null,'Defense told us'));
+  const tellList=(last.reactions&&last.reactions.length?last.reactions:Object.keys(seq.tells||{}).sort((a,b)=>seq.tells[b]-seq.tells[a]).slice(0,4));
+  if(tellList.length) tellList.forEach(r=>tells.appendChild(el('span','seq-chip tell',reactionText(r)))); else tells.appendChild(el('div','seq-empty','No clear tell yet.'));
+  grid.appendChild(tells);
+  const ans=el('div','seq-box'); ans.appendChild(el('h4',null,'Pending answers'));
+  if(seq.pendingAnswers&&seq.pendingAnswers.length) seq.pendingAnswers.slice(0,6).forEach((a,i)=>ans.appendChild(el('span','seq-chip '+(i<3?'hot':''),a.concept)));
+  else ans.appendChild(el('div','seq-empty','No live answer queued. Log a defensive reaction to create one.'));
+  grid.appendChild(ans);
+  const scout=el('div','seq-box'); scout.appendChild(el('h4',null,'Self-scout guardrail'));
+  const shown=seq.shownPictures[last.pictureKey]||1;
+  scout.appendChild(el('div','seq-empty',`This picture has been shown ${shown} time${shown===1?'':'s'}. Exact repeats cool down; same-picture answers heat up.`));
+  grid.appendChild(scout);
+  box.appendChild(grid);
 }
 
 // situations per concept (for build list)
@@ -2142,7 +2343,7 @@ function seedIngameFromBook(){
     base=Math.max(W_MIN,Math.min(W_MAX,base));
     concepts[n]={w:base,base:base,baseRaw:base,calls:0,success:0,neutral:0,failure:0,reasons:{}};
   }
-  ingame={concepts,log:[],reads:emptyReads()};
+  ingame={concepts,log:[],reads:emptyReads(),sequence:{calls:[],tells:{},pendingAnswers:[],shownPictures:{},shownConceptPictures:{},updated:Date.now()}};
   applyScoutToReads();   // pre-fill tentative reads from scouting report
   applyScoutWeightBase(); // make pregame scout visible in the starting concept board
   save(LS.ig,ingame);
@@ -2266,6 +2467,7 @@ function logResult(concept,outcome,reason,reaction,play,diagnosis){
       play:play.play||''
     };
   }
+  if(play) updateSequenceMemory(play,outcome,diagnosis,answerList);
   const brainNote=coachBrainLogNote(concept,effectiveReaction);
   if(brainNote && outcome!=='neutral') note=note?note+' '+brainNote:brainNote;
 
@@ -2397,6 +2599,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=scoutConceptMultFor(pl.concept,pl.family);
   s*=conceptTargetGameMult(pl);
   s*=coachBrainMult(pl);
+  s*=sequenceFit(pl);
   if(!info.overrideBalance){
     if(isRunFamily(pl.family)) s*=info.runNudge; else s*=info.passNudge;
   }
@@ -4783,11 +4986,12 @@ function renderIngameStats(){
 function renderIngame(){
   if(!ingame){ if(playbook) seedIngameFromBook(); }
   const stats=$('#ig-stats'); stats.innerHTML='';
-  if(!ingame){stats.innerHTML='<div class="empty" style="width:100%">Generate a base playbook to start tracking.</div>';$('#ig-board').innerHTML='';renderRunPassMeter();renderReadsSummary('#ig-reads-summary');return;}
+  if(!ingame){stats.innerHTML='<div class="empty" style="width:100%">Generate a base playbook to start tracking.</div>';$('#ig-board').innerHTML='';renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();return;}
   renderIngameStats();
   renderBoard();
   renderRunPassMeter();
   renderReadsSummary('#ig-reads-summary');
+  renderSequencePanel();
 }
 function renderBoard(){
   const board=$('#ig-board'); board.innerHTML='';
@@ -4955,7 +5159,7 @@ function renderSuggestion(plays){
       rw.appendChild(lg);
       if(note){const adj=el('div','pc-adj',note);rw.appendChild(adj);}
       // refresh board + meter
-      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');
+      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();
       renderIngameStats();
       toast(pl.concept+' → '+(selectedOutcome==='success'?'boosted':selectedOutcome==='neutral'?'preserved':'cut'));
     });
@@ -5288,6 +5492,7 @@ if($('#ig-yards-exact')) $('#ig-yards-exact').addEventListener('input',e=>setIgS
 updateIgExactControls();
 $('#btn-ig-reset').addEventListener('click',()=>{if(!playbook){toast('No playbook');return;}seedIngameFromBook();clearRecentSuggestions();$('#ig-plays').innerHTML='';renderIngame();toast('In-game tracking reset to base');});
 $('#btn-suggest').addEventListener('click',()=>{const plays=suggestPlay(_igDown,_igDist,_igZone,_igYards);renderSuggestion(plays);});
+if($('#btn-seq-clear')) $('#btn-seq-clear').addEventListener('click',()=>{clearSequenceMemory();toast('Drive sequence memory cleared');});
 $$('#ig-sort button').forEach(b=>b.addEventListener('click',()=>{igSort=b.dataset.s;$$('#ig-sort button').forEach(x=>x.classList.toggle('on',x===b));renderBoard();}));
 
 // scout
