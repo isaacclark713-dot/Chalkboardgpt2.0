@@ -1,26 +1,25 @@
-# Call Sheet Coach Brain v9
+# Call Sheet — Coach Brain v10
 
-This version adds Play IQ tags and an opening-script question tree.
+This is the GitHub Pages-ready version of the Call Sheet app.
 
-## What is new in v9
+## What v10 adds
 
-- Opening script is built around scout questions instead of fixed play slots.
-- Live script caller still uses the same scoring engine as the In-Game caller.
-- Script objectives ask things like: how do they handle motion, who is force, does the edge chase boot, can we isolate the apex, are they man or zone on 3rd down, and do they pressure empty/long yardage.
-- Formation & Play Intent Tags now include Play IQ fields:
-  - route family
-  - read type
-  - route timing
-  - coverage fit
-  - weak-vs tag
-  - protection requirement
-  - hot answer
-  - install confidence
-- Play IQ tags are auto-generated from formation/play/concept names and can be edited on the Data tab.
-- Uploaded CSVs are auto-tagged and can also include expanded intent/Play IQ columns.
+- Team/playbook CSVs can now be used like generated Coach Brain playbooks.
+- A CSV can be:
+  - added to the master database,
+  - saved as a reusable team source,
+  - used exactly as the active base playbook, or
+  - used as the source pool for a generated Coach Brain base playbook.
+- Fully custom books can be created inside the app with **Start blank custom book** and the existing manual play add form.
+- Scout, Script, In-Game, Coach Brain, Play IQ, sequencing, audibles, and diagnostics all call from the active base playbook only.
 
-## GitHub Pages
+## Publish on GitHub Pages
 
-Upload the contents of this folder to a GitHub repository, then enable Pages from Settings → Pages → Deploy from a branch → main / root.
+1. Create a new GitHub repository.
+2. Upload the contents of this folder.
+3. Go to **Settings → Pages**.
+4. Choose **Deploy from a branch**.
+5. Choose the `main` branch and `/ root`.
+6. Save.
 
-The app is static. User data is stored in each browser's local storage. Use the app's backup/download feature to move a playbook between devices.
+The app stores playbooks, tags, corrections, and game data in the browser's local storage. Use **Download playbook** inside the app to move a setup between devices.

@@ -503,6 +503,21 @@
       <div id="pb-upload-status" class="hint" style="margin-top:6px"></div>
       <div id="pb-distro" style="margin-top:16px"></div>
     </div>
+
+    <div class="card" id="pb-source-card">
+      <h2>Playbook Source</h2>
+      <p class="desc">Choose whether the active base playbook is generated from the full database, built from an uploaded team playbook, or designed fully custom in the app. Scout, Script, In-Game, Coach Brain, and Play IQ all use the active base playbook only.</p>
+      <div id="pb-source-status" class="callout" style="margin:8px 0 12px">Loading source…</div>
+      <div class="btnbar">
+        <button class="btn primary sm" id="btn-source-gen-global">⚙ Generate from full database</button>
+        <button class="btn gold sm" id="btn-source-use-exact">Use saved team source as base</button>
+        <button class="btn ghost sm" id="btn-source-gen-team">Generate from saved team source</button>
+        <button class="btn ghost sm" id="btn-source-blank">＋ Start blank custom book</button>
+        <button class="btn danger sm" id="btn-source-clear">Clear saved team source</button>
+      </div>
+      <div class="hint" style="margin-top:8px">Upload a team/playbook CSV on the Data tab, then choose whether to use it exactly or generate a smaller Coach Brain book from that source. Use blank custom if you want to design the whole book manually.</div>
+    </div>
+
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div><h2 style="margin:0">Plays in book</h2><div class="hint" id="pb-count">—</div></div>
@@ -1013,7 +1028,10 @@
             <div class="hint" id="csv-preview-desc"></div>
           </div>
           <div class="btnbar" style="margin:0">
-            <button class="btn primary" id="btn-csv-commit">⊕ Add to database</button>
+            <button class="btn primary" id="btn-csv-commit">⊕ Add to master database</button>
+            <button class="btn gold" id="btn-csv-use-base">Use as active base</button>
+            <button class="btn ghost sm" id="btn-csv-gen-base">Generate base from file</button>
+            <button class="btn ghost sm" id="btn-csv-save-source">Save as team source</button>
             <button class="btn ghost sm" id="btn-csv-cancel">Cancel</button>
           </div>
         </div>
@@ -2897,8 +2915,9 @@ function updateRpReadout(){
 
 /* ---- Base playbook tab ---- */
 function renderPlaybook(){
+  renderPlaybookSourcePanel();
   const stats=$('#pb-stats'); stats.innerHTML='';
-  if(!playbook){stats.innerHTML='<div class="empty" style="width:100%">No saved playbook. Go to Philosophy → Generate.</div>';$('#pb-distro').innerHTML='';$('#pb-tbody').innerHTML='';$('#pb-count').textContent='—';if($('#pb-audibles'))$('#pb-audibles').innerHTML='';return;}
+  if(!playbook){stats.innerHTML='<div class="empty" style="width:100%">No saved playbook. Go to Philosophy → Generate, upload a team CSV, or start a blank custom book.</div>';$('#pb-distro').innerHTML='';$('#pb-tbody').innerHTML='';$('#pb-count').textContent='—';if($('#pb-audibles'))$('#pb-audibles').innerHTML='';return;}
   const m=playbook.meta;
   const rpTxt=(m.rpMin!=null)?`${m.rpMin}–${m.rpMax}%`:'—';
   const chips=[['Plays',playbook.plays.length],['Identity',labelIdent(m.identity)],['Personnel mix',persMixSummary(m.persMix)],['Run band',rpTxt],['Motion',m.motion]];
@@ -2967,6 +2986,7 @@ function downloadPlaybookBackup(){
     formPers:_formPers,
     intentOverrides:_intentOverrides,
     customDbRows:_customDbRows,
+    teamSource:_teamSource,
     ingame:ingame||null,
     scout:scout||null,
     motion
@@ -2993,6 +3013,7 @@ function loadPlaybookBackup(file){
       if(bundle.formPers){_formPers=bundle.formPers;save(LS_FORM_PERS,_formPers);}
       if(bundle.intentOverrides){_intentOverrides=bundle.intentOverrides;save(LS_INTENT,_intentOverrides);}
       if(bundle.customDbRows){_customDbRows=bundle.customDbRows;save(LS_CUSTOM_DB,_customDbRows);}
+      if(bundle.teamSource){_teamSource=bundle.teamSource;save(LS_TEAM_SOURCE,_teamSource);}
       if(bundle.ingame){ingame=bundle.ingame;save(LS.ig,ingame);}
       if(bundle.scout){scout=bundle.scout;save(LS.scout,scout);}
       if(bundle.motion!=null){motion=Number(bundle.motion);save(LS.motion,String(motion));}
@@ -3038,7 +3059,7 @@ function initAddPlayForm(){
 }
 
 function addPlayToBook(){
-  if(!playbook){toast('No playbook — generate one first');return;}
+  if(!playbook){startBlankCustomPlaybook();}
   const formation=($('#ap-formation').value||'').trim();
   const play=($('#ap-play').value||'').trim().toUpperCase();
   const concept=$('#ap-concept').value||CONCEPTS[0];
@@ -3051,11 +3072,12 @@ function addPlayToBook(){
   const dup=playbook.plays.find(p=>p.formation===formation&&p.play===play);
   if(dup){$('#ap-status').textContent='That formation + play is already in the book.';return;}
   const newPlay={formation,play,concept,family,pers,motion,_manual:true};
+  newPlay.intent=autoIntentTags(newPlay);
   playbook.plays.push(newPlay);
   // Rebuild audibles for this formation
   if(playbook.audibles){
     const formPlays=playbook.plays.filter(p=>p.formation===formation);
-    const rebuilt=buildAudibles(formPlays);
+    const rebuilt=buildAudiblesScoped(formPlays,playbook.plays);
     if(rebuilt[formation]) playbook.audibles[formation]=rebuilt[formation];
   }
   save(LS.pb,playbook);
@@ -4133,9 +4155,11 @@ function audiblesForFormation(form){
 const LS_CORR='callsheet_corrections_v1';
 const LS_FORM_PERS='callsheet_form_pers_v1';   // formation-level personnel overrides
 const LS_CUSTOM_DB='callsheet_custom_db_v1';
+const LS_TEAM_SOURCE='callsheet_team_source_v1';
 let _corrections=loadJSON(LS_CORR)||{};         // play-level: concept/family/motion patches
 let _formPers=loadJSON(LS_FORM_PERS)||{};        // formation-level: {formationName: '10'|'11'|'12'|'21'}
 let _customDbRows=loadJSON(LS_CUSTOM_DB)||null;
+let _teamSource=loadJSON(LS_TEAM_SOURCE)||null; // {name, rows:[plays], savedAt} — an uploaded team/custom source that can become the active base book
 
 
 const LS_INTENT='callsheet_intent_tags_v1';
@@ -4771,6 +4795,7 @@ function exportCorrections(){
    with the same personnel / motion inference used when building the DB.
    Merges into a custom extension stored in localStorage. */
 let _csvPending=null;   // parsed rows waiting for user confirmation
+let _csvPendingName='Uploaded playbook CSV';
 
 function inferPers(form){
   const f=form.toLowerCase();
@@ -4990,6 +5015,7 @@ function commitCSVUpload(){
   _customDbRows=existing;
   save(LS_CUSTOM_DB,_customDbRows);
   _csvPending=null;
+  _csvPendingName='Uploaded playbook CSV';
   renderCsvDbStatus();
   renderIntentTable();
   $('#csv-preview').style.display='none';
@@ -5043,6 +5069,173 @@ function effectivePlays(){
     });
   }
   return [...byKey.values()].map(applyCorr);
+}
+
+/* ── Team source / custom base playbook engine ─────────────────────────
+   A team source is a CSV-derived pool that can be used exactly as the active
+   base playbook or treated like the generation pool for a Coach-Brain book.
+   This keeps Michigan State / custom books from being mixed with the global DB. */
+function sourceRowsToPlays(rows){
+  const seen=new Set();
+  return (rows||[]).map((r,i)=>{
+    const base={
+      id:r.id!=null?r.id:900000+i,
+      formation:r.formation||'',
+      play:r.play||'',
+      family:r.family||normalizeFamily(r.family||'',r.play||''),
+      concept:r.concept||inferConcept(r.play||'',r.family||''),
+      pers:r.pers||inferPers(r.formation||''),
+      motion:r.motion!=null?Number(r.motion):inferMotion(r.formation||'',r.play||''),
+      uploaded:true,
+      intent:r.intent||null
+    };
+    base.hasMotion=base.motion>0;
+    if(!base.intent) base.intent=autoIntentTags(base);
+    return applyCorr(base);
+  }).filter(r=>{
+    if(!r.formation||!r.play) return false;
+    const k=dbKey(r.formation,r.play);
+    if(seen.has(k)) return false;
+    seen.add(k);return true;
+  });
+}
+function saveTeamSource(rows,name){
+  const clean=sourceRowsToPlays(rows).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:getIntentTags(pl)}));
+  _teamSource={name:name||'Uploaded team playbook',rows:clean,savedAt:Date.now()};
+  save(LS_TEAM_SOURCE,_teamSource);
+  renderPlaybookSourcePanel();
+  return _teamSource;
+}
+function buildFormationMapFromPool(pool){
+  const by={};
+  (pool||[]).forEach(p=>{(by[p.formation]=by[p.formation]||[]).push(p);});
+  return by;
+}
+function buildAudiblesScoped(book,pool){
+  const sourceMap=buildFormationMapFromPool(pool&&pool.length?pool:book);
+  const byForm={};
+  book.forEach(pl=>{(byForm[pl.formation]=byForm[pl.formation]||[]).push(pl);});
+  const out={};
+  const ROLES=['run','quick','shot','pa'];
+  Object.keys(byForm).forEach(form=>{
+    const poolInBook=byForm[form];
+    const sourcePool=(sourceMap[form]||poolInBook).map(applyCorr);
+    const chosen=[]; const usedKey=new Set(); const usedConcept=new Set();
+    const take=(pl,allowDupConcept)=>{const k=pl.play;if(usedKey.has(k))return false;if(!allowDupConcept&&usedConcept.has(pl.concept))return false;usedKey.add(k);usedConcept.add(pl.concept);chosen.push(pl);return true;};
+    const namedFirst=arr=>arr.slice().sort((x,y)=>(x.concept==='Other / Unknown'?1:0)-(y.concept==='Other / Unknown'?1:0));
+    ROLES.forEach(role=>{ if(chosen.length>=4)return; const m=namedFirst(poolInBook).find(p=>audRole(p)===role&&!usedKey.has(p.play)&&!usedConcept.has(p.concept)); if(m)take(m); });
+    for(const p of namedFirst(poolInBook)){ if(chosen.length>=4)break; take(p,false); }
+    if(chosen.length<4){
+      const extra=namedFirst(sourcePool.filter(p=>!usedKey.has(p.play)));
+      ROLES.forEach(role=>{ if(chosen.length>=4)return; const m=extra.find(p=>audRole(p)===role&&!usedKey.has(p.play)&&!usedConcept.has(p.concept)); if(m){m._added=true;take(m);} });
+      for(const p of extra){ if(chosen.length>=4)break; if(take(p,false)){p._added=!poolInBook.find(b=>b.play===p.play);} }
+    }
+    if(chosen.length<4){ for(const p of sourcePool){ if(chosen.length>=4)break; if(!usedKey.has(p.play)){p._added=!poolInBook.find(b=>b.play===p.play);take(p,true);} } }
+    out[form]=chosen.slice(0,4).map(pl=>({play:pl.play,concept:pl.concept,family:pl.family,pers:pl.pers,motion:pl.motion,role:audRole(pl),beats:CONCEPT_BEATS[pl.concept]||'',inBook:!pl._added}));
+  });
+  return out;
+}
+function setActivePlaybookFromRows(rows,name,mode){
+  const pool=sourceRowsToPlays(rows);
+  if(!pool.length){toast('No valid plays in source');return null;}
+  const final=pool.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:getIntentTags(pl),_source:'team'}));
+  playbook={
+    meta:{generated:Date.now(),identity:'team_source',aggr:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:final.length,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:mode||'exact',sourceName:name||'Team source'},
+    plays:final,
+    audibles:buildAudiblesScoped(final,pool)
+  };
+  save(LS.pb,playbook);
+  seedIngameFromBook();
+  renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
+  toast('Active base playbook set: '+final.length+' plays');
+  return playbook;
+}
+function scorePoolPlay(pl,mix,pmNorm,p,seed){
+  let s=mix[pl.family]||0.05;
+  const persShare=pmNorm[pl.pers]??0.01;
+  s*=(0.2 + persShare*8);
+  const mn=motion/100;
+  if(pl.motion===2) s*=(1+mn*mn*2.2);
+  else if(pl.motion===1) s*=(1+mn*0.5);
+  else s*=(1-mn*0.45);
+  if(p.aggr==='aggressive'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=1.7;
+  if(p.aggr==='measured'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=0.6;
+  if(p.aggr==='measured'&&(pl.family==='run'||pl.concept==='Quick Game')) s*=1.2;
+  if(p.emphasis.includes(pl.concept)) s*=2.2;
+  s*=conceptTargetGenMult(pl.concept);
+  if(pl.concept==='Other / Unknown') s*=0.45;
+  s*=0.85+(((pl.id||0)*2654435761>>>0)%100)/100*0.3;
+  return s;
+}
+function generatePlaybookFromRows(rows,name){
+  const source=sourceRowsToPlays(rows).filter(pl=>pl.family!=='unknown');
+  if(!source.length){toast('No usable plays in source');return null;}
+  const p=philosophy;
+  const target=Math.min(Number(p.size)||100, source.length);
+  const baseMix=FAMILY_MIX[p.identity]||FAMILY_MIX.balanced;
+  const targetRun=((p.rpMin+p.rpMax)/2)/100;
+  const runFams=['run','option_rpo'], passFams=['play_action','pass','screen'];
+  const curRun=runFams.reduce((s,f)=>s+(baseMix[f]||0),0), curPass=passFams.reduce((s,f)=>s+(baseMix[f]||0),0);
+  const mix={};
+  runFams.forEach(f=>mix[f]=curRun?(baseMix[f]||0)/curRun*targetRun:targetRun/2);
+  passFams.forEach(f=>mix[f]=curPass?(baseMix[f]||0)/curPass*(1-targetRun):(1-targetRun)/3);
+  const pm=p.persMix||DEFAULT_PERS_MIX;
+  const pmTotal=Object.values(pm).reduce((a,b)=>a+b,0)||100;
+  const pmNorm={};ALL_PERS.forEach(g=>pmNorm[g]=(pm[g]||0)/pmTotal);
+  const seed=hashPhil(p,motion);
+  const sourceMap=buildFormationMapFromPool(source);
+  const scored=source.map(pl=>({pl,s:scorePoolPlay(pl,mix,pmNorm,p,seed)})).sort((a,b)=>b.s-a.s);
+  const MIN_FORM_PLAYS=Math.min(5,Math.max(2,Math.floor(target/20)||2));
+  const MAX_FORMS=Math.min(38,Math.max(8,Math.round(target/3.5)));
+  const MAX_PER_FORM=Math.max(8,Math.round(target/(Math.min(MAX_FORMS,Object.keys(sourceMap).length)||1)*1.6));
+  const formRanked=[...new Set(source.map(p=>p.formation))]
+    .filter(form=>(sourceMap[form]||[]).length>=Math.min(MIN_FORM_PLAYS,(sourceMap[form]||[]).length))
+    .map(form=>{const scores=scored.filter(x=>x.pl.formation===form).slice(0,3).map(x=>x.s);return{form,fscore:scores.reduce((a,b)=>a+b,0)/Math.max(1,scores.length)};})
+    .sort((a,b)=>b.fscore-a.fscore).slice(0,Math.min(MAX_FORMS,Object.keys(sourceMap).length)).map(x=>x.form);
+  const selectedForms=new Set(formRanked);
+  const byFam={}; Object.keys(mix).forEach(f=>byFam[f]=scored.filter(x=>selectedForms.has(x.pl.formation)&&x.pl.family===f));
+  const book=[], formCount=new Map(), formConceptCount=new Map();
+  function tryAdd(pl){
+    const fc=formCount.get(pl.formation)||0; if(fc>=MAX_PER_FORM)return false;
+    const fk=pl.formation+'|||'+pl.concept; const cc=formConceptCount.get(fk)||0; if(cc>=3)return false;
+    if(book.find(b=>dbKey(b.formation,b.play)===dbKey(pl.formation,pl.play)))return false;
+    book.push(pl);formCount.set(pl.formation,fc+1);formConceptCount.set(fk,cc+1);return true;
+  }
+  for(const f of Object.keys(mix)){
+    const quota=Math.round(target*mix[f]); let added=0;
+    for(const {pl} of byFam[f]){if(added>=quota||book.length>=target)break;if(tryAdd(pl))added++;}
+  }
+  for(const form of formRanked){
+    if((formCount.get(form)||0)>=MIN_FORM_PLAYS)continue;
+    for(const pl of (sourceMap[form]||[]).sort((a,b)=>scorePoolPlay(b,mix,pmNorm,p,seed)-scorePoolPlay(a,mix,pmNorm,p,seed))){
+      if((formCount.get(form)||0)>=MIN_FORM_PLAYS||book.length>=target)break;tryAdd(pl);
+    }
+  }
+  for(const {pl} of scored){if(book.length>=target)break;tryAdd(pl);}
+  const finalBook=seededShuffle(book.slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:getIntentTags(pl),_source:'team_generated'}));
+  playbook={meta:{generated:Date.now(),identity:p.identity,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
+  save(LS.pb,playbook); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
+  toast('Generated '+finalBook.length+'-play Coach Brain book from '+(name||'team source'));
+  return playbook;
+}
+function startBlankCustomPlaybook(){
+  if(playbook&&playbook.plays&&playbook.plays.length&&!confirm('Start a blank custom playbook? Your current saved base playbook will be replaced. Download a backup first if needed.'))return;
+  playbook={meta:{generated:Date.now(),identity:'custom',aggr:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
+  save(LS.pb,playbook); ingame=null; localStorage.removeItem(LS.ig); renderPlaybook(); initAddPlayForm(); toast('Blank custom playbook started — add plays below');
+}
+function renderPlaybookSourcePanel(){
+  const box=$('#pb-source-status'); if(!box)return;
+  const src=_teamSource&&_teamSource.rows?_teamSource:null;
+  const active=playbook&&playbook.meta?playbook.meta:{};
+  const parts=[];
+  if(active.sourceMode){parts.push(`<b>Active base:</b> ${active.sourceName||'Saved playbook'} <span class="hint">(${active.sourceMode.replace(/_/g,' ')})</span> · ${playbook.plays.length} plays`);}
+  else if(playbook){parts.push(`<b>Active base:</b> Generated system playbook · ${playbook.plays.length} plays`);}
+  else parts.push('<b>Active base:</b> none');
+  if(src) parts.push(`<br><b>Saved team source:</b> ${src.name||'Team source'} · ${src.rows.length} plays · saved ${src.savedAt?new Date(src.savedAt).toLocaleDateString():'locally'}`);
+  else parts.push('<br><b>Saved team source:</b> none yet. Upload a CSV on the Data tab.');
+  box.innerHTML=parts.join('');
+  const hasSrc=!!src;
+  ['btn-source-use-exact','btn-source-gen-team','btn-source-clear'].forEach(id=>{const b=$('#'+id);if(b)b.disabled=!hasSrc;});
 }
 /* ---- In-game tab ---- */
 let igSort='weight';
@@ -5354,6 +5547,7 @@ function handleCsvFile(file){
 
     // ── New play DB upload — analyse duplicates before preview ──
     _csvPending=result.rows;
+    _csvPendingName=file.name||'Uploaded playbook CSV';
 
     // Classify each row
     const builtinKeys=new Set(PLAYS.map(p=>dbKey(p.formation,p.play)));
@@ -5394,7 +5588,7 @@ function handleCsvFile(file){
     if(result.skippedDuplicate) notes.push(`${result.skippedDuplicate} duplicate row${result.skippedDuplicate!==1?'s':''} inside the CSV were collapsed`);
     if(result.skippedMissing) notes.push(`${result.skippedMissing} row${result.skippedMissing!==1?'s':''} missing formation/play were ignored`);
     const desc=document.createElement('div');
-    desc.innerHTML=parts.join(' · ')+'.'+(notes.length?`<br><span style="color:#8a7320;font-size:11px">${notes.join(' · ')}.</span>`:'')+'<br><span style="color:#2c7a52;font-size:11px">✓ Uploaded rows are merged as database entries and auto-tagged for formation/play intent. You can edit those tags in the Intent Tags table above.</span>';
+    desc.innerHTML=parts.join(' · ')+'.'+(notes.length?`<br><span style="color:#8a7320;font-size:11px">${notes.join(' · ')}.</span>`:'')+'<br><span style="color:#2c7a52;font-size:11px">✓ Uploaded rows are auto-tagged for Coach Brain / Play IQ. You can add them to the master DB, use the file directly as the active base playbook, or generate a smaller Coach Brain book from this file only.</span>';
     const existing=$('#csv-preview-desc');
     if(existing){existing.innerHTML='';existing.appendChild(desc);}
 
@@ -5418,8 +5612,31 @@ function handleCsvFile(file){
 }
 
 $('#btn-csv-commit').addEventListener('click',()=>commitCSVUpload());
+$('#btn-csv-save-source').addEventListener('click',()=>{
+  if(!_csvPending||!_csvPending.length){toast('No CSV rows loaded');return;}
+  saveTeamSource(_csvPending,_csvPendingName);
+  $('#csv-status').textContent='✓ Saved '+_csvPending.length+' plays as a reusable team source. Go to Base Playbook to use it exactly or generate from it.';
+  toast('Team source saved');
+});
+$('#btn-csv-use-base').addEventListener('click',()=>{
+  if(!_csvPending||!_csvPending.length){toast('No CSV rows loaded');return;}
+  saveTeamSource(_csvPending,_csvPendingName);
+  setActivePlaybookFromRows(_csvPending,_csvPendingName,'exact_csv_base');
+  $('#csv-preview').style.display='none';
+  $('#csv-status').textContent='✓ CSV is now the active base playbook. Scout, Script, In-Game, Coach Brain, and Play IQ will call from this file only.';
+  switchTab('playbook');
+});
+$('#btn-csv-gen-base').addEventListener('click',()=>{
+  if(!_csvPending||!_csvPending.length){toast('No CSV rows loaded');return;}
+  saveTeamSource(_csvPending,_csvPendingName);
+  generatePlaybookFromRows(_csvPending,_csvPendingName);
+  $('#csv-preview').style.display='none';
+  $('#csv-status').textContent='✓ Generated active Coach Brain base playbook from this CSV only.';
+  switchTab('playbook');
+});
 $('#btn-csv-cancel').addEventListener('click',()=>{
   _csvPending=null;
+  _csvPendingName='Uploaded playbook CSV';
   $('#csv-preview').style.display='none';
   $('#csv-status').textContent='Upload cancelled.';
 });
@@ -5477,6 +5694,11 @@ $('#btn-clear-pb').addEventListener('click',()=>{
 });
 $('#btn-pb-tojump').addEventListener('click',()=>{switchTab('ingame');});
 $('#pb-filter').addEventListener('input',e=>renderPbTable(e.target.value));
+$('#btn-source-gen-global').addEventListener('click',()=>{generatePlaybook();initPhilosophyForm();renderPlaybook();clearRecentSuggestions();toast('Generated from full database');});
+$('#btn-source-use-exact').addEventListener('click',()=>{if(!_teamSource||!_teamSource.rows){toast('Upload/save a team source first');return;}setActivePlaybookFromRows(_teamSource.rows,_teamSource.name,'exact_saved_team_source');});
+$('#btn-source-gen-team').addEventListener('click',()=>{if(!_teamSource||!_teamSource.rows){toast('Upload/save a team source first');return;}generatePlaybookFromRows(_teamSource.rows,_teamSource.name);});
+$('#btn-source-blank').addEventListener('click',()=>startBlankCustomPlaybook());
+$('#btn-source-clear').addEventListener('click',()=>{if(!_teamSource){return;} if(!confirm('Clear the saved team source? Your active base playbook will not be deleted.'))return; _teamSource=null; localStorage.removeItem(LS_TEAM_SOURCE); renderPlaybookSourcePanel(); toast('Team source cleared');});
 
 // Playbook backup upload — click or drag-and-drop
 (function(){
