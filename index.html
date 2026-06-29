@@ -5875,6 +5875,208 @@ function renderSuggestion(plays){
   box.appendChild(cards);
 }
 
+
+/* ============================================================
+   v12.2 HARD FIX — GUARANTEED SUGGEST 3 PATH
+   ------------------------------------------------------------
+   This replaces the fragile full render/caller path with a guaranteed
+   caller and a safe card renderer. The advanced Coach Brain still feeds
+   the score when it can, but the button must never silently fail.
+   ============================================================ */
+function v122CoercePlay(pl){
+  if(!pl)return null;
+  if(Array.isArray(pl)){
+    try{
+      const db=(typeof DB!=='undefined')?DB:(window&&window.__DB);
+      return {
+        formation:db.forms[pl[0]]||'Unknown Formation',
+        play:String(pl[1]||''),
+        family:db.fams[pl[2]]||'unknown',
+        concept:db.concepts[pl[3]]||'Other / Unknown',
+        pers:String(pl[4]??''),
+        motion:Number(pl[5]||0),
+        hasMotion:Number(pl[5]||0)>0
+      };
+    }catch(e){return null;}
+  }
+  const out={
+    formation:String(pl.formation||pl.form||pl.set||'Unknown Formation'),
+    play:String(pl.play||pl.name||pl.title||''),
+    family:String(pl.family||pl.family_guess||pl.fam||'unknown'),
+    concept:String(pl.concept||pl.parentConcept||'Other / Unknown'),
+    pers:String(pl.pers||pl.personnel||pl.personnel_guess||''),
+    motion:Number(pl.motion||0),
+    hasMotion:!!pl.hasMotion || Number(pl.motion||0)>0,
+    _manual:pl._manual,
+    _source:pl._source
+  };
+  // Keep enriched fields if present so other parts of the app still work.
+  Object.keys(pl).forEach(k=>{ if(out[k]===undefined) out[k]=pl[k]; });
+  if(!out.play.trim())return null;
+  return out;
+}
+function v122ActivePlayPool(){
+  try{ if((!playbook||!Array.isArray(playbook.plays)) && typeof loadJSON==='function' && typeof LS!=='undefined') playbook=loadJSON(LS.pb)||playbook; }catch(e){}
+  const raw=(playbook&&Array.isArray(playbook.plays))?playbook.plays:[];
+  return raw.map(v122CoercePlay).filter(Boolean);
+}
+function v122IsRun(pl){
+  const f=(pl.family||'').toLowerCase(), c=(pl.concept||'').toLowerCase(), p=(pl.play||'').toLowerCase();
+  return f.includes('run')||f.includes('option')||/zone|power|counter|trap|duo|dive|sweep|toss|draw|read|base/.test(c+' '+p);
+}
+function v122IsQuick(pl){
+  const c=(pl.concept||'').toLowerCase(), p=(pl.play||'').toLowerCase();
+  return /stick|quick|slant|spot|spacing|hitch|curl|flat|mesh|shallow/.test(c+' '+p);
+}
+function v122IsScreen(pl){
+  return String(pl.family||'').toLowerCase().includes('screen')||/screen|bubble|smoke|now|slip/.test((pl.concept+' '+pl.play).toLowerCase());
+}
+function v122IsShot(pl){
+  return /vert|go|post|dagger|shot|fade|wheel|corner/.test((pl.concept+' '+pl.play).toLowerCase());
+}
+function v122BaseScore(pl,down,dist,zone,yards){
+  down=String(down||'1'); dist=dist||'med'; zone=zone||'normal';
+  const run=v122IsRun(pl), quick=v122IsQuick(pl), screen=v122IsScreen(pl), shot=v122IsShot(pl);
+  let s=1;
+  try{ if(ingame&&ingame.concepts&&ingame.concepts[pl.concept]) s*=Math.max(.35,Number(ingame.concepts[pl.concept].w)||1); }catch(e){}
+  // Fast down/distance buckets — no advanced dependency required.
+  if(down==='1'){
+    if(run)s*=1.18; if(quick)s*=1.12; if(screen)s*=0.95; if(shot)s*=0.88;
+  }else if(down==='2'){
+    if(dist==='short'){ if(run)s*=1.24; if(quick)s*=1.10; if(shot)s*=0.86; }
+    else if(dist==='long'){ if(!run)s*=1.20; if(screen)s*=1.18; if(shot)s*=1.08; if(run)s*=0.70; }
+    else { if(quick)s*=1.18; if(!run)s*=1.08; if(run)s*=1.02; }
+  }else if(down==='3'){
+    if(dist==='short'){ if(run)s*=1.22; if(quick)s*=1.32; if(screen)s*=0.92; if(shot)s*=0.72; }
+    else if(dist==='long'){ if(!run)s*=1.36; if(screen)s*=1.22; if(shot)s*=1.18; if(run)s*=0.42; }
+    else { if(quick)s*=1.34; if(!run)s*=1.20; if(screen)s*=1.08; if(run)s*=0.65; }
+  }else if(down==='4'){
+    if(dist==='short'){ if(run)s*=1.35; if(quick)s*=1.24; if(shot)s*=0.58; }
+    else { if(quick)s*=1.25; if(!run)s*=1.18; if(run)s*=0.55; }
+  }
+  if(zone==='redzone'){ if(quick)s*=1.12; if(run)s*=1.10; if(shot)s*=0.82; }
+  if(zone==='goalline'){ if(run)s*=1.28; if(quick)s*=1.18; if(shot)s*=0.45; if(screen)s*=0.65; }
+  if(zone==='twominute'){ if(quick||screen)s*=1.25; if(run)s*=0.48; }
+  // Soft-use the advanced scoring if available; never allow it to break the caller.
+  try{
+    if(typeof coreCallScore==='function'){
+      const adv=Number(coreCallScore(pl,down,dist,zone,yards,{nudges:runPassNudgesFor(zone)}));
+      if(Number.isFinite(adv)&&adv>0) s*=Math.max(.45,Math.min(2.25,adv));
+    }
+  }catch(e){ console.warn('v12.2 advanced score skipped',e); }
+  // Defensive-style library should only nudge, never dictate.
+  try{ if(typeof defenseStyleMult==='function') s*=Math.max(.82,Math.min(1.22,Number(defenseStyleMult(pl))||1)); }catch(e){}
+  // Avoid exact stale repeats if recent history exists.
+  try{ if(typeof _isRecent==='function' && _isRecent(pl)) s*=0.30; }catch(e){}
+  // Tiny stable jitter so ties do not always show the same three.
+  const key=(pl.formation+'|'+pl.play+'|'+pl.concept);
+  let h=0; for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))>>>0;
+  s*=1+((h%17)-8)/500;
+  return Math.max(0,s);
+}
+function safeSuggestPlay(down,dist,zone,yards){
+  const pool=v122ActivePlayPool();
+  if(!pool.length)return [];
+  try{ if(!ingame && typeof seedIngameFromBook==='function') seedIngameFromBook(); }catch(e){}
+  let scored=[];
+  // Try the full caller first, but do not trust it as the only path.
+  try{
+    if(typeof suggestPlay==='function' && suggestPlay!==safeSuggestPlay){
+      const advanced=suggestPlay(down,dist,zone,yards);
+      if(Array.isArray(advanced)&&advanced.length){
+        const clean=advanced.map(v122CoercePlay).filter(Boolean);
+        if(clean.length>=3)return clean.slice(0,3);
+      }
+    }
+  }catch(e){ console.error('Full Suggest 3 failed; v12.2 fallback engaged',e); }
+  try{
+    scored=pool.map(pl=>({pl,s:v122BaseScore(pl,down,dist,zone,yards)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  }catch(e){
+    console.error('v12.2 score failed; using raw playbook order',e);
+    return pool.slice(0,3);
+  }
+  const picks=[]; const used=new Set(); const forms=new Set();
+  for(const x of scored){
+    const k=x.pl.formation+'|'+x.pl.play;
+    if(used.has(k))continue;
+    // Try for formation diversity first.
+    if(picks.length<3 && !forms.has(x.pl.formation)){picks.push(x.pl);used.add(k);forms.add(x.pl.formation);}
+    if(picks.length>=3)break;
+  }
+  if(picks.length<3){
+    for(const x of scored){
+      const k=x.pl.formation+'|'+x.pl.play;
+      if(!used.has(k)){picks.push(x.pl);used.add(k);}
+      if(picks.length>=3)break;
+    }
+  }
+  try{ picks.forEach(p=>{ if(typeof _pushRecent==='function') _pushRecent(p); }); }catch(e){}
+  return picks.slice(0,3);
+}
+function v122LogQuick(pl,outcome,card){
+  try{
+    const diagnosis={quick:true,reason:outcome==='failure'?'Negative TFL':'',reaction:'no_adjustment',notes:['Quick log used.']};
+    const note=(typeof logResult==='function')?logResult(pl.concept,outcome,diagnosis.reason,diagnosis.reaction,pl,diagnosis):'';
+    card.classList.remove('logged-ok','logged-mid','logged-bad');
+    card.classList.add(outcome==='success'?'logged-ok':outcome==='neutral'?'logged-mid':'logged-bad');
+    const label=outcome==='success'?'✓ Good':outcome==='neutral'?'0 No harm':'✕ Bad';
+    const old=card.querySelector('.pc-results');
+    if(old){ old.innerHTML='<div class="pc-logged '+(outcome==='success'?'ok':outcome==='neutral'?'mid':'bad')+'">'+label+' logged</div>'+(note?'<div class="pc-adj">'+note+'</div>':''); }
+    try{renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();renderIngameStats();}catch(e){}
+    if(typeof toast==='function')toast((pl.concept||pl.play)+' logged');
+  }catch(e){ console.error('Quick log failed',e); if(typeof toast==='function')toast('Log failed — call still displayed'); }
+}
+function renderSuggestion(plays){
+  const box=document.getElementById('ig-plays'); if(!box)return;
+  box.innerHTML='';
+  const clean=(Array.isArray(plays)?plays:[]).map(v122CoercePlay).filter(Boolean).slice(0,3);
+  if(!clean.length){
+    box.innerHTML='<div class="callout">No playable calls found. Make sure the Base Playbook tab has an active playbook, then try again.</div>';
+    return;
+  }
+  const cards=document.createElement('div'); cards.className='play-cards';
+  clean.forEach((pl,idx)=>{
+    const card=document.createElement('div'); card.className='play-card';
+    const hdr=document.createElement('div'); hdr.className='pc-header';
+    hdr.innerHTML='<div class="pc-num">'+(idx+1)+'</div><div style="flex:1"><div class="pc-play"></div><div class="pc-form"></div></div>';
+    hdr.querySelector('.pc-play').textContent=pl.play;
+    hdr.querySelector('.pc-form').textContent=pl.formation;
+    card.appendChild(hdr);
+    const body=document.createElement('div'); body.className='pc-body';
+    const tagLine=document.createElement('div'); tagLine.className='pc-tags';
+    tagLine.innerHTML='<span class="pill pers">'+(pl.pers||'--')+'</span><span class="pill '+(pl.family||'unknown')+'">'+String(pl.family||'unknown').replace('_',' ')+'</span>'+(Number(pl.motion)>0?'<span class="pill motion">Motion</span>':'');
+    body.appendChild(tagLine);
+    const concept=document.createElement('div'); concept.className='pc-concept'; concept.textContent=(pl.concept||'Other / Unknown'); body.appendChild(concept);
+    try{
+      const note=(typeof coachBrainNoteFor==='function')?coachBrainNoteFor(pl):'';
+      if(note){const n=document.createElement('div'); n.className='pc-beats'; n.style.fontStyle='normal'; n.textContent=note; body.appendChild(n);}
+    }catch(e){}
+    card.appendChild(body);
+    const rw=document.createElement('div'); rw.className='pc-results';
+    const lab=document.createElement('div'); lab.className='pc-results-label'; lab.textContent='Fast log'; rw.appendChild(lab);
+    const q=document.createElement('div'); q.className='quick-log-row';
+    [['success','q-ok','✓ Good'],['neutral','q-mid','0 No harm'],['failure','q-bad','✕ Bad']].forEach(([out,cls,txt])=>{
+      const b=document.createElement('button'); b.className=cls; b.textContent=txt; b.addEventListener('click',()=>v122LogQuick(pl,out,card)); q.appendChild(b);
+    });
+    rw.appendChild(q); card.appendChild(rw); cards.appendChild(card);
+  });
+  box.appendChild(cards);
+}
+function v122HandleSuggestClick(){
+  try{
+    const plays=safeSuggestPlay(_igDown,_igDist,_igZone,_igYards);
+    renderSuggestion(plays);
+    if(!plays||!plays.length){
+      if(typeof toast==='function')toast('No active base playbook found');
+    }
+  }catch(e){
+    console.error('Suggest 3 hard failure',e);
+    const box=document.getElementById('ig-plays');
+    if(box)box.innerHTML='<div class="callout">Suggest 3 hit an error, but the app is still open. Go to Base Playbook and confirm a book is active, then reload this page.</div>';
+    if(typeof toast==='function')toast('Suggest 3 error — see card');
+  }
+}
+
 /* ============================================================
    EVENT WIRING
    ============================================================ */
@@ -6221,7 +6423,7 @@ if($('#ig-down-exact')) $('#ig-down-exact').addEventListener('change',e=>setIgSi
 if($('#ig-yards-exact')) $('#ig-yards-exact').addEventListener('input',e=>setIgSituation(_igDown,e.target.value));
 updateIgExactControls();
 $('#btn-ig-reset').addEventListener('click',()=>{if(!playbook){toast('No playbook');return;}seedIngameFromBook();clearRecentSuggestions();$('#ig-plays').innerHTML='';renderIngame();toast('In-game tracking reset to base');});
-$('#btn-suggest').addEventListener('click',()=>{const plays=safeSuggestPlay(_igDown,_igDist,_igZone,_igYards);renderSuggestion(plays); if(!plays||!plays.length)toast('No playable calls found — check active base playbook');});
+$('#btn-suggest').addEventListener('click',()=>v122HandleSuggestClick());
 if($('#btn-seq-clear')) $('#btn-seq-clear').addEventListener('click',()=>{clearSequenceMemory();toast('Drive sequence memory cleared');});
 $$('#ig-sort button').forEach(b=>b.addEventListener('click',()=>{igSort=b.dataset.s;$$('#ig-sort button').forEach(x=>x.classList.toggle('on',x===b));renderBoard();}));
 
