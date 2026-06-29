@@ -420,7 +420,7 @@
               <option value="spread_tempo_inside_zone">Spread tempo IZ/RPO — starter template</option>
             </optgroup>
           </select>
-          <div class="hint">Source-backed profiles give soft boosts, script questions, sequencing rules, and guardrails. They never hard-force the call.</div>
+          <div class="hint">Source-backed profiles now act as adjustable scheme rails. Use System discipline to make them light, strong, or hard-line.</div>
         </div>
         <div>
           <label class="fld">Tempo &amp; aggression</label>
@@ -465,6 +465,24 @@
         </div>
       </div>
 
+      <div class="grid2" style="margin-top:16px">
+        <div>
+          <label class="fld">System discipline</label>
+          <p class="hint" style="margin:0 0 8px">How hard the selected offensive system should drive playbook generation and in-game suggestions. Lower = broader. Higher = stay true to the profile.</p>
+          <input type="range" id="ph-system-strength" min="0" max="100" value="75">
+          <div class="hint">Current: <span id="ph-system-strength-val" style="font-weight:700;color:var(--field)">75%</span></div>
+        </div>
+        <div>
+          <label class="fld">Formation style emphasis</label>
+          <p class="hint" style="margin:0 0 8px">Tilt the book toward Gun/shotgun, Singleback, Pistol, I-Form, Flexbone, Empty, or other alignment families.</p>
+          <div id="ph-form-sliders"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+            <div class="hint">Total: <span id="ph-form-total" style="font-weight:700;color:var(--field)">100%</span></div>
+            <button class="btn ghost sm" id="btn-form-preset" style="font-size:10px">↺ Reset alignment preset</button>
+          </div>
+        </div>
+      </div>
+
       <div style="margin-top:18px">
         <label class="fld">Run / pass balance range</label>
         <p class="hint" style="margin:0 0 6px">The split your book is built around — and the band the in-game caller keeps you inside. Default follows your identity; drag either handle to set min and max run %.</p>
@@ -487,7 +505,7 @@
 
       <div style="margin-top:18px;border-top:1px dashed #ddd;padding-top:14px">
         <label class="fld">Core concept call targets</label>
-        <p class="hint" style="margin:0 0 8px">Tell the app what you actually want to major in. These are not hard quotas; they seed the base book, starting call weights, and in-game diversity guardrails.</p>
+        <p class="hint" style="margin:0 0 8px">Tell the app what you actually want to major in. These seed the base book, starting call weights, and in-game guardrails. With high System discipline, the selected offensive system carries more weight than broad identity.</p>
         <div id="ph-concept-targets"></div>
         <div class="hint" id="ph-concept-target-total" style="margin-top:6px"></div>
       </div>
@@ -2085,9 +2103,12 @@ const CONCEPT_TARGET_GUIDE={
 };
 function ensurePhilosophyShape(){
   if(!philosophy.persMix) philosophy.persMix={...DEFAULT_PERS_MIX};
+  if(!philosophy.formMix) philosophy.formMix={...DEFAULT_FORM_MIX};
+  ALL_FORM_TYPES.forEach(k=>{if(philosophy.formMix[k]==null)philosophy.formMix[k]=0;});
   if(!Array.isArray(philosophy.emphasis)) philosophy.emphasis=[];
   if(!philosophy.conceptTargets) philosophy.conceptTargets={};
   if(!philosophy.system) philosophy.system='none';
+  if(philosophy.systemStrength==null) philosophy.systemStrength=75;
 }
 
 function conceptTargetPct(concept){ensurePhilosophyShape(); return Number(philosophy.conceptTargets[concept]||0);}
@@ -2102,6 +2123,32 @@ function conceptTargetSeedMult(concept){
   if(t>0) return Math.min(2.15,0.95+t/13); // 16% target ≈ 2.18, capped
   return active?0.9:1;
 }
+function normalisePctMap(map,keys){
+  const total=keys.reduce((sum,k)=>sum+Number((map&&map[k])||0),0)||100;
+  const out={}; keys.forEach(k=>out[k]=Number((map&&map[k])||0)/total);
+  return out;
+}
+function formTypeShare(type){
+  ensurePhilosophyShape();
+  const norm=normalisePctMap(philosophy.formMix||DEFAULT_FORM_MIX,ALL_FORM_TYPES);
+  return norm[type]||0;
+}
+function formationStyleGenMult(pl){
+  if(!pl)return 1;
+  const type=inferFormationType(pl.formation);
+  const share=formTypeShare(type);
+  // floor keeps off-style plays selectable; high slider makes the chosen style a real generation rail.
+  return Math.max(0.24,Math.min(4.25,0.24+share*7.6));
+}
+function formationStyleGameMult(pl){
+  if(!pl)return 1;
+  const type=inferFormationType(pl.formation);
+  const share=formTypeShare(type);
+  // In-game stays less deterministic than generation but still honors the chosen alignment family.
+  return Math.max(0.82,Math.min(1.32,0.82+share*2.25));
+}
+function safeFormationStyleGameMult(pl){return safeMult('formation style game mult',()=>formationStyleGameMult(pl),1);}
+
 function conceptTargetGameMult(pl){
   const t=conceptTargetPct(pl.concept), active=activeConceptTargets().length;
   if(!ingame||!ingame.log||!ingame.log.length){ return t>0?1.12:(active?0.95:1); }
@@ -2407,6 +2454,32 @@ function sitLabelExact(down,yards){const d=String(down); const suf={1:'st',2:'nd
 
 // Default personnel mix — percentage weight each grouping gets in the book (must sum to 100)
 const DEFAULT_PERS_MIX={'11':65,'12':25,'10':0,'13':0,'20':0,'21':10,'22':0,'23':0};
+// Formation/alignment style mix — the active book may be tilted toward shotgun, singleback, pistol, etc.
+const ALL_FORM_TYPES=['shotgun','singleback','pistol','i_form','flexbone','empty','under_center','other'];
+const FORM_TYPE_LABEL={
+  shotgun:'Gun / shotgun', singleback:'Singleback', pistol:'Pistol', i_form:'I-Form / Strong-I',
+  flexbone:'Flexbone / wingbone', empty:'Empty / 5WR', under_center:'Under-center other', other:'Other'
+};
+const DEFAULT_FORM_MIX={shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,empty:8,under_center:4,other:2};
+const IDENTITY_FORM_MIX={
+  balanced:{shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,empty:8,under_center:4,other:2},
+  run:{shotgun:30,singleback:20,pistol:8,i_form:18,flexbone:10,empty:2,under_center:8,other:4},
+  pass:{shotgun:58,singleback:8,pistol:8,i_form:2,flexbone:0,empty:20,under_center:2,other:2},
+  spread:{shotgun:66,singleback:4,pistol:10,i_form:0,flexbone:0,empty:16,under_center:0,other:4},
+  pro:{shotgun:28,singleback:26,pistol:6,i_form:22,flexbone:2,empty:4,under_center:10,other:2}
+};
+function inferFormationType(form){
+  const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
+  if(/empty|5\s*wr|five\s*wide/.test(f))return 'empty';
+  if(/flexbone|wingbone|wishbone|split back|split backs/.test(f))return 'flexbone';
+  if(/pistol/.test(f))return 'pistol';
+  if(/singleback|ace|deuce/.test(f)&&!/^gun\b/.test(f))return 'singleback';
+  if(/\bgun\b|shotgun|spread|doubles|trips|trio|trey|bunch|y off|y flex/.test(f))return 'shotgun';
+  if(/i\s*form|strong\s*i|weak\s*i|maryland|goal\s*line|pro\s*set|near|far/.test(f))return 'i_form';
+  if(/single/.test(f))return 'singleback';
+  if(/under|offset i/.test(f))return 'under_center';
+  return 'other';
+}
 // Identity-based pers mix presets
 const IDENTITY_PERS_MIX={
   balanced: {'11':60,'12':25,'20':5,'21':10,'10':0,'13':0,'22':0,'23':0},
@@ -2415,7 +2488,7 @@ const IDENTITY_PERS_MIX={
   spread:   {'11':50,'12':10,'10':35,'20':5,'21':0,'13':0,'22':0,'23':0},
   pro:      {'11':25,'12':35,'20':5,'21':20,'22':10,'23':5,'10':0,'13':0}
 };
-function defaultPhilosophy(){return{identity:'balanced',system:'none',aggr:'normal',persMix:{...DEFAULT_PERS_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
+function defaultPhilosophy(){return{identity:'balanced',system:'none',systemStrength:75,aggr:'normal',persMix:{...DEFAULT_PERS_MIX},formMix:{...DEFAULT_FORM_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
 
 /* ============================================================
    STATE + PERSISTENCE
@@ -2679,6 +2752,50 @@ const BUILT_IN_OFFENSE_SYSTEMS={
     conceptBoosts:{'Inside Zone':1.24,'Option / RPO':1.24,'Quick Game':1.15,'Stick':1.12,'Screen':1.13,'Verticals / Four Verticals':1.08,'Draw':1.08,'Jet Touch Pass':1.10},familyBoosts:{run:1.08,option_rpo:1.25,pass:1.06,screen:1.08},surfaceBoosts:{spread:1.14,trips:1.12,empty:1.10},motionBoosts:{orbit:1.14,jet:1.14,across:1.08},persBoosts:{'11':1.14,'10':1.12,'20':1.06},tagBoosts:[],tagPenalties:[],genCap:1.55,gameCap:1.15
   }
 };
+// v14.1 hard-scheme rails: profiles can now carry alignment-family presets and type boosts.
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone,{
+  systemStrengthPreset:88,
+  formMixPreset:{shotgun:24,singleback:26,pistol:6,i_form:24,flexbone:0,empty:3,under_center:15,other:2},
+  formTypeBoosts:{singleback:1.20,i_form:1.18,under_center:1.12,shotgun:1.08,pistol:1.04,empty:.88,flexbone:.78,other:.88},
+  genCap:2.55, gameCap:1.42
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.paul_johnson_flexbone,{
+  systemStrengthPreset:92,
+  formMixPreset:{shotgun:6,singleback:2,pistol:4,i_form:4,flexbone:74,empty:0,under_center:8,other:2},
+  formTypeBoosts:{flexbone:1.55,under_center:1.08,shotgun:.78,singleback:.72,pistol:.78,empty:.62,i_form:.88,other:.82},
+  genCap:2.75, gameCap:1.48
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread,{
+  systemStrengthPreset:88,
+  formMixPreset:{shotgun:64,singleback:1,pistol:8,i_form:0,flexbone:0,empty:22,under_center:0,other:5},
+  formTypeBoosts:{shotgun:1.25,empty:1.22,pistol:1.08,singleback:.68,i_form:.56,flexbone:.55,under_center:.55,other:.92},
+  genCap:2.65, gameCap:1.45
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.wide_zone_boot,{
+  systemStrengthPreset:82,
+  formMixPreset:{shotgun:28,singleback:26,pistol:6,i_form:20,flexbone:0,empty:4,under_center:14,other:2},
+  formTypeBoosts:{singleback:1.18,i_form:1.14,under_center:1.10,shotgun:1.08,pistol:1.04,empty:.9}
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.modern_west_coast,{
+  systemStrengthPreset:80,
+  formMixPreset:{shotgun:48,singleback:14,pistol:8,i_form:8,flexbone:0,empty:16,under_center:4,other:2},
+  formTypeBoosts:{shotgun:1.12,empty:1.08,singleback:1.04,pistol:1.03,i_form:.96}
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.erhardt_perkins,{
+  systemStrengthPreset:82,
+  formMixPreset:{shotgun:30,singleback:22,pistol:6,i_form:18,flexbone:0,empty:6,under_center:14,other:4},
+  formTypeBoosts:{singleback:1.12,i_form:1.12,under_center:1.08,shotgun:1.06,pistol:1.02,empty:.95}
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.spread_power_rpo,{
+  systemStrengthPreset:82,
+  formMixPreset:{shotgun:58,singleback:2,pistol:10,i_form:0,flexbone:0,empty:18,under_center:0,other:12},
+  formTypeBoosts:{shotgun:1.18,empty:1.10,pistol:1.08,singleback:.78,i_form:.62,under_center:.60}
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.spread_tempo_inside_zone,{
+  systemStrengthPreset:82,
+  formMixPreset:{shotgun:66,singleback:2,pistol:8,i_form:0,flexbone:0,empty:20,under_center:0,other:4},
+  formTypeBoosts:{shotgun:1.20,empty:1.12,pistol:1.06,singleback:.75,i_form:.60,under_center:.60}
+});
 const LS_OFF_SYS='callsheet_offense_systems_v1';
 let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
 function allOffenseSystems(){return {...BUILT_IN_OFFENSE_SYSTEMS,...(_customOffenseSystems||{})};}
@@ -2722,12 +2839,32 @@ function offSysTagMatch(pl,tag){
     default: return false;
   }
 }
-function offenseSystemGenMult(pl,systemKey){
+function offenseSystemStrength01(){
+  ensurePhilosophyShape();
+  return Math.max(0,Math.min(1,Number(philosophy.systemStrength==null?75:philosophy.systemStrength)/100));
+}
+function scaleOffenseSystemMult(raw,mode,sys){
+  const strength=offenseSystemStrength01();
+  if(strength<=0.01)return 1;
+  const amp=mode==='gen' ? (0.35 + strength*1.85) : (0.22 + strength*0.82);
+  const out=1+(raw-1)*amp;
+  if(mode==='gen'){
+    const cap=Math.max(sys.genCap||1.65,1.35+strength*1.55);
+    const floor=Math.min(0.92,Math.max(0.36,1-strength*0.62));
+    return Math.max(floor,Math.min(cap,out));
+  }
+  const cap=Math.max(sys.gameCap||1.18,1.08+strength*0.38);
+  const floor=Math.min(0.96,Math.max(0.70,1-strength*0.30));
+  return Math.max(floor,Math.min(cap,out));
+}
+function offenseSystemRawMult(pl,systemKey){
   const sys=activeOffenseSystem(systemKey); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none||!pl)return 1;
   let m=1; const t=(typeof getIntentTags==='function')?getIntentTags(pl):((typeof intentSafe==='function')?intentSafe(pl):null);
   if(sys.conceptBoosts&&sys.conceptBoosts[pl.concept])m*=sys.conceptBoosts[pl.concept];
   if(sys.familyBoosts&&sys.familyBoosts[pl.family])m*=sys.familyBoosts[pl.family];
   if(sys.persBoosts&&sys.persBoosts[pl.pers])m*=sys.persBoosts[pl.pers];
+  const ftype=inferFormationType(pl.formation);
+  if(sys.formTypeBoosts&&sys.formTypeBoosts[ftype])m*=sys.formTypeBoosts[ftype];
   if(t){
     if(sys.surfaceBoosts&&sys.surfaceBoosts[t.surface])m*=sys.surfaceBoosts[t.surface];
     if(sys.motionBoosts&&sys.motionBoosts[t.motionType])m*=sys.motionBoosts[t.motionType];
@@ -2735,13 +2872,15 @@ function offenseSystemGenMult(pl,systemKey){
   }
   (sys.tagBoosts||[]).forEach(b=>{if(offSysTagMatch(pl,b.tag))m*=b.m;});
   (sys.tagPenalties||[]).forEach(b=>{if(offSysTagMatch(pl,b.tag))m*=b.m;});
-  return Math.max(0.74,Math.min(sys.genCap||1.65,m));
+  return Math.max(0.42,Math.min(3.2,m));
+}
+function offenseSystemGenMult(pl,systemKey){
+  const sys=activeOffenseSystem(systemKey); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none||!pl)return 1;
+  return scaleOffenseSystemMult(offenseSystemRawMult(pl,systemKey),'gen',sys);
 }
 function offenseSystemGameMult(pl){
   const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return 1;
-  const g=offenseSystemGenMult(pl);
-  const soft=1+(g-1)*0.42;
-  return Math.max(0.88,Math.min(sys.gameCap||1.18,soft));
+  return scaleOffenseSystemMult(offenseSystemRawMult(pl),'game',sys);
 }
 function safeOffenseSystemGameMult(pl){return safeMult('offense system game mult',()=>offenseSystemGameMult(pl),1);}
 function offenseSystemConceptSeedMult(concept,family){
@@ -2769,7 +2908,10 @@ function offenseSystemPlanHtml(){
   const boost=(sys.tagBoosts||[]).slice(0,6).map(b=>`<span class="chip">+ ${b.label}</span>`).join(' ');
   const pens=(sys.tagPenalties||[]).slice(0,3).map(b=>`<span class="chip bad">↓ ${b.label}</span>`).join(' ');
   const rules=(sys.sequencingRules||[]).slice(0,4).map(x=>`<li>${x}</li>`).join('');
-  return `<b>${sys.label}</b> <span class="hint">${sys.sourceBacked?'source-backed':'starter'} · soft boosts only</span><br><span class="hint">${sys.summary||''}</span><div style="margin-top:8px"><b>Core:</b> ${chips(sys.baseConcepts)}<br><b>Personnel:</b> ${chips(sys.preferredPersonnel)}<br><b>Surfaces:</b> ${chips(sys.coreFormations)}</div><div style="margin-top:8px">${boost}${pens?'<br>'+pens:''}</div>${rules?`<div class="hint" style="margin-top:8px"><b>Sequencing rules:</b><ul style="margin:4px 0 0 18px;padding:0">${rules}</ul></div>`:''}`;
+  const strength=(philosophy&&philosophy.systemStrength!=null)?Number(philosophy.systemStrength):75;
+  const hardLabel=strength>=85?'hard scheme rail':strength>=60?'strong scheme rail':'light scheme nudge';
+  const forms=sys.formMixPreset?Object.entries(sys.formMixPreset).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`<span class="chip">${FORM_TYPE_LABEL[k]||k} ${v}%</span>`).join(' '):'';
+  return `<b>${sys.label}</b> <span class="hint">${sys.sourceBacked?'source-backed':'starter'} · ${hardLabel} · ${strength}%</span><br><span class="hint">${sys.summary||''}</span><div style="margin-top:8px"><b>Core:</b> ${chips(sys.baseConcepts)}<br><b>Personnel:</b> ${chips(sys.preferredPersonnel)}<br><b>Surfaces:</b> ${chips(sys.coreFormations)}${forms?`<br><b>Alignment preset:</b> ${forms}`:''}</div><div style="margin-top:8px">${boost}${pens?'<br>'+pens:''}</div>${rules?`<div class="hint" style="margin-top:8px"><b>Sequencing rules:</b><ul style="margin:4px 0 0 18px;padding:0">${rules}</ul></div>`:''}`;
 }
 function renderOffenseSystemPlan(){const box=$('#off-system-plan');if(!box)return;const html=offenseSystemPlanHtml();if(!html){box.style.display='none';box.innerHTML='';return;}box.style.display='block';box.innerHTML=html;}
 function renderSystemOptions(){
@@ -2788,9 +2930,12 @@ function applyOffenseSystemPreset(){
   const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none){toast('Choose a system profile first');return;}
   if(sys.identityPreset){philosophy.identity=sys.identityPreset; const elid=$('#ph-identity'); if(elid)elid.value=philosophy.identity;}
   if(sys.persMixPreset) philosophy.persMix={...DEFAULT_PERS_MIX,...sys.persMixPreset};
+  if(sys.formMixPreset) philosophy.formMix={...DEFAULT_FORM_MIX,...sys.formMixPreset};
   if(sys.rpBand){philosophy.rpMin=sys.rpBand[0]; philosophy.rpMax=sys.rpBand[1];}
   if(sys.conceptTargetsPreset) philosophy.conceptTargets={...sys.conceptTargetsPreset};
   if(sys.motionPreset!=null){motion=Number(sys.motionPreset); save(LS.motion,String(motion));}
+  if(sys.systemStrengthPreset!=null) philosophy.systemStrength=Number(sys.systemStrengthPreset)||85;
+  else philosophy.systemStrength=Math.max(Number(philosophy.systemStrength||0),82);
   if(sys.sizeHint&&(!philosophy.size||philosophy.size<220)) philosophy.size=Math.min(400,Number(sys.sizeHint)||philosophy.size);
   save(LS.ph,philosophy); initPhilosophyForm(); toast('Applied '+sys.label+' preset');
 }
@@ -2804,7 +2949,7 @@ function importSystemProfileFile(file){
   reader.onload=e=>{try{
     const obj=JSON.parse(e.target.result); const id=String(obj.system_id||obj.id||obj.key||('custom_'+Date.now())).replace(/[^a-z0-9_]+/gi,'_').toLowerCase();
     const profile={...obj}; delete profile.system_id; profile.label=profile.label||profile.system_name||id; profile.source=profile.source||'Imported profile'; profile.sourceBacked=!!profile.sourceBacked;
-    if(!profile.conceptBoosts)profile.conceptBoosts={}; if(!profile.familyBoosts)profile.familyBoosts={}; if(!profile.surfaceBoosts)profile.surfaceBoosts={}; if(!profile.motionBoosts)profile.motionBoosts={}; if(!profile.persBoosts)profile.persBoosts={}; if(!Array.isArray(profile.tagBoosts))profile.tagBoosts=[]; if(!Array.isArray(profile.tagPenalties))profile.tagPenalties=[];
+    if(!profile.conceptBoosts)profile.conceptBoosts={}; if(!profile.familyBoosts)profile.familyBoosts={}; if(!profile.surfaceBoosts)profile.surfaceBoosts={}; if(!profile.motionBoosts)profile.motionBoosts={}; if(!profile.persBoosts)profile.persBoosts={}; if(!profile.formTypeBoosts)profile.formTypeBoosts={}; if(!profile.formMixPreset)profile.formMixPreset={}; if(!Array.isArray(profile.tagBoosts))profile.tagBoosts=[]; if(!Array.isArray(profile.tagPenalties))profile.tagPenalties=[];
     _customOffenseSystems={...(_customOffenseSystems||{}),[id]:profile}; save(LS_OFF_SYS,_customOffenseSystems); philosophy.system=id; save(LS.ph,philosophy); renderSystemOptions(); renderOffenseSystemPlan(); toast('Imported offensive system: '+profile.label);
   }catch(err){toast('Could not import system JSON: '+err.message);}};
   reader.readAsText(file);
@@ -2825,7 +2970,7 @@ function offensiveSystemScriptSpecs(){
 
 function systemSummaryForSave(key){
   const sys=activeOffenseSystem(key); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return null;
-  return {label:sys.label,source:sys.source||'',summary:sys.summary||'',baseConcepts:(sys.baseConcepts||[]).slice(0,16),preferredPersonnel:(sys.preferredPersonnel||[]).slice(0,10),coreFormations:(sys.coreFormations||[]).slice(0,14),sequencingRules:(sys.sequencingRules||[]).slice(0,10),selfScoutGuardrails:(sys.selfScoutGuardrails||[]).slice(0,10)};
+  return {label:sys.label,source:sys.source||'',summary:sys.summary||'',strength:philosophy.systemStrength,formMixPreset:sys.formMixPreset||null,baseConcepts:(sys.baseConcepts||[]).slice(0,16),preferredPersonnel:(sys.preferredPersonnel||[]).slice(0,10),coreFormations:(sys.coreFormations||[]).slice(0,14),sequencingRules:(sys.sequencingRules||[]).slice(0,10),selfScoutGuardrails:(sys.selfScoutGuardrails||[]).slice(0,10)};
 }
 const AGGR_SHOT_CONCEPTS=["Verticals / Four Verticals","Flood","Post","Dagger","Smash","Go Routes","Bench / Corner Strike","Sail"];
 
@@ -2882,7 +3027,8 @@ function seededShuffle(arr,seed){ // deterministic so same settings => same book
 }
 function hashPhil(p,m){
   const pmSum=Object.entries(p.persMix||{}).reduce((s,[k,v])=>s+k.charCodeAt(0)*v,0);
-  return (p.identity.length*31+(p.system||'none').length*29+p.aggr.length*17+(p.size||0)+m*7+p.emphasis.join('').length*3+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13)>>>0;
+  const fmSum=Object.entries(p.formMix||{}).reduce((s,[k,v])=>s+k.length*Number(v||0),0);
+  return (p.identity.length*31+(p.system||'none').length*29+p.aggr.length*17+(p.size||0)+m*7+p.emphasis.join('').length*3+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+fmSum*19+(p.systemStrength||0)*23)>>>0;
 }
 
 function generatePlaybook(){
@@ -2925,6 +3071,7 @@ function generatePlaybook(){
     if(p.emphasis.includes(pl.concept)) s*=2.2;
     s*=conceptTargetGenMult(pl.concept);
     s*=offenseSystemGenMult(pl);
+    s*=formationStyleGenMult(pl);
     // de-emphasize unmapped "Other / Unknown" so named concepts lead
     if(pl.concept==='Other / Unknown') s*=0.45;
     // small deterministic jitter
@@ -3063,7 +3210,7 @@ function generatePlaybook(){
   const finalBook=seededShuffle(book,seed);  // size already enforced by trim pass above
 
   playbook={
-    meta:{generated:Date.now(),identity:p.identity,system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
+    meta:{generated:Date.now(),identity:p.identity,system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion})),
     audibles:buildAudibles(finalBook)
   };
@@ -3491,6 +3638,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=safeScoutConceptMult(pl.concept,pl.family);
   s*=safeDefenseStyleMult(pl);
   s*=safeOffenseSystemGameMult(pl);
+  s*=safeFormationStyleGameMult(pl);
   s*=safeConceptTargetGameMult(pl);
   s*=safeCoachBrainMult(pl);
   s*=safeSequenceFit(pl);
@@ -3669,7 +3817,9 @@ function initPhilosophyForm(){
   renderOffenseSystemPlan();
   $('#ph-aggr').value=philosophy.aggr;
   $('#ph-size').value=String(philosophy.size);
+  updateSystemStrengthLabel();
   renderPersMixSliders();
+  renderFormMixSliders();
   // emphasis checkboxes
   const wrap=$('#ph-families'); wrap.innerHTML='';
   const popular=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Boot / Play Action","Verticals / Four Verticals","Mesh","Smash","Flood","Stick","Y Cross","Screen","Option / RPO","Jet Sweep","Quick Game"];
@@ -3751,6 +3901,42 @@ function updateConceptTargetTotal(){
   if(!entries.length){el_.textContent='No concept targets set — the app will use identity/personnel/scout weighting.';return;}
   el_.textContent=`Active concept targets: ${entries.length} · requested total ${total}%. These guide the caller but do not have to equal 100%.`;
   el_.style.color=total>85?'var(--gold-d)':'#8a908a';
+}
+
+function renderFormMixSliders(){
+  const wrap=$('#ph-form-sliders'); if(!wrap)return;
+  ensurePhilosophyShape();
+  wrap.innerHTML='';
+  const fm=philosophy.formMix||{...DEFAULT_FORM_MIX};
+  ALL_FORM_TYPES.forEach(k=>{if(fm[k]==null)fm[k]=0;});
+  ALL_FORM_TYPES.forEach(k=>{
+    const row=el('div','pers-row');
+    const lbl=el('label',null,FORM_TYPE_LABEL[k]||k); row.appendChild(lbl);
+    const sl=el('input'); sl.type='range'; sl.min=0; sl.max=100; sl.value=fm[k]||0; sl.dataset.formType=k;
+    const pct=el('span','pct '+(fm[k]>0?'active':''),(fm[k]||0)+'%');
+    sl.addEventListener('input',()=>{
+      ensurePhilosophyShape();
+      philosophy.formMix[k]=Number(sl.value)||0;
+      pct.textContent=sl.value+'%';
+      pct.className='pct '+(Number(sl.value)>0?'active':'');
+      updateFormMixTotal();
+      save(LS.ph,philosophy);
+    });
+    row.appendChild(sl); row.appendChild(pct); wrap.appendChild(row);
+  });
+  updateFormMixTotal();
+}
+function updateFormMixTotal(){
+  const fm=philosophy.formMix||{};
+  const total=Object.values(fm).reduce((a,b)=>a+Number(b||0),0);
+  const el_=$('#ph-form-total'); if(!el_)return;
+  el_.textContent=total+'%';
+  el_.style.color=(total<80||total>120)?'var(--bad)':'var(--field)';
+}
+function updateSystemStrengthLabel(){
+  const v=Number(philosophy.systemStrength==null?75:philosophy.systemStrength);
+  const el_=$('#ph-system-strength-val'); if(el_)el_.textContent=v+'%';
+  const sl=$('#ph-system-strength'); if(sl)sl.value=v;
 }
 
 function updatePersMixTotal(){
@@ -6148,6 +6334,7 @@ function scorePoolPlay(pl,mix,pmNorm,p,seed){
   if(p.emphasis.includes(pl.concept)) s*=2.2;
   s*=conceptTargetGenMult(pl.concept);
   s*=offenseSystemGenMult(pl);
+  s*=formationStyleGenMult(pl);
   if(pl.concept==='Other / Unknown') s*=0.45;
   s*=0.85+(((pl.id||0)*2654435761>>>0)%100)/100*0.3;
   return s;
@@ -6216,7 +6403,7 @@ function generatePlaybookFromRows(rows,name){
   }
   for(const {pl} of scored){if(book.length>=target)break;tryAdd(pl);}
   const finalBook=seededShuffle(book.slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team_generated'}));
-  playbook={meta:{generated:Date.now(),identity:p.identity,system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
+  playbook={meta:{generated:Date.now(),identity:p.identity,system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
   save(LS.pb,playbook); invalidateCallableCache(); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
   toast('Generated '+finalBook.length+'-play Coach Brain book from '+(name||'team source'));
   return playbook;
@@ -6690,7 +6877,9 @@ $('#ph-identity').addEventListener('change',e=>{
   philosophy.identity=e.target.value;
   const d=IDENTITY_RP[philosophy.identity];if(d){philosophy.rpMin=d[0];philosophy.rpMax=d[1];$('#rp-min').value=d[0];$('#rp-max').value=d[1];updateRpReadout();}
   philosophy.persMix={...(IDENTITY_PERS_MIX[philosophy.identity]||DEFAULT_PERS_MIX)};
+  philosophy.formMix={...(IDENTITY_FORM_MIX[philosophy.identity]||DEFAULT_FORM_MIX)};
   renderPersMixSliders();
+  renderFormMixSliders();
   save(LS.ph,philosophy);
 });
 $('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none';save(LS.ph,philosophy);renderOffenseSystemPlan();toast('Offensive system set: '+labelSystem(philosophy.system));});
@@ -6700,6 +6889,13 @@ $('#btn-system-import').addEventListener('click',()=>$('#sys-import-file').click
 $('#sys-import-file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f)importSystemProfileFile(f);e.target.value='';});
 $('#ph-aggr').addEventListener('change',e=>{philosophy.aggr=e.target.value;save(LS.ph,philosophy);});
 $('#ph-size').addEventListener('change',e=>{philosophy.size=Number(e.target.value);save(LS.ph,philosophy);});
+$('#ph-system-strength').addEventListener('input',e=>{philosophy.systemStrength=Number(e.target.value)||0;updateSystemStrengthLabel();save(LS.ph,philosophy);renderOffenseSystemPlan();});
+$('#btn-form-preset').addEventListener('click',()=>{
+  const sys=activeOffenseSystem();
+  philosophy.formMix={...((sys&&sys.formMixPreset)||(IDENTITY_FORM_MIX[philosophy.identity]||DEFAULT_FORM_MIX))};
+  save(LS.ph,philosophy);renderFormMixSliders();
+  toast('Formation style mix reset');
+});
 $('#btn-pers-preset').addEventListener('click',()=>{
   philosophy.persMix={...(IDENTITY_PERS_MIX[philosophy.identity]||DEFAULT_PERS_MIX)};
   save(LS.ph,philosophy);renderPersMixSliders();

@@ -1,32 +1,22 @@
-# Call Sheet — Coach Brain v14
+# Call Sheet — Coach Brain v14.1
 
-Single-file football call-sheet app with offensive playbook generation, live game calling, defensive-style scouting, and system-based offensive profiles.
+Single-file football playbook and in-game play-calling assistant.
 
-## What's new in v14
+## v14.1 updates
 
-- Adds a source-backed Offensive System Library.
-- Built-in profiles:
-  - Kyle Shanahan / Wide Zone-Keeper
-  - Paul Johnson / Flexbone Option
-  - Art Briles / Veer-and-Shoot Spread
-- Profiles give soft boosts, not hard rules.
-- Profiles influence:
-  - playbook generation
-  - opening script questions
-  - in-game scoring nudges
-  - sequencing notes
-  - self-scout guardrails
-- Adds Apply System Preset, Export System JSON, and Import System JSON.
-- Keeps the master game database separate from the active offensive playbook.
-- Supports CSV and JSON play imports.
-- Handles larger master databases while keeping game-day playbooks capped at 400 plays.
+- Offensive system profiles now act as adjustable scheme rails instead of light soft boosts only.
+- Added a System discipline slider so a selected system can drive generation and in-game calling more strongly.
+- Added Formation style emphasis sliders for Gun/shotgun, Singleback, Pistol, I-Form, Flexbone, Empty, Under-center, and Other.
+- Source-backed profiles now include alignment-family presets and formation-type boosts.
+- Apply system preset now sets identity, personnel, run/pass band, concept targets, motion, book size, system discipline, and alignment mix.
+- Playbook generation and live suggestions now factor selected alignment family into scoring.
+- Presets included: Kyle Shanahan wide zone/keeper, Paul Johnson flexbone option, Art Briles veer-and-shoot spread, plus starter templates.
 
-## Deploy on GitHub Pages
+## Use
 
-1. Create a new GitHub repository.
-2. Upload these files.
-3. Make sure `index.html` is in the root of the repo.
-4. Go to Settings → Pages.
-5. Deploy from the main branch root folder.
+Open `index.html` directly or publish this folder with GitHub Pages.
 
-The app runs fully in the browser and stores saved data in local storage on the user's device.
+Optional master databases included:
+
+- `global_unique_plays.csv`
+- `global_unique_plays.json`
