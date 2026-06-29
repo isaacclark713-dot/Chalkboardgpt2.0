@@ -3021,6 +3021,27 @@ function playIQFit(pl,down,dist,zone,yards){
   return Math.max(0.45,Math.min(1.75,m));
 }
 
+
+/* ---------- v12.1 safety helpers ----------
+   Defensive-style scoring should never be allowed to break the live caller.
+   If a profile/tag mismatch throws, the app falls back to the normal Coach Brain score. */
+function safeMult(name,fn,fallback=1){
+  try{
+    const v=fn();
+    return Number.isFinite(Number(v))?Number(v):fallback;
+  }catch(e){
+    console.warn('Soft scoring skipped:',name,e);
+    return fallback;
+  }
+}
+function safeDefenseStyleMult(pl){return safeMult('defenseStyleMult',()=>defenseStyleMult(pl),1);}
+function safeScoutConceptMult(concept,family){return safeMult('scoutConceptMultFor',()=>scoutConceptMultFor(concept,family),1);}
+function safeConceptTargetGameMult(pl){return safeMult('conceptTargetGameMult',()=>conceptTargetGameMult(pl),1);}
+function safeCoachBrainMult(pl){return safeMult('coachBrainMult',()=>coachBrainMult(pl),1);}
+function safeSequenceFit(pl){return safeMult('sequenceFit',()=>sequenceFit(pl),1);}
+function safeRecognitionFit(pl){return safeMult('recognitionFit',()=>recognitionFit(pl),1);}
+function safePlayIQFit(pl,down,dist,zone,yards){return safeMult('playIQFit',()=>playIQFit(pl,down,dist,zone,yards),1);}
+
 function coreCallScore(pl,down,dist,zone,yards,ctx){
   if(!ingame) seedIngameFromBook();
   const info=(ctx&&ctx.nudges)?ctx.nudges:runPassNudgesFor(zone);
@@ -3031,13 +3052,13 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   if(s<=0)return 0;
   s*=zoneFit(pl,zone);
   s*=readMult(pl);
-  s*=scoutConceptMultFor(pl.concept,pl.family);
-  s*=defenseStyleMult(pl);
-  s*=conceptTargetGameMult(pl);
-  s*=coachBrainMult(pl);
-  s*=sequenceFit(pl);
-  s*=recognitionFit(pl);
-  s*=playIQFit(pl,down,dist,zone,yards);
+  s*=safeScoutConceptMult(pl.concept,pl.family);
+  s*=safeDefenseStyleMult(pl);
+  s*=safeConceptTargetGameMult(pl);
+  s*=safeCoachBrainMult(pl);
+  s*=safeSequenceFit(pl);
+  s*=safeRecognitionFit(pl);
+  s*=safePlayIQFit(pl,down,dist,zone,yards);
   if(!info.overrideBalance){
     if(isRunFamily(pl.family)) s*=info.runNudge; else s*=info.passNudge;
   }
@@ -3101,7 +3122,31 @@ function suggestPlay(down, dist, zone, yards){
   if(primary){ picks.push(primary); _pushRecent(primary); }
   for(let i=1;i<5;i++){ const p=pickOne(true); if(p) picks.push(p); }
 
+
   return picks.length?picks:scored.slice(0,5).map(x=>x.pl);
+}
+function simpleFallbackSuggest(down,dist,zone,yards){
+  if(!playbook||!Array.isArray(playbook.plays))return [];
+  const plays=playbook.plays.slice();
+  const scored=[];
+  for(const pl of plays){
+    let s=1;
+    s*=safeMult('ddFit fallback',()=>ddFit(pl,down,dist,yards),1);
+    s*=safeMult('zoneFit fallback',()=>zoneFit(pl,zone),1);
+    if(pl&&pl.concept==='Other / Unknown')s*=0.55;
+    scored.push({pl,s});
+  }
+  return scored.filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,5).map(x=>x.pl);
+}
+function safeSuggestPlay(down,dist,zone,yards){
+  try{
+    const plays=suggestPlay(down,dist,zone,yards);
+    if(plays&&plays.length)return plays;
+    return simpleFallbackSuggest(down,dist,zone,yards);
+  }catch(e){
+    console.error('Suggest 3 failed; using fallback caller',e);
+    return simpleFallbackSuggest(down,dist,zone,yards);
+  }
 }
 
 /* down & distance fit — faithful to script-guide and play-calling logic
@@ -6176,7 +6221,7 @@ if($('#ig-down-exact')) $('#ig-down-exact').addEventListener('change',e=>setIgSi
 if($('#ig-yards-exact')) $('#ig-yards-exact').addEventListener('input',e=>setIgSituation(_igDown,e.target.value));
 updateIgExactControls();
 $('#btn-ig-reset').addEventListener('click',()=>{if(!playbook){toast('No playbook');return;}seedIngameFromBook();clearRecentSuggestions();$('#ig-plays').innerHTML='';renderIngame();toast('In-game tracking reset to base');});
-$('#btn-suggest').addEventListener('click',()=>{const plays=suggestPlay(_igDown,_igDist,_igZone,_igYards);renderSuggestion(plays);});
+$('#btn-suggest').addEventListener('click',()=>{const plays=safeSuggestPlay(_igDown,_igDist,_igZone,_igYards);renderSuggestion(plays); if(!plays||!plays.length)toast('No playable calls found — check active base playbook');});
 if($('#btn-seq-clear')) $('#btn-seq-clear').addEventListener('click',()=>{clearSequenceMemory();toast('Drive sequence memory cleared');});
 $$('#ig-sort button').forEach(b=>b.addEventListener('click',()=>{igSort=b.dataset.s;$$('#ig-sort button').forEach(x=>x.classList.toggle('on',x===b));renderBoard();}));
 
