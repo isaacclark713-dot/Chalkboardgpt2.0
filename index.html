@@ -406,6 +406,23 @@
           <div class="hint">Shifts the run / pass / PA / RPO / screen mix.</div>
         </div>
         <div>
+          <label class="fld">Offensive system template</label>
+          <select id="ph-system">
+            <option value="none">None — use broad identity only</option>
+            <option value="shanahan_wide_zone">Kyle Shanahan — wide zone / keeper</option>
+            <option value="paul_johnson_flexbone">Paul Johnson — flexbone option</option>
+            <option value="art_briles_spread">Art Briles — veer-and-shoot spread</option>
+            <optgroup label="Starter templates">
+              <option value="wide_zone_boot">Wide zone / boot family — starter template</option>
+              <option value="modern_west_coast">Modern West Coast — starter template</option>
+              <option value="erhardt_perkins">Erhardt-Perkins — starter template</option>
+              <option value="spread_power_rpo">Spread power/RPO — starter template</option>
+              <option value="spread_tempo_inside_zone">Spread tempo IZ/RPO — starter template</option>
+            </optgroup>
+          </select>
+          <div class="hint">Source-backed profiles give soft boosts, script questions, sequencing rules, and guardrails. They never hard-force the call.</div>
+        </div>
+        <div>
           <label class="fld">Tempo &amp; aggression</label>
           <select id="ph-aggr">
             <option value="measured">Measured — ball control</option>
@@ -414,6 +431,14 @@
           </select>
           <div class="hint">Aggression adds verticals, flood, post, dagger, smash.</div>
         </div>
+      </div>
+
+      <div id="off-system-plan" class="callout" style="display:none"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn secondary sm" id="btn-system-preset" type="button">Apply system preset</button>
+        <button class="btn ghost sm" id="btn-system-export" type="button">Export selected system JSON</button>
+        <button class="btn ghost sm" id="btn-system-import" type="button">Import system profile JSON</button>
+        <input id="sys-import-file" type="file" accept=".json,application/json" style="display:none">
       </div>
 
       <div class="grid2" style="margin-top:16px">
@@ -433,8 +458,10 @@
             <option value="100" selected>Standard — ~100</option>
             <option value="150">Wide — ~150</option>
             <option value="220">Deep — ~220</option>
+            <option value="300">Large — ~300</option>
+            <option value="400">Max — ~400</option>
           </select>
-          <div class="hint">How many plays to carry into the book.</div>
+          <div class="hint">How many plays to carry into the active book. 5 plays per selected formation is the floor, not the target.</div>
         </div>
       </div>
 
@@ -2060,7 +2087,9 @@ function ensurePhilosophyShape(){
   if(!philosophy.persMix) philosophy.persMix={...DEFAULT_PERS_MIX};
   if(!Array.isArray(philosophy.emphasis)) philosophy.emphasis=[];
   if(!philosophy.conceptTargets) philosophy.conceptTargets={};
+  if(!philosophy.system) philosophy.system='none';
 }
+
 function conceptTargetPct(concept){ensurePhilosophyShape(); return Number(philosophy.conceptTargets[concept]||0);}
 function activeConceptTargets(){ensurePhilosophyShape(); return Object.entries(philosophy.conceptTargets).filter(([,v])=>Number(v)>0);}
 function conceptTargetGenMult(concept){
@@ -2386,7 +2415,7 @@ const IDENTITY_PERS_MIX={
   spread:   {'11':50,'12':10,'10':35,'20':5,'21':0,'13':0,'22':0,'23':0},
   pro:      {'11':25,'12':35,'20':5,'21':20,'22':10,'23':5,'10':0,'13':0}
 };
-function defaultPhilosophy(){return{identity:'balanced',aggr:'normal',persMix:{...DEFAULT_PERS_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
+function defaultPhilosophy(){return{identity:'balanced',system:'none',aggr:'normal',persMix:{...DEFAULT_PERS_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
 
 /* ============================================================
    STATE + PERSISTENCE
@@ -2512,6 +2541,292 @@ const FAMILY_MIX={
   spread:{run:.24,play_action:.12,pass:.30,option_rpo:.24,screen:.10},
   pro:{run:.36,play_action:.26,pass:.22,option_rpo:.04,screen:.12}
 };
+
+// Source-backed offensive system library — v14.
+// These profiles are soft weights and coaching rules. They influence generation,
+// opening script questions, sequencing, and guardrails without ever becoming hard commands.
+const BUILT_IN_OFFENSE_SYSTEMS={
+  none:{
+    label:'None / broad identity only', shortLabel:'Broad', source:'User settings',
+    summary:'No specific offensive system profile. The app uses your broad identity, personnel mix, concept targets, defensive scout, and live results.',
+    philosophy:'Use the selected broad offensive identity only.',
+    runIdentity:'Balanced by user settings.', passIdentity:'Balanced by user settings.',
+    coreFormations:[], preferredPersonnel:[], motionShift:'User-controlled.',
+    baseConcepts:[], constraintConcepts:[], shotConcepts:[], screensRpos:[], playActionFamily:[], bestAudibles:[],
+    scriptQuestions:[], defensesStressed:[], defensesStruggles:[], sequencingRules:[], selfScoutGuardrails:[],
+    conceptBoosts:{},familyBoosts:{},surfaceBoosts:{},motionBoosts:{},persBoosts:{},tagBoosts:[],tagPenalties:[],genCap:1.0, gameCap:1.0
+  },
+  shanahan_wide_zone:{
+    label:'Kyle Shanahan / Wide Zone-Keeper', shortLabel:'Shanahan WZ', source:'Kyle Shanahan–Style Offensive Identity PDF', sourceBacked:true,
+    summary:'Outside-zone-centric West Coast family built on precision, condensed/heavy personnel, motion/shift stress, keeper/boot play-action, crossers, screens, counters, and same-picture deception.',
+    philosophy:'Master a few base concepts, make many formations look alike, force defensive communication with motion, and marry the run to keeper/play-action answers.',
+    runIdentity:'Outside zone / wide zone is the home base, with mid/inside zone, gap counters, power, trap/wham, jet, and lead tags as constraints when linebackers over-flow.',
+    passIdentity:'Rhythm quick game when needed, but the real pass identity comes from play-action boots, keepers, high cross, drift, leak/slide, Y cross, flood, sail, mesh/levels, and occasional vertical shots.',
+    coreFormations:['I-Formation / 21','Singleback 12/21','Condensed 11/12','Bunch/stack','Wing and Y-off','Tight surfaces'],
+    preferredPersonnel:['21','12','22','11'],
+    motionShift:'Heavy use of motion, shifts, trades, jet/orbit, and strength changes to reveal coverage, change the force picture, and create eye-discipline conflict.',
+    baseConcepts:['Outside Zone / Stretch','Inside Zone','Power / Power O','Counter','Boot / Play Action','Y Cross','Flood','Mesh','Quick Game'],
+    constraintConcepts:['Counter','Power / Power O','Trap','Screen','Jet Sweep','Quick Game','Slants','Leak / Slide'],
+    shotConcepts:['Y Cross','Flood','Sail','Post','Dagger','Verticals / Four Verticals','Go Routes','Wheel'],
+    screensRpos:['Screen','Bubble/now access','FB/TE leak screen','Backside slant RPO'],
+    playActionFamily:['Boot / Play Action','Keeper','Drift','Leak','Slide','High Cross','Yankee','Y Cross','Flood','Sail'],
+    bestAudibles:['Heavy box → quick perimeter or screen','LB fast-flow → counter/boot/leak','Edge chases → keeper/boot','Edge sits → run inside/quick','Two-high light box → run wide zone'],
+    scriptQuestions:['Can outside zone stress the force player?','Does the backside edge chase keeper/boot?','How do they handle shifts/trades/motion?','Do linebackers over-flow the zone action?','Can condensed/bunch create clean crossers?'],
+    defensesStressed:['two-high light boxes','aggressive linebackers','edge defenders that chase','teams with poor motion communication','single-high run-fit safeties'],
+    defensesStruggles:['elite edge contain','disciplined boot rules','interior disruption that kills zone timing','teams that fit motion without over-rotating'],
+    sequencingRules:['Run wide zone early to find force and linebacker flow.','If zone hits, show the same picture and call keeper/boot/crossers.','If linebackers over-flow, call counter/trap/wham or screen.','If the edge sits on boot, return to zone or quick game.','Use condensed formations and motion to make one call look like several calls.'],
+    selfScoutGuardrails:['Do not call boot from the same look every time after zone success.','Do not become only outside zone + boot; mix counter, screen, and quick game.','Do not overuse motion without a purpose.','If the user defender starts sitting crossers, hit wheel/post/leak or run the ball.'],
+    identityPreset:'pro', rpBand:[46,62], motionPreset:72, sizeHint:300,
+    persMixPreset:{'11':24,'12':26,'21':28,'22':12,'10':2,'13':3,'20':3,'23':2},
+    conceptTargetsPreset:{'Outside Zone / Stretch':16,'Boot / Play Action':10,'Y Cross':7,'Flood':6,'Counter':6,'Power / Power O':6,'Screen':6,'Mesh':5,'Quick Game':5},
+    conceptBoosts:{'Outside Zone / Stretch':1.36,'Boot / Play Action':1.36,'Y Cross':1.20,'Flood':1.20,'Sail':1.16,'Mesh':1.10,'Counter':1.14,'Power / Power O':1.08,'Trap':1.10,'Screen':1.12,'Quick Game':1.08,'Slants':1.06,'Post':1.08,'Dagger':1.08,'Wheel':1.08},
+    familyBoosts:{run:1.08,play_action:1.24,screen:1.08,pass:1.03},
+    surfaceBoosts:{wing:1.18,y_off:1.18,condensed:1.15,bunch:1.10,stack:1.08,i_form:1.16,nub:1.08,tight:1.08},
+    motionBoosts:{shift_trade:1.18,shift:1.14,trade:1.14,motion:1.12,across:1.12,orbit:1.08,jet:1.08,formation_disguise:1.06,add_gap:1.12,widen_force:1.10,eye_candy:1.08},
+    persBoosts:{'21':1.20,'12':1.18,'22':1.13,'11':1.04},
+    tagBoosts:[
+      {tag:'wide_zone',label:'wide zone base',m:1.22},{tag:'keeper_boot',label:'keeper / boot family',m:1.22},{tag:'condensed_surface',label:'condensed/bunch/wing surface',m:1.12},{tag:'heavy_personnel',label:'21/12/22 personnel stress',m:1.12},{tag:'play_action_cross',label:'PA crossers and floods',m:1.14},{tag:'motion_shift',label:'motion/shift/trade stress',m:1.10},{tag:'counter_constraint',label:'counter to LB flow',m:1.08},{tag:'screen_constraint',label:'screen/leak constraint',m:1.08}
+    ],
+    tagPenalties:[{tag:'static_spread_dropback',label:'static spread dropback without run marriage',m:.92},{tag:'unknown_other',label:'unmapped play',m:.92}], genCap:1.85, gameCap:1.20
+  },
+  paul_johnson_flexbone:{
+    label:'Paul Johnson / Flexbone Option', shortLabel:'Johnson Flex', source:'Paul Johnson PDF', sourceBacked:true,
+    summary:'Run-first spread-flexbone option system built on Inside Veer, Midline, Zone Dive, Rocket Toss, Counter Option, and Veer Pass. It controls the game by reading unblocked defenders and forcing assignment discipline.',
+    philosophy:'Use a small number of option concepts with many tags and variations. Take what the defense gives, control the ball, and punish overplay with counter option or veer pass.',
+    runIdentity:'Inside Veer and Midline are the backbone. Zone Dive, Rocket Toss, Counter Option, and QB/pitch reads punish defensive alignment and backside pursuit.',
+    passIdentity:'Low-volume, high-leverage passing off option action: Veer Pass, Rocket Pass, Switch, Verticals, Smash, Mesh, and run-and-shoot inspired shots when safeties commit to the run.',
+    coreFormations:['Flexbone Tight','Flexbone Normal','Flexbone Split','Wingback / A-back surfaces','Trips from flexbone','Unbalanced flexbone/tackle-over'],
+    preferredPersonnel:['20','21','10','11'],
+    motionShift:'Minimal elaborate shifting. Motion is usually single-back/slot motion tied to option timing, rocket/tail motion, arc/switch rules, or alignment-based checks.',
+    baseConcepts:['Option / RPO','Inside Veer','Midline','Dive','Rocket Toss','Counter','Trap','Verticals / Four Verticals'],
+    constraintConcepts:['Counter','Counter Option','Rocket Toss','Trap','Veer Pass','Switch'],
+    shotConcepts:['Veer Pass','Verticals / Four Verticals','Go Routes','Post','Switch','Smash'],
+    screensRpos:['Very limited screens; option reads replace most RPO/screen structure.'],
+    playActionFamily:['Veer Pass','Rocket Pass','Option pass','Switch verticals','Play-action post'],
+    bestAudibles:['1-tech/bubble → Inside Veer','3-tech/bubble → Midline','8+ box/blitz → Rocket Toss','Backside LB makes tackle → Counter Option','DBs trigger downhill → Veer Pass'],
+    scriptQuestions:['Can they defend Inside Veer assignment-sound?','Is the 1-tech or 3-tech bubble telling us Veer or Midline?','Does the backside LB tackle the base option?','Do DBs trigger hard enough for Veer Pass?','Does blitz/heavy box open Rocket Toss?'],
+    defensesStressed:['undisciplined option fits','aggressive linebackers','safeties that trigger downhill','teams without practiced option assignment rules','odd/even fronts that declare bubbles'],
+    defensesStruggles:['disciplined option teams','dominant interior DL that cancel the dive','corners/safeties that tackle in space','teams with patient pitch/force players'],
+    sequencingRules:['Begin with Inside Veer/Midline to identify the read keys.','If backside LB is making the play, call Counter Option.','If safety/DB is triggering downhill, call Veer Pass.','If the box is overloaded or blitzing, call Rocket Toss.','If the defense stops overplaying, return to the base option.'],
+    selfScoutGuardrails:['Do not abandon the base option after one short gain; identify which defender caused it.','Do not throw unless the run action has pulled the secondary or down/distance requires it.','Do not call Rocket Toss repeatedly if force is winning.','Keep the offense small, sequenced, and assignment-based.'],
+    identityPreset:'run', rpBand:[68,82], motionPreset:28, sizeHint:220,
+    persMixPreset:{'20':34,'21':26,'11':14,'10':12,'12':6,'22':4,'13':2,'23':2},
+    conceptTargetsPreset:{'Option / RPO':24,'Dive':10,'Counter':10,'Trap':6,'Jet Sweep':5,'Verticals / Four Verticals':5,'Go Routes':4,'Power / Power O':4},
+    conceptBoosts:{'Option / RPO':1.42,'Dive':1.24,'Counter':1.26,'Trap':1.12,'Jet Sweep':1.14,'Verticals / Four Verticals':1.16,'Go Routes':1.12,'Post':1.10,'Smash':1.06,'Mesh':1.05},
+    familyBoosts:{run:1.26,option_rpo:1.34,play_action:1.08,pass:.92,screen:.82},
+    surfaceBoosts:{full_house:1.20,wing:1.16,condensed:1.10,tight:1.08,unbalanced:1.08,trips:1.04},
+    motionBoosts:{jet:1.10,motion:1.05,formation_disguise:1.03,perimeter_leverage:1.08,add_gap:1.06},
+    persBoosts:{'20':1.25,'21':1.18,'10':1.06,'11':1.04},
+    tagBoosts:[
+      {tag:'flexbone_surface',label:'flexbone / wingback surface',m:1.25},{tag:'option_read',label:'option read game',m:1.26},{tag:'inside_veer',label:'inside veer',m:1.28},{tag:'midline',label:'midline',m:1.28},{tag:'rocket_toss',label:'rocket toss / edge stress',m:1.20},{tag:'counter_option',label:'counter option',m:1.20},{tag:'zone_dive',label:'zone dive / B-back dive',m:1.16},{tag:'veer_pass',label:'veer pass shot',m:1.16}
+    ],
+    tagPenalties:[{tag:'screen_constraint',label:'screen-heavy calls not central to Johnson identity',m:.82},{tag:'static_spread_dropback',label:'static dropback divorced from option action',m:.85},{tag:'empty',label:'empty only as change-up',m:.90}], genCap:1.95, gameCap:1.22
+  },
+  art_briles_spread:{
+    label:'Art Briles / Veer-and-Shoot Spread', shortLabel:'Briles Spread', source:'Art Briles–Style Spread Offensive System PDF', sourceBacked:true,
+    summary:'Ultra-fast spread offense built around extreme spacing, inside zone/dart/power-read, vertical choice routes, RPO screens, tempo, and explosive one-on-one isolation.',
+    philosophy:'Score on every snap. Stretch the field horizontally with splits and vertically with choice routes, then run into light boxes or throw access when defenders cheat.',
+    runIdentity:'Inside zone, dart/iso with pullers, power read, speed option, draw, and shotgun veer concepts that force defenders to choose between box fits and perimeter space.',
+    passIdentity:'Vertical choice series: Slot Choice, Single Choice, Outside Choice, posts, go routes, seams, fades, and quick access throws/screens when leverage gives it.',
+    coreFormations:['Shotgun Trips / 3x1','Shotgun Doubles / 2x2','Empty / 5WR','Double stack','Wide spread 10/11','Pistol singleback'],
+    preferredPersonnel:['10','11','20'],
+    motionShift:'Tempo and width are the main stressors. Motion is used to create/isolate leverage, reveal man/zone, trigger bubbles/screens, or build stacks/bunches.',
+    baseConcepts:['Inside Zone','Option / RPO','Power / Power O','Draw','Verticals / Four Verticals','Go Routes','Slants','Quick Game','Screen'],
+    constraintConcepts:['Bubble/now screen','Tunnel screen','Slants','Draw','Speed option','Jet Sweep','Quick Game'],
+    shotConcepts:['Slot Choice','Single Choice','Outside Choice','Go Routes','Post','Verticals / Four Verticals','Wheel','Sluggo'],
+    screensRpos:['Dart RPO','Bubble screen','Back-out screen','Tunnel screen','Now/smoke screen','Slant RPO'],
+    playActionFamily:['Dart/power fake to vertical','Inverted-veer PA','Screen fake go','Shotgun PA post/fade'],
+    bestAudibles:['Two-high → run/dart/inside zone','Single-high → choice shot','Blitz → bubble/screen/slant','Press man → go/slant/choice','Overhang widens → run inside','Overhang squeezes → throw access'],
+    scriptQuestions:['Will they stay two-high and give the run?','Can we isolate a choice receiver one-on-one?','Does blitz trigger easy bubble/screen access?','Can dart/inside zone hold the box?','Do wide splits create vertical room?'],
+    defensesStressed:['single-high man without elite corners','two-high light boxes','slow communication vs tempo','overhangs in RPO conflict','defenses that cannot defend width and depth at once'],
+    defensesStruggles:['elite pass-rush plus elite DBs','disciplined two-high match teams','teams that tackle screens and keep safeties patient','QBs under heavy pressure before choice routes develop'],
+    sequencingRules:['Use tempo and wide formations to force simple pictures.','If two-high stays light, run dart/inside zone.','If safety cheats or single-high appears, throw choice/vertical.','If pressure comes, replace it with bubble/screen/slant.','If screens get jumped, pump screen and go or run inside.'],
+    selfScoutGuardrails:['Do not overuse RPO/screens if the defense starts triggering downhill.','Do not call long-developing choice routes without protection against pressure.','Do not become only vertical shots; keep run and screen punishments alive.','Vary formation tags so the user cannot sit on the obvious choice side.'],
+    identityPreset:'spread', rpBand:[38,55], motionPreset:45, sizeHint:300,
+    persMixPreset:{'10':34,'11':46,'20':12,'12':4,'21':2,'22':1,'13':0,'23':1},
+    conceptTargetsPreset:{'Option / RPO':18,'Inside Zone':14,'Verticals / Four Verticals':10,'Screen':10,'Quick Game':8,'Slants':7,'Power / Power O':6,'Draw':5,'Go Routes':5},
+    conceptBoosts:{'Option / RPO':1.36,'Inside Zone':1.26,'Power / Power O':1.16,'Draw':1.12,'Verticals / Four Verticals':1.25,'Go Routes':1.22,'Post':1.14,'Wheel':1.10,'Screen':1.22,'Quick Game':1.14,'Slants':1.15,'Jet Sweep':1.08},
+    familyBoosts:{option_rpo:1.28,pass:1.16,screen:1.18,run:1.10,play_action:1.04},
+    surfaceBoosts:{spread:1.18,trips:1.18,empty:1.14,stack:1.10,bunch:1.06,pistol:1.05},
+    motionBoosts:{jet:1.08,orbit:1.08,motion:1.06,formation_disguise:1.05,perimeter_leverage:1.10},
+    persBoosts:{'10':1.22,'11':1.18,'20':1.08},
+    tagBoosts:[
+      {tag:'spread_spacing',label:'wide spread spacing',m:1.18},{tag:'vertical_choice',label:'choice / vertical isolation',m:1.22},{tag:'dart_power',label:'dart / power-read run',m:1.18},{tag:'rpo_access',label:'RPO access conflict',m:1.18},{tag:'screen_constraint',label:'bubble/tunnel/now screens',m:1.14},{tag:'tempo_spread',label:'tempo spread family',m:1.10},{tag:'single_choice',label:'single-side choice shot',m:1.14}
+    ],
+    tagPenalties:[{tag:'heavy_personnel',label:'heavy personnel only as change-up',m:.88},{tag:'static_condensed',label:'condensed/static surface not core',m:.92},{tag:'slow_no_hot',label:'slow pass without hot vs pressure',m:.88}], genCap:1.90, gameCap:1.22
+  },
+  wide_zone_boot:{
+    label:'Wide zone / boot family', shortLabel:'WZ starter', source:'Starter template',
+    summary:'Starter framework for a wide zone and boot family. Use the Shanahan profile for the source-backed version.',
+    philosophy:'Stretch the defense laterally, then attack overreaction with boots, crossers, screens, and counters.',runIdentity:'Wide zone with counters.',passIdentity:'Boots, floods, crossers.',coreFormations:['Wing','Y-off','Condensed','Bunch'],preferredPersonnel:['12','21','11'],motionShift:'Shift/trade/across motion.',baseConcepts:['Outside Zone / Stretch','Boot / Play Action','Y Cross','Flood'],constraintConcepts:['Counter','Screen'],shotConcepts:['Y Cross','Flood','Post'],screensRpos:['Screen'],playActionFamily:['Boot','Flood','Y Cross'],bestAudibles:[],scriptQuestions:['Who is force?','Does edge chase boot?'],defensesStressed:[],defensesStruggles:[],sequencingRules:[],selfScoutGuardrails:[],
+    conceptBoosts:{'Outside Zone / Stretch':1.28,'Boot / Play Action':1.28,'Y Cross':1.12,'Flood':1.16,'Sail':1.12,'Screen':1.06,'Counter':1.05},familyBoosts:{run:1.04,play_action:1.20,screen:1.05},surfaceBoosts:{wing:1.12,y_off:1.12,condensed:1.08,bunch:1.05},motionBoosts:{shift_trade:1.12,shift:1.12,trade:1.12,across:1.10,orbit:1.06,jet:1.06},persBoosts:{'12':1.12,'21':1.10,'11':1.02},tagBoosts:[],tagPenalties:[],genCap:1.55,gameCap:1.15
+  },
+  modern_west_coast:{
+    label:'Modern West Coast', shortLabel:'WCO starter', source:'Starter template',
+    summary:'Rhythm passing, spacing, quick answers, controlled shots, and high-percentage completions.',philosophy:'Control the game with precision and leverage.',runIdentity:'Complementary run game.',passIdentity:'Quick game, stick, spacing, curl-flat, mesh.',coreFormations:['Spread','Trips','Bunch','Condensed'],preferredPersonnel:['11','12','10'],motionShift:'Across/orbit/shift to identify leverage.',baseConcepts:['Quick Game','Stick','Spacing','Curls / Curl Flats','Slants','Mesh'],constraintConcepts:['Screens','Boot'],shotConcepts:['Dagger','Smash'],screensRpos:['Screen'],playActionFamily:['Boot'],bestAudibles:[],scriptQuestions:['Man or zone on money down?'],defensesStressed:[],defensesStruggles:[],sequencingRules:[],selfScoutGuardrails:[],
+    conceptBoosts:{'Quick Game':1.22,'Stick':1.22,'Spacing':1.16,'Curls / Curl Flats':1.18,'Slants':1.13,'Mesh':1.10,'Boot / Play Action':1.08,'Screen':1.08},familyBoosts:{pass:1.12,screen:1.08,play_action:1.05},surfaceBoosts:{spread:1.05,trips:1.05,bunch:1.06,condensed:1.05},motionBoosts:{across:1.06,orbit:1.04,shift_trade:1.05,shift:1.05},persBoosts:{'11':1.12,'12':1.06,'10':1.04},tagBoosts:[],tagPenalties:[],genCap:1.50,gameCap:1.13
+  },
+  erhardt_perkins:{
+    label:'Erhardt-Perkins', shortLabel:'E-P starter', source:'Starter template',summary:'Concept-based pro-style starter framework with sturdy run game, formation multiplicity, and play-action.',philosophy:'Same concepts from many looks.',runIdentity:'IZ, Duo, Power.',passIdentity:'Y Cross, Dagger, Mesh, Verticals.',coreFormations:['Condensed','Wing','Y-off','Bunch'],preferredPersonnel:['12','21','11'],motionShift:'Shift/trade/across motion.',baseConcepts:['Inside Zone','Duo','Power / Power O','Y Cross','Dagger','Mesh'],constraintConcepts:['Boot','Counter'],shotConcepts:['Dagger','Verticals / Four Verticals'],screensRpos:['Screen'],playActionFamily:['Boot','Y Cross'],bestAudibles:[],scriptQuestions:['Can we run our core from multiple looks?'],defensesStressed:[],defensesStruggles:[],sequencingRules:[],selfScoutGuardrails:[],
+    conceptBoosts:{'Inside Zone':1.12,'Duo':1.18,'Power / Power O':1.14,'Boot / Play Action':1.15,'Y Cross':1.10,'Dagger':1.10,'Mesh':1.08,'Verticals / Four Verticals':1.08},familyBoosts:{run:1.10,play_action:1.12,pass:1.04},surfaceBoosts:{condensed:1.10,wing:1.10,y_off:1.08,bunch:1.06},motionBoosts:{shift_trade:1.08,shift:1.08,trade:1.08,across:1.06},persBoosts:{'12':1.12,'21':1.12,'11':1.06},tagBoosts:[],tagPenalties:[],genCap:1.52,gameCap:1.14
+  },
+  spread_power_rpo:{
+    label:'Spread power / RPO', shortLabel:'Spread Power starter', source:'Starter template',summary:'Starter spread gap/run-pass conflict profile.',philosophy:'Use gap runs, option, RPO, and perimeter conflict.',runIdentity:'Power, Counter, Trap, Jet.',passIdentity:'RPO, bubbles, slants, verticals.',coreFormations:['Spread','Trips','Empty','Unbalanced'],preferredPersonnel:['11','10','20'],motionShift:'Jet/orbit/across motion.',baseConcepts:['Power / Power O','Counter','Trap','Option / RPO','Screen','Slants'],constraintConcepts:['Bubble','Jet Sweep','Screen'],shotConcepts:['Verticals / Four Verticals'],screensRpos:['Bubble','Screen','RPO'],playActionFamily:['PA shot'],bestAudibles:[],scriptQuestions:['Can the apex be isolated?'],defensesStressed:[],defensesStruggles:[],sequencingRules:[],selfScoutGuardrails:[],
+    conceptBoosts:{'Power / Power O':1.22,'Counter':1.22,'Trap':1.12,'Option / RPO':1.25,'Bubble':1.10,'Screen':1.14,'Slants':1.10,'Verticals / Four Verticals':1.08,'Jet Sweep':1.14},familyBoosts:{run:1.10,option_rpo:1.24,screen:1.10},surfaceBoosts:{spread:1.12,trips:1.10,empty:1.08,unbalanced:1.08},motionBoosts:{jet:1.18,orbit:1.16,across:1.08},persBoosts:{'11':1.12,'10':1.10,'20':1.08},tagBoosts:[],tagPenalties:[],genCap:1.55,gameCap:1.15
+  },
+  spread_tempo_inside_zone:{
+    label:'Spread tempo IZ / RPO', shortLabel:'Tempo IZ starter', source:'Starter template',summary:'Starter spread tempo profile: IZ, RPO, quick game, screens, and vertical constraints.',philosophy:'Play fast and punish numbers/leverage.',runIdentity:'Inside zone and draw.',passIdentity:'Stick, quick game, screen, verticals.',coreFormations:['Spread','Trips','Empty'],preferredPersonnel:['11','10','20'],motionShift:'Orbit/jet/across motion.',baseConcepts:['Inside Zone','Option / RPO','Quick Game','Stick','Screen'],constraintConcepts:['Draw','Jet Touch Pass','Screen'],shotConcepts:['Verticals / Four Verticals'],screensRpos:['Screen','RPO'],playActionFamily:['Limited PA'],bestAudibles:[],scriptQuestions:['Are numbers telling us run or throw?'],defensesStressed:[],defensesStruggles:[],sequencingRules:[],selfScoutGuardrails:[],
+    conceptBoosts:{'Inside Zone':1.24,'Option / RPO':1.24,'Quick Game':1.15,'Stick':1.12,'Screen':1.13,'Verticals / Four Verticals':1.08,'Draw':1.08,'Jet Touch Pass':1.10},familyBoosts:{run:1.08,option_rpo:1.25,pass:1.06,screen:1.08},surfaceBoosts:{spread:1.14,trips:1.12,empty:1.10},motionBoosts:{orbit:1.14,jet:1.14,across:1.08},persBoosts:{'11':1.14,'10':1.12,'20':1.06},tagBoosts:[],tagPenalties:[],genCap:1.55,gameCap:1.15
+  }
+};
+const LS_OFF_SYS='callsheet_offense_systems_v1';
+let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
+function allOffenseSystems(){return {...BUILT_IN_OFFENSE_SYSTEMS,...(_customOffenseSystems||{})};}
+function activeOffenseSystem(k){const lib=allOffenseSystems();return lib[k||((philosophy&&philosophy.system)||'none')]||lib.none;}
+function labelSystem(k){const o=activeOffenseSystem(k||'none');return o?o.label:'Broad identity only';}
+function offSysText(pl){
+  const t=(typeof intentSafe==='function')?(intentSafe(pl)||{}):{};
+  return [pl&&pl.formation,pl&&pl.play,pl&&pl.concept,pl&&pl.family,pl&&pl.pers,t.surface,t.motionType,t.motionPurpose,t.runScheme,t.passStructure,t.routeFamily,t.beatsCoverage,t.weakVs,t.requiresProtection,t.hasHot,t.installConfidence,t.primaryStress,t.conflictDefender,t.series,t.actionFamily].filter(Boolean).join(' ').toLowerCase().replace(/[_-]/g,' ');
+}
+function offSysHas(text,arr){return arr.some(x=>text.includes(x));}
+function offSysTagMatch(pl,tag){
+  const text=offSysText(pl); const t=(typeof intentSafe==='function')?(intentSafe(pl)||{}):{}; const c=(pl&&pl.concept)||''; const f=(pl&&pl.family)||''; const pers=String((pl&&pl.pers)||'');
+  switch(tag){
+    case 'wide_zone': return c==='Outside Zone / Stretch'||t.runScheme==='wide_zone'||offSysHas(text,['outside zone','wide zone','stretch']);
+    case 'keeper_boot': return c==='Boot / Play Action'||t.passStructure==='boot'||offSysHas(text,['boot','keeper','naked','waggle','leak','slide','drift']);
+    case 'play_action_cross': return f==='play_action'||offSysHas(text,['play action','pa ','y cross','high cross','drift','flood','sail','crosser','mesh','levels','yankee']);
+    case 'counter_constraint': return c==='Counter'||t.runScheme==='counter'||offSysHas(text,['counter','zorro','gt','gh']);
+    case 'screen_constraint': return f==='screen'||t.passStructure==='screen'||offSysHas(text,['screen','bubble','now','smoke','slip','tunnel','leak']);
+    case 'motion_shift': return (pl&&pl.motion>=1)||offSysHas(text,['motion','shift','trade','orbit','jet','fly','return']);
+    case 'condensed_surface': return ['wing','y_off','condensed','bunch','stack','tight','nub','i_form'].includes(t.surface)||offSysHas(text,['wing','y off','y-off','bunch','stack','tight','nasty','condensed','i form','singleback','ace']);
+    case 'heavy_personnel': return ['12','13','21','22','23'].includes(pers)||offSysHas(text,['heavy','jumbo','i form','ace','wing','tight','y off','fullback']);
+    case 'static_spread_dropback': return ['spread','trips','empty'].includes(t.surface)&&f==='pass'&&!(pl&&pl.motion)&&!offSysHas(text,['boot','pa','play action','rpo','screen']);
+    case 'static_condensed': return ['condensed','tight','bunch'].includes(t.surface)&&!(pl&&pl.motion>=1);
+    case 'slow_no_hot': return offSysHas(text,['deep','shot','dagger','post','verts','vertical'])&&!offSysHas(text,['hot','screen','quick','slant']);
+    case 'unknown_other': return c==='Other / Unknown'||f==='unknown';
+    case 'flexbone_surface': return offSysHas(text,['flexbone','wingback','a back','b back','triple option','flex ']);
+    case 'option_read': return f==='option_rpo'||t.runScheme==='option_read'||offSysHas(text,['option','read','triple','pitch','load option','speed option']);
+    case 'inside_veer': return offSysHas(text,['inside veer','veer'])&&!offSysHas(text,['veer pass']);
+    case 'midline': return offSysHas(text,['midline']);
+    case 'rocket_toss': return c==='Jet Sweep'||t.runScheme==='sweep_toss'||offSysHas(text,['rocket','toss','sweep','speed option']);
+    case 'counter_option': return offSysHas(text,['counter option','counter'])&&(f==='run'||f==='option_rpo'||t.runScheme==='counter');
+    case 'zone_dive': return c==='Dive'||t.runScheme==='iso_dive'||offSysHas(text,['zone dive','fb dive','b back','dive']);
+    case 'veer_pass': return offSysHas(text,['veer pass','rocket pass','switch'])||(offSysHas(text,['flexbone'])&&(f==='pass'||f==='play_action')&&offSysHas(text,['vertical','go','post','choice','switch']));
+    case 'empty': return t.surface==='empty'||offSysHas(text,['empty','5wr','5 wr']);
+    case 'spread_spacing': return ['spread','trips','empty'].includes(t.surface)||['10','11'].includes(pers)||offSysHas(text,['spread','trips','doubles','empty','wide']);
+    case 'tempo_spread': return ['spread','trips','empty'].includes(t.surface)||offSysHas(text,['spread','trips','doubles','tempo']);
+    case 'vertical_choice': return offSysHas(text,['choice','slot choice','single choice','outside choice','verts','vertical','go','fade','post','seam','sluggo'])||['Verticals / Four Verticals','Go Routes','Post','Wheel'].includes(c);
+    case 'single_choice': return offSysHas(text,['single choice','backside','x go','x fade','x post'])||(['Go Routes','Post'].includes(c)&&offSysHas(text,['trips','single']));
+    case 'dart_power': return c==='Power / Power O'||t.runScheme==='power'||offSysHas(text,['dart','power read','power','iso','pull']);
+    case 'rpo_access': return f==='option_rpo'||t.passStructure==='rpo_access'||offSysHas(text,['rpo','read','bubble','glance','back out','access','peek']);
+    default: return false;
+  }
+}
+function offenseSystemGenMult(pl,systemKey){
+  const sys=activeOffenseSystem(systemKey); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none||!pl)return 1;
+  let m=1; const t=(typeof getIntentTags==='function')?getIntentTags(pl):((typeof intentSafe==='function')?intentSafe(pl):null);
+  if(sys.conceptBoosts&&sys.conceptBoosts[pl.concept])m*=sys.conceptBoosts[pl.concept];
+  if(sys.familyBoosts&&sys.familyBoosts[pl.family])m*=sys.familyBoosts[pl.family];
+  if(sys.persBoosts&&sys.persBoosts[pl.pers])m*=sys.persBoosts[pl.pers];
+  if(t){
+    if(sys.surfaceBoosts&&sys.surfaceBoosts[t.surface])m*=sys.surfaceBoosts[t.surface];
+    if(sys.motionBoosts&&sys.motionBoosts[t.motionType])m*=sys.motionBoosts[t.motionType];
+    if(sys.motionBoosts&&sys.motionBoosts[t.motionPurpose])m*=sys.motionBoosts[t.motionPurpose];
+  }
+  (sys.tagBoosts||[]).forEach(b=>{if(offSysTagMatch(pl,b.tag))m*=b.m;});
+  (sys.tagPenalties||[]).forEach(b=>{if(offSysTagMatch(pl,b.tag))m*=b.m;});
+  return Math.max(0.74,Math.min(sys.genCap||1.65,m));
+}
+function offenseSystemGameMult(pl){
+  const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return 1;
+  const g=offenseSystemGenMult(pl);
+  const soft=1+(g-1)*0.42;
+  return Math.max(0.88,Math.min(sys.gameCap||1.18,soft));
+}
+function safeOffenseSystemGameMult(pl){return safeMult('offense system game mult',()=>offenseSystemGameMult(pl),1);}
+function offenseSystemConceptSeedMult(concept,family){
+  const fake={formation:'',play:concept,concept:concept,family:family||conceptFamilyForName(concept),pers:'',motion:0};
+  const g=offenseSystemGenMult(fake);
+  return Math.max(0.88,Math.min(1.32,1+(g-1)*0.35));
+}
+function offenseSystemBestBoostLabel(pl){
+  const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return '';
+  const hit=(sys.tagBoosts||[]).find(b=>offSysTagMatch(pl,b.tag));
+  if(hit)return hit.label;
+  if(sys.conceptBoosts&&sys.conceptBoosts[pl.concept])return pl.concept;
+  if(sys.familyBoosts&&sys.familyBoosts[pl.family])return pl.family.replace('_',' ');
+  return '';
+}
+function offenseSystemNoteFor(pl){
+  const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none||!pl)return '';
+  const g=offenseSystemGameMult(pl); const lbl=offenseSystemBestBoostLabel(pl);
+  if(lbl&&g>1.06)return `${sys.shortLabel||sys.label}: profile boost — ${lbl}.`;
+  return '';
+}
+function offenseSystemPlanHtml(){
+  const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return '';
+  const chips=(arr,cls='')=>(arr||[]).slice(0,8).map(x=>`<span class="chip ${cls}">${x}</span>`).join(' ');
+  const boost=(sys.tagBoosts||[]).slice(0,6).map(b=>`<span class="chip">+ ${b.label}</span>`).join(' ');
+  const pens=(sys.tagPenalties||[]).slice(0,3).map(b=>`<span class="chip bad">↓ ${b.label}</span>`).join(' ');
+  const rules=(sys.sequencingRules||[]).slice(0,4).map(x=>`<li>${x}</li>`).join('');
+  return `<b>${sys.label}</b> <span class="hint">${sys.sourceBacked?'source-backed':'starter'} · soft boosts only</span><br><span class="hint">${sys.summary||''}</span><div style="margin-top:8px"><b>Core:</b> ${chips(sys.baseConcepts)}<br><b>Personnel:</b> ${chips(sys.preferredPersonnel)}<br><b>Surfaces:</b> ${chips(sys.coreFormations)}</div><div style="margin-top:8px">${boost}${pens?'<br>'+pens:''}</div>${rules?`<div class="hint" style="margin-top:8px"><b>Sequencing rules:</b><ul style="margin:4px 0 0 18px;padding:0">${rules}</ul></div>`:''}`;
+}
+function renderOffenseSystemPlan(){const box=$('#off-system-plan');if(!box)return;const html=offenseSystemPlanHtml();if(!html){box.style.display='none';box.innerHTML='';return;}box.style.display='block';box.innerHTML=html;}
+function renderSystemOptions(){
+  const sel=$('#ph-system'); if(!sel)return;
+  const cur=philosophy.system||'none';
+  sel.innerHTML='';
+  const add=(value,label,parent=sel)=>{const o=el('option');o.value=value;o.textContent=label;parent.appendChild(o);};
+  add('none','None — use broad identity only');
+  ['shanahan_wide_zone','paul_johnson_flexbone','art_briles_spread'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
+  const customKeys=Object.keys(_customOffenseSystems||{});
+  if(customKeys.length){const og=el('optgroup');og.label='Imported profiles';customKeys.forEach(k=>add(k,_customOffenseSystems[k].label||k,og));sel.appendChild(og);}
+  const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','erhardt_perkins','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
+  sel.value=allOffenseSystems()[cur]?cur:'none';
+}
+function applyOffenseSystemPreset(){
+  const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none){toast('Choose a system profile first');return;}
+  if(sys.identityPreset){philosophy.identity=sys.identityPreset; const elid=$('#ph-identity'); if(elid)elid.value=philosophy.identity;}
+  if(sys.persMixPreset) philosophy.persMix={...DEFAULT_PERS_MIX,...sys.persMixPreset};
+  if(sys.rpBand){philosophy.rpMin=sys.rpBand[0]; philosophy.rpMax=sys.rpBand[1];}
+  if(sys.conceptTargetsPreset) philosophy.conceptTargets={...sys.conceptTargetsPreset};
+  if(sys.motionPreset!=null){motion=Number(sys.motionPreset); save(LS.motion,String(motion));}
+  if(sys.sizeHint&&(!philosophy.size||philosophy.size<220)) philosophy.size=Math.min(400,Number(sys.sizeHint)||philosophy.size);
+  save(LS.ph,philosophy); initPhilosophyForm(); toast('Applied '+sys.label+' preset');
+}
+function exportSelectedSystemProfile(){
+  const key=philosophy.system||'none'; const sys=activeOffenseSystem(key); if(!sys||key==='none'){toast('Choose a system profile first');return;}
+  const blob=new Blob([JSON.stringify({system_id:key,...sys},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='offense_system_'+key+'.json';document.body.appendChild(a);a.click();a.remove();toast('System profile exported');
+}
+function importSystemProfileFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{try{
+    const obj=JSON.parse(e.target.result); const id=String(obj.system_id||obj.id||obj.key||('custom_'+Date.now())).replace(/[^a-z0-9_]+/gi,'_').toLowerCase();
+    const profile={...obj}; delete profile.system_id; profile.label=profile.label||profile.system_name||id; profile.source=profile.source||'Imported profile'; profile.sourceBacked=!!profile.sourceBacked;
+    if(!profile.conceptBoosts)profile.conceptBoosts={}; if(!profile.familyBoosts)profile.familyBoosts={}; if(!profile.surfaceBoosts)profile.surfaceBoosts={}; if(!profile.motionBoosts)profile.motionBoosts={}; if(!profile.persBoosts)profile.persBoosts={}; if(!Array.isArray(profile.tagBoosts))profile.tagBoosts=[]; if(!Array.isArray(profile.tagPenalties))profile.tagPenalties=[];
+    _customOffenseSystems={...(_customOffenseSystems||{}),[id]:profile}; save(LS_OFF_SYS,_customOffenseSystems); philosophy.system=id; save(LS.ph,philosophy); renderSystemOptions(); renderOffenseSystemPlan(); toast('Imported offensive system: '+profile.label);
+  }catch(err){toast('Could not import system JSON: '+err.message);}};
+  reader.readAsText(file);
+}
+function offensiveSystemScriptSpecs(){
+  const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return [];
+  return (sys.scriptQuestions||[]).slice(0,3).map((q,i)=>{
+    let role='system_probe'; const l=String(q).toLowerCase();
+    if(/force|edge|perimeter|rocket|toss/.test(l)) role='force_probe';
+    else if(/boot|keeper|play-action|edge chase/.test(l)) role='boot_edge_probe';
+    else if(/veer|midline|dive|box|run|dart|zone/.test(l)) role='run_fit_probe';
+    else if(/choice|vertical|safety|single|two|coverage/.test(l)) role='shell_probe';
+    else if(/screen|blitz|pressure|bubble/.test(l)) role='pressure_empty_probe';
+    else if(/motion|shift|trade/.test(l)) role='motion_probe';
+    return {setLabel:'OFFENSIVE SYSTEM · '+sys.label,question:q,role,sit:{down:i===2?'2':'1',dist:i===2?'med':'med'},pred:p=>offenseSystemGenMult(p)>1.12,fallbacks:[p=>offenseSystemGenMult(p)>1.04,p=>true],purpose:'Use the selected offensive-system profile to ask a source-backed question while still letting down/distance and live reads choose the exact call.',scratch:'If the defense gives a bad look for the profile call, use the live variant and log what contradicted the system assumption.',circle:'If the profile stress point hits, keep the series alive but avoid exact repeats.',observe:[{label:'Profile stress point worked',sets:{},note:'Keep this system family hot.'},{label:'Defense overplayed the core idea',sets:{},note:'Move to the profile constraint/answer.'},{label:'Defense handled it cleanly',sets:{},note:'Reduce that family and test the next system question.'}]};
+  });
+}
+
+function systemSummaryForSave(key){
+  const sys=activeOffenseSystem(key); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return null;
+  return {label:sys.label,source:sys.source||'',summary:sys.summary||'',baseConcepts:(sys.baseConcepts||[]).slice(0,16),preferredPersonnel:(sys.preferredPersonnel||[]).slice(0,10),coreFormations:(sys.coreFormations||[]).slice(0,14),sequencingRules:(sys.sequencingRules||[]).slice(0,10),selfScoutGuardrails:(sys.selfScoutGuardrails||[]).slice(0,10)};
+}
 const AGGR_SHOT_CONCEPTS=["Verticals / Four Verticals","Flood","Post","Dagger","Smash","Go Routes","Bench / Corner Strike","Sail"];
 
 // full-DB plays grouped by formation (for padding audibles when a formation is thin in the book)
@@ -2567,7 +2882,7 @@ function seededShuffle(arr,seed){ // deterministic so same settings => same book
 }
 function hashPhil(p,m){
   const pmSum=Object.entries(p.persMix||{}).reduce((s,[k,v])=>s+k.charCodeAt(0)*v,0);
-  return (p.identity.length*31+p.aggr.length*17+(p.size||0)+m*7+p.emphasis.join('').length*3+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13)>>>0;
+  return (p.identity.length*31+(p.system||'none').length*29+p.aggr.length*17+(p.size||0)+m*7+p.emphasis.join('').length*3+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13)>>>0;
 }
 
 function generatePlaybook(){
@@ -2609,6 +2924,7 @@ function generatePlaybook(){
     // emphasized families and desired call targets
     if(p.emphasis.includes(pl.concept)) s*=2.2;
     s*=conceptTargetGenMult(pl.concept);
+    s*=offenseSystemGenMult(pl);
     // de-emphasize unmapped "Other / Unknown" so named concepts lead
     if(pl.concept==='Other / Unknown') s*=0.45;
     // small deterministic jitter
@@ -2617,17 +2933,16 @@ function generatePlaybook(){
   });
 
   // ── Formation-aware selection ───────────────────────────────────────
-  // Target: 30–40 formations with 5–12 plays each (not 50 formations at exactly 5).
-  // Strategy:
-  //  1. Rank every formation by its best play's score (formation score = top-3 avg).
-  //  2. Take the top MAX_FORMS formations.
-  //  3. Within each selected formation, fill plays in score order up to MAX_PER_FORM,
-  //     subject to concept-diversity limits and the family-mix quota.
-  //  4. After all formations are filled, shuffle within each family and trim to target.
+  // Target: variable-depth formations. Five plays is only the floor for a
+  // selected formation, not the rule. Bigger active books are allowed up to
+  // 400 plays and let core formations carry much deeper menus.
 
-  const MAX_FORMS = Math.min(38, Math.max(28, Math.round(target / 3.5)));
   const MIN_FORM_PLAYS = 5;
-  const MAX_PER_FORM  = Math.max(10, Math.round(target / (MAX_FORMS * 0.6)));
+  const availFormationCount=[...new Set(scored.map(x=>x.pl.formation))].length||1;
+  const maxByMinimum=Math.max(1,Math.floor(target/MIN_FORM_PLAYS));
+  const desiredForms=target>=300?Math.round(target/7):target>=220?Math.round(target/6):Math.round(target/5.5);
+  const MAX_FORMS = Math.min(availFormationCount, maxByMinimum, target>=300?60:target>=220?48:36, Math.max(8,desiredForms));
+  const GLOBAL_MAX_PER_FORM = target>=300?32:(target>=220?26:(target>=150?20:16));
 
   // Score every play (already in `scored` array, sorted by score desc within family)
   // Group by formation, pick best-avg formations
@@ -2640,11 +2955,27 @@ function generatePlaybook(){
   // Pre-filter: exclude formations the DB can't even give us MIN_FORM_PLAYS plays for
   const formRanked=[...formScoreMap.entries()]
     .filter(([form])=>(FORMATION_PLAYS[form]||[]).length>=MIN_FORM_PLAYS)
-    .map(([form,scores])=>({form, fscore:scores.slice(0,3).reduce((a,b)=>a+b,0)/Math.min(3,scores.length)}))
+    .map(([form,scores])=>{const ss=scores.slice().sort((a,b)=>b-a);return {form, fscore:ss.slice(0,3).reduce((a,b)=>a+b,0)/Math.min(3,ss.length)};})
     .sort((a,b)=>b.fscore-a.fscore)
     .slice(0, MAX_FORMS)
     .map(x=>x.form);
+  if(!formRanked.length){
+    formRanked.push(...[...formScoreMap.entries()].map(([form,scores])=>{const ss=scores.slice().sort((a,b)=>b-a);return {form,fscore:ss[0]||0};}).sort((a,b)=>b.fscore-a.fscore).slice(0,Math.min(MAX_FORMS,[...formScoreMap.keys()].length)).map(x=>x.form));
+  }
   const selectedForms=new Set(formRanked);
+  const maxFScore=Math.max(0,...formRanked.map(f=>{const arr=formScoreMap.get(f)||[0];const ss=arr.slice().sort((a,b)=>b-a);return ss.slice(0,3).reduce((a,b)=>a+b,0)/Math.min(3,ss.length);}));
+  const formCaps=new Map();
+  formRanked.forEach((form,idx)=>{
+    const depth=(FORMATION_PLAYS[form]||[]).length;
+    const arr=(formScoreMap.get(form)||[0]).slice().sort((a,b)=>b-a);
+    const fs=arr.slice(0,3).reduce((a,b)=>a+b,0)/Math.min(3,arr.length);
+    const rankScore=formRanked.length<=1?1:(1-idx/(formRanked.length-1));
+    const scoreScore=maxFScore?Math.min(1,fs/maxFScore):0.5;
+    let cap=MIN_FORM_PLAYS+Math.round((GLOBAL_MAX_PER_FORM-MIN_FORM_PLAYS)*(0.38*rankScore+0.42*scoreScore+0.20*Math.min(1,depth/28)));
+    if(idx<8&&depth>=20)cap+=4;
+    cap=Math.max(MIN_FORM_PLAYS,Math.min(GLOBAL_MAX_PER_FORM,depth,cap));
+    formCaps.set(form,cap);
+  });
 
   // Filter scored to only plays in selected formations
   const scoredFiltered=scored.filter(({pl})=>selectedForms.has(pl.formation));
@@ -2659,7 +2990,7 @@ function generatePlaybook(){
 
   function tryAdd(pl){
     const fc=formCount.get(pl.formation)||0;
-    if(fc>=MAX_PER_FORM) return false;
+    if(fc>=(formCaps.get(pl.formation)||GLOBAL_MAX_PER_FORM)) return false;
     if(!formConcepts.has(pl.formation)) formConcepts.set(pl.formation,new Set());
     // Allow up to 3 plays per concept per formation (run / pass concepts repeat across plays legitimately)
     const cc=[...formConcepts.get(pl.formation)].filter(c=>c===pl.concept).length;
@@ -2706,7 +3037,7 @@ function generatePlaybook(){
       if(book.length>=target) break;
       if(!selectedForms.has(pl.formation)) continue;
       if(have2.has(pl.id)) continue;
-      if((formCount.get(pl.formation)||0)>=MAX_PER_FORM) continue;
+      if((formCount.get(pl.formation)||0)>=(formCaps.get(pl.formation)||GLOBAL_MAX_PER_FORM)) continue;
       book.push(pl); have2.add(pl.id);
       formCount.set(pl.formation,(formCount.get(pl.formation)||0)+1);
     }
@@ -2732,7 +3063,7 @@ function generatePlaybook(){
   const finalBook=seededShuffle(book,seed);  // size already enforced by trim pass above
 
   playbook={
-    meta:{generated:Date.now(),identity:p.identity,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
+    meta:{generated:Date.now(),identity:p.identity,system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion})),
     audibles:buildAudibles(finalBook)
   };
@@ -2761,6 +3092,7 @@ function seedIngameFromBook(){
     // Start from playbook share, but do not let raw frequency dominate the play caller.
     let base=W_BASE*(0.85+0.3*((counts[n]||1)/maxc));
     base*=conceptTargetSeedMult(n);
+    base*=offenseSystemConceptSeedMult(n);
     base=Math.max(W_MIN,Math.min(W_MAX,base));
     concepts[n]={w:base,base:base,baseRaw:base,calls:0,success:0,neutral:0,failure:0,reasons:{}};
   }
@@ -3158,6 +3490,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=readMult(pl);
   s*=safeScoutConceptMult(pl.concept,pl.family);
   s*=safeDefenseStyleMult(pl);
+  s*=safeOffenseSystemGameMult(pl);
   s*=safeConceptTargetGameMult(pl);
   s*=safeCoachBrainMult(pl);
   s*=safeSequenceFit(pl);
@@ -3331,6 +3664,9 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show'
 /* ---- Philosophy form ---- */
 function initPhilosophyForm(){
   $('#ph-identity').value=philosophy.identity;
+  renderSystemOptions();
+  if($('#ph-system')) $('#ph-system').value=allOffenseSystems()[philosophy.system||'none']?(philosophy.system||'none'):'none';
+  renderOffenseSystemPlan();
   $('#ph-aggr').value=philosophy.aggr;
   $('#ph-size').value=String(philosophy.size);
   renderPersMixSliders();
@@ -3445,7 +3781,7 @@ function renderPlaybook(){
   if(!playbook){stats.innerHTML='<div class="empty" style="width:100%">No saved playbook. Go to Philosophy → Generate, upload a team CSV, or start a blank custom book.</div>';$('#pb-distro').innerHTML='';$('#pb-tbody').innerHTML='';$('#pb-count').textContent='—';if($('#pb-audibles'))$('#pb-audibles').innerHTML='';return;}
   const m=playbook.meta;
   const rpTxt=(m.rpMin!=null)?`${m.rpMin}–${m.rpMax}%`:'—';
-  const chips=[['Plays',playbook.plays.length],['Identity',labelIdent(m.identity)],['Personnel mix',persMixSummary(m.persMix)],['Run band',rpTxt],['Motion',m.motion]];
+  const chips=[['Plays',playbook.plays.length],['Identity',labelIdent(m.identity)],['System',labelSystem(m.system||'none')],['Personnel mix',persMixSummary(m.persMix)],['Run band',rpTxt],['Motion',m.motion]];
   chips.forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));stats.appendChild(c);});
   // distribution
   const byFam={}; playbook.plays.forEach(p=>byFam[p.family]=(byFam[p.family]||0)+1);
@@ -3518,6 +3854,7 @@ function downloadPlaybookBackup(){
     intentOverrides:_intentOverrides,
     customDbRows:_customDbRows,
     teamSource:_teamSource,
+    offenseSystems:_customOffenseSystems,
     ingame:ingame||null,
     scout:scout||null,
     motion
@@ -3545,6 +3882,7 @@ function loadPlaybookBackup(file){
       if(bundle.intentOverrides){_intentOverrides=bundle.intentOverrides;save(LS_INTENT,_intentOverrides);}
       if(bundle.customDbRows){_customDbRows=bundle.customDbRows;save(LS_CUSTOM_DB,_customDbRows);}
       if(bundle.teamSource){_teamSource=bundle.teamSource;save(LS_TEAM_SOURCE,_teamSource);}
+      if(bundle.offenseSystems){_customOffenseSystems=bundle.offenseSystems;save(LS_OFF_SYS,_customOffenseSystems);}
       if(bundle.ingame){ingame=bundle.ingame;save(LS.ig,ingame);}
       if(bundle.scout){scout=bundle.scout;save(LS.scout,scout);}
       if(bundle.motion!=null){motion=Number(bundle.motion);save(LS.motion,String(motion));}
@@ -4136,8 +4474,9 @@ function buildOpeningScript(){
     }
   ];
 
+  const offSpecs=offensiveSystemScriptSpecs();
   const styleSpecs=defensiveStyleScriptSpecs();
-  if(styleSpecs.length) Q.splice(1,0,...styleSpecs);
+  if(offSpecs.length||styleSpecs.length) Q.splice(1,0,...offSpecs,...styleSpecs);
   Q.slice(0,scriptTarget).forEach(addQuestion);
   scout.script=items;
   scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};
@@ -5808,6 +6147,7 @@ function scorePoolPlay(pl,mix,pmNorm,p,seed){
   if(p.aggr==='measured'&&(pl.family==='run'||pl.concept==='Quick Game')) s*=1.2;
   if(p.emphasis.includes(pl.concept)) s*=2.2;
   s*=conceptTargetGenMult(pl.concept);
+  s*=offenseSystemGenMult(pl);
   if(pl.concept==='Other / Unknown') s*=0.45;
   s*=0.85+(((pl.id||0)*2654435761>>>0)%100)/100*0.3;
   return s;
@@ -5830,19 +6170,37 @@ function generatePlaybookFromRows(rows,name){
   const seed=hashPhil(p,motion);
   const sourceMap=buildFormationMapFromPool(source);
   const scored=source.map(pl=>({pl,s:scorePoolPlay(pl,mix,pmNorm,p,seed)})).sort((a,b)=>b.s-a.s);
-  const MIN_FORM_PLAYS=Math.min(5,Math.max(2,Math.floor(target/20)||2));
-  const MAX_FORMS=Math.min(38,Math.max(8,Math.round(target/3.5)));
-  const MAX_PER_FORM=Math.max(8,Math.round(target/(Math.min(MAX_FORMS,Object.keys(sourceMap).length)||1)*1.6));
-  const formRanked=[...new Set(source.map(p=>p.formation))]
-    .filter(form=>(sourceMap[form]||[]).length>=Math.min(MIN_FORM_PLAYS,(sourceMap[form]||[]).length))
-    .map(form=>{const scores=scored.filter(x=>x.pl.formation===form).slice(0,3).map(x=>x.s);return{form,fscore:scores.reduce((a,b)=>a+b,0)/Math.max(1,scores.length)};})
-    .sort((a,b)=>b.fscore-a.fscore).slice(0,Math.min(MAX_FORMS,Object.keys(sourceMap).length)).map(x=>x.form);
-  const selectedForms=new Set(formRanked);
+  const MIN_FORM_PLAYS=5;
+  const allForms=[...new Set(source.map(p=>p.formation))];
+  const maxByMinimum=Math.max(1,Math.floor(target/MIN_FORM_PLAYS));
+  const desiredForms=target>=300?Math.round(target/7):target>=220?Math.round(target/6):Math.round(target/5.5);
+  const MAX_FORMS=Math.min(allForms.length,maxByMinimum,target>=300?60:target>=220?48:36,Math.max(8,desiredForms));
+  const GLOBAL_MAX_PER_FORM=target>=300?32:(target>=220?26:(target>=150?20:16));
+  let formRanked=allForms
+    .filter(form=>(sourceMap[form]||[]).length>=MIN_FORM_PLAYS)
+    .map(form=>{const scores=scored.filter(x=>x.pl.formation===form).slice(0,3).map(x=>x.s);return{form,fscore:scores.reduce((a,b)=>a+b,0)/Math.max(1,scores.length),depth:(sourceMap[form]||[]).length};})
+    .sort((a,b)=>b.fscore-a.fscore).slice(0,MAX_FORMS);
+  if(!formRanked.length){
+    formRanked=allForms.map(form=>{const scores=scored.filter(x=>x.pl.formation===form).slice(0,3).map(x=>x.s);return{form,fscore:scores.reduce((a,b)=>a+b,0)/Math.max(1,scores.length),depth:(sourceMap[form]||[]).length};})
+      .sort((a,b)=>b.fscore-a.fscore).slice(0,Math.min(MAX_FORMS,allForms.length));
+  }
+  const formNames=formRanked.map(x=>x.form);
+  const selectedForms=new Set(formNames);
+  const maxFScore=Math.max(0,...formRanked.map(x=>x.fscore));
+  const formCaps=new Map();
+  formRanked.forEach((info,idx)=>{
+    const rankScore=formRanked.length<=1?1:(1-idx/(formRanked.length-1));
+    const scoreScore=maxFScore?Math.min(1,info.fscore/maxFScore):0.5;
+    let cap=MIN_FORM_PLAYS+Math.round((GLOBAL_MAX_PER_FORM-MIN_FORM_PLAYS)*(0.38*rankScore+0.42*scoreScore+0.20*Math.min(1,info.depth/28)));
+    if(idx<8&&info.depth>=20)cap+=4;
+    cap=Math.max(Math.min(MIN_FORM_PLAYS,info.depth),Math.min(GLOBAL_MAX_PER_FORM,info.depth,cap));
+    formCaps.set(info.form,cap);
+  });
   const byFam={}; Object.keys(mix).forEach(f=>byFam[f]=scored.filter(x=>selectedForms.has(x.pl.formation)&&x.pl.family===f));
   const book=[], formCount=new Map(), formConceptCount=new Map();
   function tryAdd(pl){
-    const fc=formCount.get(pl.formation)||0; if(fc>=MAX_PER_FORM)return false;
-    const fk=pl.formation+'|||'+pl.concept; const cc=formConceptCount.get(fk)||0; if(cc>=3)return false;
+    const fc=formCount.get(pl.formation)||0; if(fc>=(formCaps.get(pl.formation)||GLOBAL_MAX_PER_FORM))return false;
+    const fk=pl.formation+'|||'+pl.concept; const cc=formConceptCount.get(fk)||0; if(cc>=4)return false;
     if(book.find(b=>dbKey(b.formation,b.play)===dbKey(pl.formation,pl.play)))return false;
     book.push(pl);formCount.set(pl.formation,fc+1);formConceptCount.set(fk,cc+1);return true;
   }
@@ -5850,15 +6208,15 @@ function generatePlaybookFromRows(rows,name){
     const quota=Math.round(target*mix[f]); let added=0;
     for(const {pl} of byFam[f]){if(added>=quota||book.length>=target)break;if(tryAdd(pl))added++;}
   }
-  for(const form of formRanked){
-    if((formCount.get(form)||0)>=MIN_FORM_PLAYS)continue;
+  for(const form of formNames){
+    if((formCount.get(form)||0)>=Math.min(MIN_FORM_PLAYS,(sourceMap[form]||[]).length))continue;
     for(const pl of (sourceMap[form]||[]).sort((a,b)=>scorePoolPlay(b,mix,pmNorm,p,seed)-scorePoolPlay(a,mix,pmNorm,p,seed))){
-      if((formCount.get(form)||0)>=MIN_FORM_PLAYS||book.length>=target)break;tryAdd(pl);
+      if((formCount.get(form)||0)>=Math.min(MIN_FORM_PLAYS,(sourceMap[form]||[]).length)||book.length>=target)break;tryAdd(pl);
     }
   }
   for(const {pl} of scored){if(book.length>=target)break;tryAdd(pl);}
   const finalBook=seededShuffle(book.slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team_generated'}));
-  playbook={meta:{generated:Date.now(),identity:p.identity,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
+  playbook={meta:{generated:Date.now(),identity:p.identity,system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
   save(LS.pb,playbook); invalidateCallableCache(); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
   toast('Generated '+finalBook.length+'-play Coach Brain book from '+(name||'team source'));
   return playbook;
@@ -5993,6 +6351,8 @@ function renderSuggestion(plays){
     }
     const staleNote=recognitionNoteFor(pl);
     if(staleNote) body.appendChild(el('div','stale-note',staleNote));
+    const sysNote=offenseSystemNoteFor(pl);
+    if(sysNote) body.appendChild(el('div','stale-note',sysNote));
 
     // ── Audibles for this formation ──
     const auds=audiblesForFormation(pl.formation);
@@ -6333,6 +6693,11 @@ $('#ph-identity').addEventListener('change',e=>{
   renderPersMixSliders();
   save(LS.ph,philosophy);
 });
+$('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none';save(LS.ph,philosophy);renderOffenseSystemPlan();toast('Offensive system set: '+labelSystem(philosophy.system));});
+$('#btn-system-preset').addEventListener('click',()=>applyOffenseSystemPreset());
+$('#btn-system-export').addEventListener('click',()=>exportSelectedSystemProfile());
+$('#btn-system-import').addEventListener('click',()=>$('#sys-import-file').click());
+$('#sys-import-file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f)importSystemProfileFile(f);e.target.value='';});
 $('#ph-aggr').addEventListener('change',e=>{philosophy.aggr=e.target.value;save(LS.ph,philosophy);});
 $('#ph-size').addEventListener('change',e=>{philosophy.size=Number(e.target.value);save(LS.ph,philosophy);});
 $('#btn-pers-preset').addEventListener('click',()=>{
@@ -6353,7 +6718,7 @@ $('#motion-slider').addEventListener('input',e=>{motion=Number(e.target.value);u
 $('#btn-generate').addEventListener('click',()=>{
   generatePlaybook();
   blFormIdx=-1;  // reset formation navigator on new book
-  $('#ph-status').textContent=`✓ Generated ${playbook.plays.length} plays · ${labelIdent(playbook.meta.identity)} · ${playbook.meta.pers} pers · saved to this device`;
+  $('#ph-status').textContent=`✓ Generated ${playbook.plays.length} plays · ${labelIdent(playbook.meta.identity)} · ${labelSystem(playbook.meta.system||'none')} · saved to this device`;
   toast(`Base playbook generated — ${playbook.plays.length} plays`);
 });
 $('#btn-reset-ph').addEventListener('click',()=>{

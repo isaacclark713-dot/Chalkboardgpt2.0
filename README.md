@@ -1,30 +1,32 @@
-# Call Sheet Coach Brain v13
+# Call Sheet — Coach Brain v14
 
-v13 adds the **Master Game Database** import architecture for full play lists around the 15,000-row range.
+Single-file football call-sheet app with offensive playbook generation, live game calling, defensive-style scouting, and system-based offensive profiles.
 
-## What changed
+## What's new in v14
 
-- Uploads now accept **CSV or JSON**.
-- Full game databases are split into:
-  - offensive plays
-  - defensive plays
-  - unknown rows
-- Only offensive plays enter the offensive Coach Brain caller.
-- Defensive plays are stored separately for future defensive call-sheet tools.
-- Uploaded JSON rows can include `formation`, `play`, `family_guess`, `concept`, `formation_slug`, `play_slug`, and `play_url`.
-- The offensive active playbook, team source, and master database remain separate.
+- Adds a source-backed Offensive System Library.
+- Built-in profiles:
+  - Kyle Shanahan / Wide Zone-Keeper
+  - Paul Johnson / Flexbone Option
+  - Art Briles / Veer-and-Shoot Spread
+- Profiles give soft boosts, not hard rules.
+- Profiles influence:
+  - playbook generation
+  - opening script questions
+  - in-game scoring nudges
+  - sequencing notes
+  - self-scout guardrails
+- Adds Apply System Preset, Export System JSON, and Import System JSON.
+- Keeps the master game database separate from the active offensive playbook.
+- Supports CSV and JSON play imports.
+- Handles larger master databases while keeping game-day playbooks capped at 400 plays.
 
-## Recommended use
+## Deploy on GitHub Pages
 
-Use the included `global_unique_plays.json` as the master game database.
+1. Create a new GitHub repository.
+2. Upload these files.
+3. Make sure `index.html` is in the root of the repo.
+4. Go to Settings → Pages.
+5. Deploy from the main branch root folder.
 
-1. Open the app.
-2. Go to **Data → Upload / Import Play Database**.
-3. Upload `global_unique_plays.json`.
-4. Choose one of these:
-   - **Add offensive plays to master**: adds the offensive subset to the master database.
-   - **Use offense as active base**: makes the offensive subset the call sheet source directly.
-   - **Generate base from offense**: generates a smaller Coach Brain active book from the offensive subset.
-   - **Save offense as team source**: saves it as a reusable source pool.
-
-For live games, keep the active base playbook smaller than the full master pool when possible.
+The app runs fully in the browser and stores saved data in local storage on the user's device.
