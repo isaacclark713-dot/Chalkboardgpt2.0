@@ -222,6 +222,14 @@
   .pc-results-label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9098a0;margin-bottom:6px}
   .pc-result-btns{display:flex;gap:6px;flex-wrap:wrap}
   .pc-result-btns button{flex:1;min-width:60px;border:1.5px solid;border-radius:3px;padding:7px 4px;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;background:transparent;transition:.1s;text-align:center}
+  .quick-log-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0 6px}
+  .quick-log-row button{border:1.5px solid;border-radius:4px;padding:10px 5px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;background:#fff;text-transform:uppercase;letter-spacing:.02em}
+  .quick-log-row .q-ok{color:var(--cool-d);border-color:#bfe0cd}.quick-log-row .q-ok:hover{background:#eafaf1}
+  .quick-log-row .q-mid{color:#8a7320;border-color:#e4d6ad}.quick-log-row .q-mid:hover{background:#fdf8ea}
+  .quick-log-row .q-bad{color:var(--hot-d);border-color:#e7b3a8}.quick-log-row .q-bad:hover{background:#fdeeeb}
+  details.diag-details{margin-top:8px;border-top:1px dashed #e1ded3;padding-top:7px}
+  details.diag-details summary{cursor:pointer;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#6a7066}
+  .stale-note{font-size:10.5px;color:#8a7320;background:#fff8e8;border-left:3px solid var(--gold);padding:5px 7px;border-radius:0 3px 3px 0;margin-top:6px}
   .pc-btn-ok{color:var(--cool-d);border-color:#c0ddc8}.pc-btn-ok:hover{background:#eafaf1}
   .pc-btn-mid{color:#8a7320;border-color:#e4d6ad}.pc-btn-mid:hover{background:#fdf8ea}
   .pc-btn-bad{color:var(--hot-d);border-color:#e7b3a8}.pc-btn-bad:hover{background:#fdeeeb}
@@ -1858,6 +1866,100 @@ function updateSequenceMemory(pl,outcome,diag,answers){
   seq.pendingAnswers=seq.pendingAnswers.sort((a,b)=>(b.weight||1)-(a.weight||1)).slice(0,10);
   seq.updated=Date.now();
 }
+/* Successful-concept recognition guardrail.
+   If Stick (or any concept) is hitting, we keep it alive but stop feeding the
+   opponent the exact same picture. Hot concepts create changeup bonuses for
+   related answers; repeated concepts get cooled in the recent-call window. */
+const HOT_CONCEPT_CHANGEUPS={
+  "Stick":["Spot","Spacing","Mesh","Smash","Slants","Curls / Curl Flats","Verticals / Four Verticals"],
+  "Spacing":["Stick","Spot","Mesh","Smash","Verticals / Four Verticals"],
+  "Spot":["Stick","Spacing","Mesh","Smash"],
+  "Quick Game":["Slants","Stick","Screen","Verticals / Four Verticals"],
+  "Slants":["Quick Game","Mesh","Verticals / Four Verticals","Screen"],
+  "Mesh":["Stick","Spacing","Spot","Shallow","Wheel"],
+  "Shallow":["Mesh","Y Cross","Stick"],
+  "Screen":["Draw","Quick Game","Slants"],
+  "Draw":["Screen","Quick Game","Verticals / Four Verticals"],
+  "Inside Zone":["Counter","Boot / Play Action","Option / RPO","Screen"],
+  "Power / Power O":["Counter","Boot / Play Action","Screen","Quick Game"],
+  "Counter":["Power / Power O","Boot / Play Action","Screen"],
+  "Boot / Play Action":["Quick Game","Screen","Inside Zone","Flood"],
+  "Flood":["Smash","Y Cross","Dagger","Quick Game"],
+  "Smash":["Flood","Verticals / Four Verticals","Mesh","Slants"],
+  "Verticals / Four Verticals":["Smash","Curls / Curl Flats","Draw","Screen"]
+};
+function conceptChangeups(concept){
+  const out=[...(HOT_CONCEPT_CHANGEUPS[concept]||[])];
+  const c=COUNTERS[concept];
+  if(c){ Object.values(c).flat().forEach(x=>{if(x&&!out.includes(x))out.push(x);}); }
+  return out;
+}
+function recentCallSlice(n=8){
+  const seq=ensureSequenceState();
+  return (seq&&seq.calls?seq.calls.slice(0,n):[]);
+}
+function hotConceptsFromRecent(){
+  const calls=recentCallSlice(10);
+  const by={};
+  calls.forEach(c=>{
+    if(!c.concept)return;
+    by[c.concept]=by[c.concept]||{calls:0,success:0,neutral:0,failure:0,lastIndex:99};
+    by[c.concept].calls++;
+    if(c.outcome==='success')by[c.concept].success++;
+    if(c.outcome==='neutral')by[c.concept].neutral++;
+    if(c.outcome==='failure')by[c.concept].failure++;
+  });
+  return Object.entries(by).filter(([,v])=>v.calls>=2&&v.success>=1&&(v.success/Math.max(1,v.calls))>=0.45)
+    .map(([concept,v])=>({concept,...v,rate:v.success/Math.max(1,v.calls)}));
+}
+function recognitionFit(pl){
+  if(!ingame||!ingame.sequence)return 1;
+  const seq=ensureSequenceState();
+  const calls=recentCallSlice(8);
+  if(!calls.length)return 1;
+  const tags=sequenceTags(pl);
+  const pkey=sequencePictureKey(tags), cpkey=sequenceConceptPictureKey(tags);
+  const conceptRecent=calls.filter(c=>c.concept===pl.concept).length;
+  const samePicConcept=calls.filter(c=>c.conceptPictureKey===cpkey).length;
+  const sameFormationConcept=calls.filter(c=>c.concept===pl.concept&&c.formation===pl.formation).length;
+  let m=1;
+  // A good concept can stay on the menu, but the human opponent must not see it every call.
+  if(conceptRecent>=2)m*=0.82;
+  if(conceptRecent>=3)m*=0.67;
+  if(conceptRecent>=4)m*=0.52;
+  if(sameFormationConcept>=1)m*=0.72;
+  if(samePicConcept>=1)m*=0.62;
+  const route=playIQTags(pl).routeFamily||'';
+  if(route){
+    const routeCount=calls.filter(c=>{
+      const fake={formation:c.formation,play:c.play,concept:c.concept,family:c.tags&&c.tags.family||'',pers:c.tags&&c.tags.pers||'',motion:c.tags&&c.tags.motion||0};
+      return (playIQTags(fake).routeFamily||'')===route;
+    }).length;
+    if(routeCount>=3)m*=0.78;
+  }
+  // If a concept is hot, boost good football answers/changeups so we punish the adjustment
+  // instead of simply spamming the same play.
+  const hot=hotConceptsFromRecent();
+  hot.forEach(h=>{
+    if(h.concept===pl.concept)return;
+    const changeups=conceptChangeups(h.concept);
+    const txt=(pl.play+' '+pl.concept+' '+pl.formation).toLowerCase();
+    const textMatch=(h.concept==='Stick' && /stick\s*nod|nod|wheel|seam|smash|spacing|spot/i.test(txt));
+    if(changeups.includes(pl.concept)||textMatch){
+      m*= h.calls>=3 ? 1.42 : 1.24;
+    }
+  });
+  return Math.max(0.35,Math.min(1.65,m));
+}
+function recognitionNoteFor(pl){
+  const calls=recentCallSlice(8);
+  const cnt=calls.filter(c=>c.concept===pl.concept).length;
+  if(cnt>=3)return `SELF-SCOUT: ${pl.concept} has been called ${cnt} times recently. It can still win, but the defense may start jumping it.`;
+  const hot=hotConceptsFromRecent().find(h=>conceptChangeups(h.concept).includes(pl.concept));
+  if(hot)return `CHANGEUP: ${hot.concept} is hot, so ${pl.concept} is promoted as the next-layer answer.`;
+  return '';
+}
+
 function sequenceFit(pl){
   if(!ingame||!ingame.sequence) return 1;
   const seq=ensureSequenceState();
@@ -2668,6 +2770,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=conceptTargetGameMult(pl);
   s*=coachBrainMult(pl);
   s*=sequenceFit(pl);
+  s*=recognitionFit(pl);
   s*=playIQFit(pl,down,dist,zone,yards);
   if(!info.overrideBalance){
     if(isRunFamily(pl.family)) s*=info.runNudge; else s*=info.passNudge;
@@ -5345,6 +5448,8 @@ function renderSuggestion(plays){
       inote.style.cssText='font-style:normal;color:#2f5891;background:#f6fbff;border-left:3px solid #8fb6df;padding:6px 8px;border-radius:0 3px 3px 0;margin-top:6px';
       body.appendChild(inote);
     }
+    const staleNote=recognitionNoteFor(pl);
+    if(staleNote) body.appendChild(el('div','stale-note',staleNote));
 
     // ── Audibles for this formation ──
     const auds=audiblesForFormation(pl.formation);
@@ -5366,16 +5471,44 @@ function renderSuggestion(plays){
 
     // ── Contextual result + diagnosis panel ──
     const rw=el('div','pc-results');
-    rw.appendChild(el('div','pc-results-label','I ran this formation / play / concept — log result + what the defense told us:'));
-    const btns=el('div','pc-result-btns');
+    rw.appendChild(el('div','pc-results-label','30-second log — one tap if you need speed. Use details only when the defense gave you clear info.'));
     let selectedOutcome='';
     const outcomeBtns={};
 
+    function completeLog(outcome, vals, quick){
+      selectedOutcome=outcome;
+      const diagnosis=buildPlayDiagnosis(pl,selectedOutcome,vals||[]);
+      if(quick){diagnosis.quick=true; diagnosis.notes=diagnosis.notes||[]; diagnosis.notes.push('Quick log used; no detailed defensive tell captured.');}
+      const note=logResult(pl.concept,selectedOutcome,diagnosis.reason,diagnosis.reaction,pl,diagnosis);
+      card.classList.remove('selected','logged-ok','logged-mid','logged-bad');
+      card.classList.add(selectedOutcome==='success'?'logged-ok':selectedOutcome==='neutral'?'logged-mid':'logged-bad');
+      rw.innerHTML='';
+      const lg=el('div','pc-logged '+(selectedOutcome==='success'?'ok':selectedOutcome==='neutral'?'mid':'bad'));
+      const sum=diagnosisSummary(diagnosis);
+      lg.textContent=(selectedOutcome==='success'?'✓ Success':selectedOutcome==='neutral'?'~ Neutral':'✕ Negative')+(sum?' — '+sum:'')+(quick?' · quick log':'');
+      rw.appendChild(lg);
+      if(note){const adj=el('div','pc-adj',note);rw.appendChild(adj);}
+      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();renderIngameStats();
+      toast(pl.concept+' logged');
+    }
+
+    const qrow=el('div','quick-log-row');
+    [['success','q-ok','✓ Good'],['neutral','q-mid','0 No harm'],['failure','q-bad','✕ Bad']].forEach(([out,cls,txt])=>{
+      const qb=el('button',cls,txt);
+      qb.addEventListener('click',()=>completeLog(out,[],true));
+      qrow.appendChild(qb);
+    });
+    rw.appendChild(qrow);
+
+    const details=el('details','diag-details');
+    const summary=el('summary',null,'Detailed diagnosis / defensive tell');
+    details.appendChild(summary);
+
+    const btns=el('div','pc-result-btns');
     function setOutcome(out){
       selectedOutcome=out;
       Object.entries(outcomeBtns).forEach(([k,b])=>b.classList.toggle('on',k===out));
     }
-
     ['success','neutral','failure'].forEach(out=>{
       const b=el('button');
       b.className='pc-btn-'+(out==='success'?'ok':out==='neutral'?'mid':'bad');
@@ -5384,7 +5517,7 @@ function renderSuggestion(plays){
       outcomeBtns[out]=b;
       btns.appendChild(b);
     });
-    rw.appendChild(btns);
+    details.appendChild(btns);
 
     const diagPanel=el('div','diag-panel');
     diagPanel.appendChild(el('div','diag-title','Diagnosis — tailored to this play'));
@@ -5413,27 +5546,13 @@ function renderSuggestion(plays){
     logBtn.addEventListener('click',()=>{
       if(!selectedOutcome){toast('Choose successful, neutral, or negative first');return;}
       const vals=diagSelects.map(s=>s.value).filter(Boolean);
-      const diagnosis=buildPlayDiagnosis(pl,selectedOutcome,vals);
-      const note=logResult(pl.concept,selectedOutcome,diagnosis.reason,diagnosis.reaction,pl,diagnosis);
-      // mark card
-      card.classList.remove('selected','logged-ok','logged-mid','logged-bad');
-      card.classList.add(selectedOutcome==='success'?'logged-ok':selectedOutcome==='neutral'?'logged-mid':'logged-bad');
-      // replace result area with confirmation + adjustment note
-      rw.innerHTML='';
-      const lg=el('div','pc-logged '+(selectedOutcome==='success'?'ok':selectedOutcome==='neutral'?'mid':'bad'));
-      const sum=diagnosisSummary(diagnosis);
-      lg.textContent=(selectedOutcome==='success'?'✓ Success':selectedOutcome==='neutral'?'~ Neutral':'✕ Negative')+(sum?' — '+sum:'');
-      rw.appendChild(lg);
-      if(note){const adj=el('div','pc-adj',note);rw.appendChild(adj);}
-      // refresh board + meter
-      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();
-      renderIngameStats();
-      toast(pl.concept+' → '+(selectedOutcome==='success'?'boosted':selectedOutcome==='neutral'?'preserved':'cut'));
+      completeLog(selectedOutcome,vals,false);
     });
     logRow.appendChild(logBtn);
     logRow.appendChild(el('span','hint','Select only the things you actually saw; leave the rest blank.'));
     diagPanel.appendChild(logRow);
-    rw.appendChild(diagPanel);
+    details.appendChild(diagPanel);
+    rw.appendChild(details);
 
     card.appendChild(rw);
     cards.appendChild(card);
