@@ -1,22 +1,12 @@
-# Call Sheet — Coach Brain v14.1
+# Call Sheet — Coach Brain v14.2
 
-Single-file football playbook and in-game play-calling assistant.
+This version fixes offensive system generation rails, especially Paul Johnson / Flexbone Option.
 
-## v14.1 updates
+Changes:
+- Embeds the full offensive side of the game play database instead of the older smaller built-in CSV subset.
+- Adds true Flexbone/Wingbone/Wishbone/Split-T recognition.
+- Adds specialty concepts: Inside Veer, Midline, Triple Option, Rocket Toss, Counter Option, Veer Pass, Choice.
+- Adds hard system rail seeding for source-backed presets while keeping sliders adjustable.
+- Paul Johnson now force-seeds option/flexbone concepts before normal quotas fill the rest of the book.
 
-- Offensive system profiles now act as adjustable scheme rails instead of light soft boosts only.
-- Added a System discipline slider so a selected system can drive generation and in-game calling more strongly.
-- Added Formation style emphasis sliders for Gun/shotgun, Singleback, Pistol, I-Form, Flexbone, Empty, Under-center, and Other.
-- Source-backed profiles now include alignment-family presets and formation-type boosts.
-- Apply system preset now sets identity, personnel, run/pass band, concept targets, motion, book size, system discipline, and alignment mix.
-- Playbook generation and live suggestions now factor selected alignment family into scoring.
-- Presets included: Kyle Shanahan wide zone/keeper, Paul Johnson flexbone option, Art Briles veer-and-shoot spread, plus starter templates.
-
-## Use
-
-Open `index.html` directly or publish this folder with GitHub Pages.
-
-Optional master databases included:
-
-- `global_unique_plays.csv`
-- `global_unique_plays.json`
+Open `index.html` on GitHub Pages or locally.
