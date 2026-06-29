@@ -1038,14 +1038,14 @@
 
     <!-- ── CSV Upload ── -->
     <div class="card">
-      <h2>Upload Play Database</h2>
-      <p class="desc">Upload a new or expanded CSV to add plays to the database. Upload an expanded CSV and it will merge into the active database. Required columns: <span class="mono" style="font-size:11px">formation, play</span>. Optional columns: <span class="mono" style="font-size:11px">family_guess/family, concept, personnel/pers</span>. Existing formation+play entries are updated so the upload behaves like part of the built-in database.</p>
+      <h2>Upload / Import Play Database</h2>
+      <p class="desc">Upload a CSV or JSON play file. The importer now separates <b>offensive plays</b>, <b>defensive plays</b>, and <b>unknown rows</b>. Only offensive plays are used by the offensive Coach Brain caller; defensive plays are saved separately for a future defensive call-sheet module. Required fields: <span class="mono" style="font-size:11px">formation, play</span>. Optional fields: <span class="mono" style="font-size:11px">family_guess/family, concept, personnel/pers, formation_slug, play_slug, play_url</span>.</p>
 
       <div id="csv-dropzone" style="border:2px dashed #c8c5ba;border-radius:5px;padding:32px;text-align:center;cursor:pointer;background:#faf9f5;transition:.12s">
         <div style="font-size:28px;margin-bottom:8px">📂</div>
-        <div style="font-weight:700;font-size:14px;margin-bottom:4px">Drop CSV here or click to browse</div>
-        <div style="font-size:12px;color:#8a908a">Accepts .csv files · required: formation + play · concept can be inferred</div>
-        <input type="file" id="csv-file-input" accept=".csv" style="display:none">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">Drop CSV or JSON here or click to browse</div>
+        <div style="font-size:12px;color:#8a908a">Accepts .csv or .json · full game databases are split into offense / defense / unknown</div>
+        <input type="file" id="csv-file-input" accept=".csv,.json,application/json,text/csv" style="display:none">
       </div>
 
       <div id="csv-preview" style="display:none;margin-top:14px">
@@ -1055,10 +1055,10 @@
             <div class="hint" id="csv-preview-desc"></div>
           </div>
           <div class="btnbar" style="margin:0">
-            <button class="btn primary" id="btn-csv-commit">⊕ Add to master database</button>
-            <button class="btn gold" id="btn-csv-use-base">Use as active base</button>
-            <button class="btn ghost sm" id="btn-csv-gen-base">Generate base from file</button>
-            <button class="btn ghost sm" id="btn-csv-save-source">Save as team source</button>
+            <button class="btn primary" id="btn-csv-commit">⊕ Add offensive plays to master</button>
+            <button class="btn gold" id="btn-csv-use-base">Use offense as active base</button>
+            <button class="btn ghost sm" id="btn-csv-gen-base">Generate base from offense</button>
+            <button class="btn ghost sm" id="btn-csv-save-source">Save offense as team source</button>
             <button class="btn ghost sm" id="btn-csv-cancel">Cancel</button>
           </div>
         </div>
@@ -1138,7 +1138,7 @@ const CONCEPT_FAMILY={};
   Object.keys(t).forEach(c=>{CONCEPT_FAMILY[c]=Object.entries(t[c]).sort((a,b)=>b[1]-a[1])[0][0];});})();
 // run vs pass for the balance meter: run families = run + option_rpo
 function isRunConcept(c){return ['run','option_rpo'].includes(CONCEPT_FAMILY[c]||'pass');}
-function isRunFamily(f){return f==='run'||f==='option_rpo';}
+function isRunFamily(f){f=String(f||'');return f==='run'||f==='option_rpo';}
 
 /* ---------- Concept failure → answer map ----------
    Keyed by the same failure reasons used in the UI. Sourced from the
@@ -2404,7 +2404,42 @@ const IDENTITY_RP={balanced:[45,58],run:[52,68],pass:[28,42],spread:[38,52],pro:
 function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',defStyle:'',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,scriptState:null,twoMin:null};}
 function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){return d;}}
-function save(k,v){try{localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch(e){toast('Storage unavailable');}}
+function compactIntentForSave(intent){
+  if(!intent||typeof intent!=='object')return null;
+  const out={};
+  Object.entries(intent).forEach(([k,v])=>{if(v!=null&&v!==''&&v!=='auto')out[k]=v;});
+  return Object.keys(out).length?out:null;
+}
+function compactPlayRowForSave(pl){
+  if(!pl)return null;
+  const r={formation:pl.formation||'',play:pl.play||'',family:pl.family||pl.family_guess||'',concept:pl.concept||'',pers:String(pl.pers||pl.personnel||''),motion:Number(pl.motion)||0};
+  if(pl._manual)r._manual=true;
+  if(pl._source)r._source=pl._source;
+  if(pl.uploaded)r.uploaded=true;
+  const intent=compactIntentForSave(pl.intent);
+  if(intent)r.intent=intent;
+  return r;
+}
+function compactPlaybookForSave(pb){
+  if(!pb||!Array.isArray(pb.plays))return pb;
+  const out={...pb,plays:pb.plays.map(compactPlayRowForSave).filter(Boolean)};
+  // Audibles can be rebuilt from plays; keep them only when small to avoid localStorage blowups.
+  if(out.plays.length>2500)out.audibles={};
+  return out;
+}
+function compactRowsForSave(rows){
+  return (rows||[]).map(compactPlayRowForSave).filter(Boolean);
+}
+function compactValueForSave(k,v){
+  try{
+    if(k===LS.pb)return compactPlaybookForSave(v);
+    if(typeof LS_CUSTOM_DB!=='undefined'&&k===LS_CUSTOM_DB)return compactRowsForSave(v);
+    if(typeof LS_TEAM_SOURCE!=='undefined'&&k===LS_TEAM_SOURCE&&v&&Array.isArray(v.rows))return {...v,rows:compactRowsForSave(v.rows)};
+    if(typeof LS_DEFENSE_DB!=='undefined'&&k===LS_DEFENSE_DB)return compactRowsForSave(v);
+  }catch(e){console.warn('Compaction skipped',e);}
+  return v;
+}
+function save(k,v){try{const cv=compactValueForSave(k,v);localStorage.setItem(k,typeof cv==='string'?cv:JSON.stringify(cv));}catch(e){console.error('Storage save failed',e);toast('Storage limit hit — download a backup or use a smaller active book');}}
 
 /* ---------- Defensive reads model + suggestion multipliers ----------
    reads live on `ingame.reads`. Scouting pre-fills tentative values;
@@ -2701,7 +2736,7 @@ function generatePlaybook(){
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion})),
     audibles:buildAudibles(finalBook)
   };
-  save(LS.pb,playbook);
+  save(LS.pb,playbook); invalidateCallableCache();
   // reset in-game baseline to new book
   seedIngameFromBook();
   return playbook;
@@ -3042,7 +3077,76 @@ function safeSequenceFit(pl){return safeMult('sequenceFit',()=>sequenceFit(pl),1
 function safeRecognitionFit(pl){return safeMult('recognitionFit',()=>recognitionFit(pl),1);}
 function safePlayIQFit(pl,down,dist,zone,yards){return safeMult('playIQFit',()=>playIQFit(pl,down,dist,zone,yards),1);}
 
+function sanitizePlayForCall(pl,i){
+  // v12.2: make the caller tolerant of older/custom/team playbooks that may
+  // have partial CSV rows or legacy localStorage objects. One bad row should
+  // never break Suggest 3.
+  try{
+    const raw=pl||{};
+    const formation=cleanCell(raw.formation||raw.form||raw.set||raw.formation_name||'Unknown Formation');
+    const play=cleanCell(raw.play||raw.name||raw.play_name||raw.call||'Unknown Play');
+    const fam0=raw.family||raw.family_guess||raw.type||raw.fam||'';
+    const family=normalizeFamily(fam0,play);
+    const concept0=cleanCell(raw.concept||raw.parentConcept||raw.parent_concept||'');
+    const concept=(concept0&&CONCEPTS.includes(concept0))?concept0:inferConcept(play,family);
+    const pers=String(raw.pers||raw.personnel||inferPers(formation)||'11');
+    let motion=(raw.motion!=null)?Number(raw.motion):inferMotion(formation,play);
+    if(!Number.isFinite(motion)) motion=0;
+    motion=Math.max(0,Math.min(2,motion));
+    const out={...raw,
+      id:raw.id!=null?raw.id:(800000+(Number(i)||0)),
+      formation,play,family,concept,pers,motion,hasMotion:motion>0
+    };
+    if(!out.intent) out.intent=autoIntentTags(out);
+    return applyCorr?applyCorr(out):out;
+  }catch(e){
+    console.warn('Dropped bad play row from caller',pl,e);
+    return null;
+  }
+}
+let _callableCache=null;
+let _callableCacheSig='';
+function invalidateCallableCache(){_callableCache=null;_callableCacheSig='';}
+function activePlaybookSignature(){
+  if(!playbook||!Array.isArray(playbook.plays))return 'none';
+  const m=playbook.meta||{};
+  return [playbook.plays.length,m.generated||'',m.sourceName||'',m.sourceMode||'',Object.keys(_corrections||{}).length,Object.keys(_formPers||{}).length].join('|');
+}
+function getCallablePlays(){
+  const sig=activePlaybookSignature();
+  if(_callableCache&&_callableCacheSig===sig)return _callableCache;
+  const raw=(playbook&&Array.isArray(playbook.plays))?playbook.plays:[];
+  const fixed=[];
+  raw.forEach((p,i)=>{const sp=sanitizePlayForCall(p,i); if(sp&&sp.formation&&sp.play)fixed.push(sp);});
+  _callableCache=fixed;
+  _callableCacheSig=sig;
+  return fixed;
+}
+function ensureConceptBoardForPlays(plays){
+  try{
+    if(!ingame||!ingame.concepts) seedIngameFromBook();
+    (plays||[]).forEach(p=>{if(ingame&&ingame.concepts&&!ingame.concepts[p.concept])ingame.concepts[p.concept]={w:W_BASE,calls:0,success:0,neutral:0,failure:0,reasons:{}};});
+  }catch(e){console.warn('Concept board repair skipped',e);}
+}
+function emergencySourcePlays(){
+  try{
+    const pool=effectivePlays().map((p,i)=>sanitizePlayForCall(p,i)).filter(Boolean);
+    return pool.length?pool:[];
+  }catch(e){return [];}
+}
+function ensureActivePlaybookUsable(){
+  try{
+    const plays=getCallablePlays();
+    if(!plays.length)return false;
+    ensureConceptBoardForPlays(plays);
+    return true;
+  }catch(e){
+    console.error('Active playbook repair failed',e);
+    return false;
+  }
+}
 function coreCallScore(pl,down,dist,zone,yards,ctx){
+  if(!pl||!pl.formation||!pl.play)return 0;
   if(!ingame) seedIngameFromBook();
   const info=(ctx&&ctx.nudges)?ctx.nudges:runPassNudgesFor(zone);
   const band=info.band;
@@ -3073,7 +3177,9 @@ function suggestPlay(down, dist, zone, yards){
   if(!ingame) seedIngameFromBook();
   _suggestCallN++;
   const nudges=runPassNudgesFor(zone);
-  const scored=playbook.plays
+  const source=getCallablePlays();
+  ensureConceptBoardForPlays(source);
+  const scored=source
     .map(pl=>({pl,s:coreCallScore(pl,down,dist,zone,yards,{nudges})}))
     .filter(x=>x.s>0)
     .sort((a,b)=>b.s-a.s);
@@ -3126,8 +3232,11 @@ function suggestPlay(down, dist, zone, yards){
   return picks.length?picks:scored.slice(0,5).map(x=>x.pl);
 }
 function simpleFallbackSuggest(down,dist,zone,yards){
-  if(!playbook||!Array.isArray(playbook.plays))return [];
-  const plays=playbook.plays.slice();
+  let plays=[];
+  try{plays=getCallablePlays();}catch(e){plays=[];}
+  if(!plays.length)plays=emergencySourcePlays();
+  if(!plays.length)return [];
+  ensureConceptBoardForPlays(plays);
   const scored=[];
   for(const pl of plays){
     let s=1;
@@ -3140,6 +3249,8 @@ function simpleFallbackSuggest(down,dist,zone,yards){
 }
 function safeSuggestPlay(down,dist,zone,yards){
   try{
+    const usable=ensureActivePlaybookUsable();
+    if(!usable)return simpleFallbackSuggest(down,dist,zone,yards);
     const plays=suggestPlay(down,dist,zone,yards);
     if(plays&&plays.length)return plays;
     return simpleFallbackSuggest(down,dist,zone,yards);
@@ -3213,7 +3324,7 @@ function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 function el(t,c,txt){const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
 function persPill(p){const s=el('span','pill pers',p);return s;}
-function famPill(f){const s=el('span','pill '+f,f.replace('_',' '));return s;}
+function famPill(f){f=String(f||'unknown');const s=el('span','pill '+f,f.replace('_',' '));return s;}
 let toastTimer;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
 
@@ -3360,7 +3471,8 @@ function renderPbTable(filter){
   const rows=playbook.plays.filter(p=>!f||(p.formation+p.play+p.concept+p.family).toLowerCase().includes(f));
   const manualCount=(playbook.plays||[]).filter(p=>p._manual).length;
   $('#pb-count').textContent=`${rows.length} of ${playbook.plays.length} plays`+(manualCount?` · ${manualCount} manually added`:'');
-  rows.forEach((p,i)=>{
+  const PAGE=500;
+  rows.slice(0,PAGE).forEach((p,i)=>{
     const tr=el('tr');
     if(p._manual) tr.classList.add('added-row');
     // remove button
@@ -3369,7 +3481,7 @@ function renderPbTable(filter){
     rm.addEventListener('click',()=>{
       // find actual index in playbook.plays (filter may have narrowed it)
       const idx=playbook.plays.findIndex(x=>x.formation===p.formation&&x.play===p.play&&x.concept===p.concept);
-      if(idx>-1){ playbook.plays.splice(idx,1); save(LS.pb,playbook); renderPlaybook(); toast('Play removed'); }
+      if(idx>-1){ playbook.plays.splice(idx,1); save(LS.pb,playbook); invalidateCallableCache(); renderPlaybook(); toast('Play removed'); }
     });
     rmTd.appendChild(rm); tr.appendChild(rmTd);
     tr.appendChild(el('td',null,p.formation));
@@ -3381,6 +3493,11 @@ function renderPbTable(filter){
     if(p._manual){const m=el('td');const b=el('span');b.style.cssText='font-size:9px;color:var(--cool-d);font-weight:700';b.textContent='manual';m.appendChild(b);tr.appendChild(m);}
     tb.appendChild(tr);
   });
+  if(rows.length>PAGE){
+    const tr=el('tr');const td=el('td');td.colSpan=7;td.style.cssText='padding:10px;text-align:center;color:#8a908a;font-size:12px';
+    td.textContent='Showing first '+PAGE+' of '+rows.length+' plays — use the filter to narrow. Full playbook still available to the caller.';
+    tr.appendChild(td);tb.appendChild(tr);
+  }
 }
 
 /* ── Playbook backup: download and upload ──────────────────────────────
@@ -3421,7 +3538,7 @@ function loadPlaybookBackup(file){
         $('#pb-upload-status').textContent='Error: file does not contain a valid playbook.';return;
       }
       // Restore all stores
-      playbook=bundle.playbook; save(LS.pb,playbook);
+      playbook=bundle.playbook; save(LS.pb,playbook); invalidateCallableCache();
       if(bundle.philosophy){philosophy=bundle.philosophy;save(LS.ph,philosophy);}
       if(bundle.corrections){_corrections=bundle.corrections;save(LS_CORR,_corrections);}
       if(bundle.formPers){_formPers=bundle.formPers;save(LS_FORM_PERS,_formPers);}
@@ -3494,7 +3611,7 @@ function addPlayToBook(){
     const rebuilt=buildAudiblesScoped(formPlays,playbook.plays);
     if(rebuilt[formation]) playbook.audibles[formation]=rebuilt[formation];
   }
-  save(LS.pb,playbook);
+  save(LS.pb,playbook); invalidateCallableCache();
   // Update ingame concepts if ingame exists
   if(ingame&&!ingame.concepts[concept]){
     ingame.concepts[concept]={w:W_BASE,base:W_BASE,calls:0,success:0,neutral:0,failure:0,reasons:{}};
@@ -3552,7 +3669,9 @@ function renderBuildList(){
   }
   // Group rows by formation within the table (show divider rows)
   let lastForm='';
-  rows.forEach(r=>{
+  const PAGE=600;
+  const visibleRows=filter==='__ALL__'?rows.slice(0,PAGE):rows;
+  visibleRows.forEach(r=>{
     if(r.formation!==lastForm){
       lastForm=r.formation;
       if(filter==='__ALL__'){
@@ -3573,6 +3692,11 @@ function renderBuildList(){
     if(filter==='__ALL__') tr.children[0].style.display='none'; // hide redundant col when grouped
     tb.appendChild(tr);
   });
+  if(filter==='__ALL__'&&rows.length>PAGE){
+    const tr=el('tr');const td=el('td');td.colSpan=6;td.style.cssText='padding:10px;text-align:center;color:#8a908a;font-size:12px';
+    td.textContent='Showing first '+PAGE+' of '+rows.length+' plays — choose a formation or export CSV for the full list.';
+    tr.appendChild(td);tb.appendChild(tr);
+  }
 }
 function buildListCSV(){
   const rows=buildListRows('__ALL__');  // always export full sorted list
@@ -4574,10 +4698,15 @@ const LS_CORR='callsheet_corrections_v1';
 const LS_FORM_PERS='callsheet_form_pers_v1';   // formation-level personnel overrides
 const LS_CUSTOM_DB='callsheet_custom_db_v1';
 const LS_TEAM_SOURCE='callsheet_team_source_v1';
+const LS_DEFENSE_DB='callsheet_defense_db_v1';
 let _corrections=loadJSON(LS_CORR)||{};         // play-level: concept/family/motion patches
 let _formPers=loadJSON(LS_FORM_PERS)||{};        // formation-level: {formationName: '10'|'11'|'12'|'21'}
 let _customDbRows=loadJSON(LS_CUSTOM_DB)||null;
 let _teamSource=loadJSON(LS_TEAM_SOURCE)||null; // {name, rows:[plays], savedAt} — an uploaded team/custom source that can become the active base book
+let _defenseDbRows=loadJSON(LS_DEFENSE_DB)||null; // defensive plays split out of full game databases; saved for future defensive modules
+let _csvDefensePending=[];
+let _csvUnknownPending=[];
+let _csvSideStats=null;
 
 
 const LS_INTENT='callsheet_intent_tags_v1';
@@ -4993,18 +5122,18 @@ function getCorr(formation,play){return _corrections[corrKey(formation,play)]||n
 function setCorr(formation,play,patch){
   const k=corrKey(formation,play);
   _corrections[k]=Object.assign(getCorr(formation,play)||{},patch);
-  save(LS_CORR,_corrections);
+  save(LS_CORR,_corrections); invalidateCallableCache();
 }
 function clearCorr(formation,play){
   delete _corrections[corrKey(formation,play)];
-  save(LS_CORR,_corrections);
+  save(LS_CORR,_corrections); invalidateCallableCache();
 }
 
 /* Formation-level personnel — applies to ALL plays in a formation */
 function setFormPers(formation,pers){
   if(!pers){ delete _formPers[formation]; }
   else { _formPers[formation]=pers; }
-  save(LS_FORM_PERS,_formPers);
+  save(LS_FORM_PERS,_formPers); invalidateCallableCache();
 }
 function getFormPers(formation){ return _formPers[formation]||null; }
 
@@ -5296,6 +5425,85 @@ function inferConcept(play, family){
   if(fam==='run') return 'HB Base / Zone';
   return 'Other / Unknown';
 }
+
+/* ── Full game database split: offense / defense / unknown ─────────────
+   The full CFB game list includes offensive play calls and defensive calls.
+   The offensive Coach Brain only scores offense. Defensive rows are saved
+   separately so they can power a future defensive call-sheet module without
+   polluting offensive suggestions. */
+function classifyPlaySide(row){
+  const f=cleanCell(row&&row.formation).toLowerCase().replace(/[-_]+/g,' ');
+  const p=cleanCell(row&&row.play).toLowerCase();
+  // Strong defensive formation/system tells from the game database
+  const defForm=/(^|\b)(nickel|dime|dollar|quarter|prevent|goal line defense|3\s*[- ]\s*2\s*[- ]\s*6|3\s*[- ]\s*3\s*[- ]\s*5|3\s*[- ]\s*4|4\s*[- ]\s*3|4\s*[- ]\s*2\s*[- ]\s*5|4\s*[- ]\s*4|5\s*[- ]\s*2|46|bear)(\b|$)/.test(f);
+  const defPlay=/(\bblitz\b|\bdog\b|\bfire\b|\bloop\b|\bcontain\b|\bpress\b|\brobber\b|\binvert\b|\bhard flat\b|\blurk\b|\bcloud\b|\bspy\b|\bdouble slot\b|\bdouble wr\b|\bdouble te\b|\bcover\b|\bdrop\b|\bslant crash\b|\bcross games\b|\bedge pinch\b)/.test(p);
+  if(defForm || (defPlay && !/(gun|pistol|singleback|i\s*form|strong|weak|wildcat|flexbone|split\s*t|power\s*i|hail\s*mary)/.test(f))) return 'defense';
+  // Strong offensive formation tells
+  const offForm=/(^|\b)(gun|shotgun|pistol|singleback|i\s*form|iform|strong\s*i|weak\s*i|strong|weak|wildcat|flexbone|split\s*t|power\s*i|full\s*house|maryland|wishbone|ace|bunch|trips|doubles|trey|trio|empty|hail\s*mary)(\b|$)/.test(f);
+  const offPlay=/(\bzone\b|\btrap\b|\bpower\b|\bcounter\b|\bduo\b|\btoss\b|\bsweep\b|\bdraw\b|\bscreen\b|\bmesh\b|\bstick\b|\bsmash\b|\bdagger\b|\bsail\b|\bflood\b|\bverts?\b|\bvertical\b|\bslant\b|\bshallow\b|\bcurl\b|\bboot\b|\bpa\b|\brpo\b|\bread\b)/.test(p);
+  if(offForm || offPlay) return 'offense';
+  return 'unknown';
+}
+function normalizeImportedPlayRow(obj,i){
+  obj=obj||{};
+  const formation=cleanCell(obj.formation||obj.form||obj.formation_name||'');
+  const play=cleanCell(obj.play||obj.play_name||obj.name||'');
+  if(!formation||!play)return null;
+  const family=normalizeFamily(obj.family||obj.family_guess||obj.fam||'',play);
+  const conceptRaw=cleanCell(obj.concept||obj.parent_concept||'');
+  const concept=(conceptRaw&&CONCEPTS.includes(conceptRaw))?conceptRaw:inferConcept(play,family);
+  const persRaw=cleanCell(obj.pers||obj.personnel||'');
+  const pers=persRaw&&ALL_PERS.includes(persRaw)?persRaw:inferPers(formation);
+  const motRaw=obj.motion!=null?obj.motion:obj.mot;
+  const motion=(motRaw!==''&&motRaw!=null&&!isNaN(Number(motRaw)))?Math.max(0,Math.min(2,Number(motRaw))):inferMotion(formation,play);
+  const row={
+    id:obj.id!=null?obj.id:(800000+i),
+    formation,play,family,concept,pers,motion,hasMotion:motion>0,
+    formation_slug:obj.formation_slug||'',play_slug:obj.play_slug||'',play_url:obj.play_url||obj.url||'',
+    link_text:obj.link_text||'',source:obj.source||'',page_num:obj.page_num||null
+  };
+  const explicitIntent=extractIntentFromObject(obj);
+  if(Object.keys(explicitIntent||{}).length) row.intent=explicitIntent;
+  row.side=cleanCell(obj.side||obj.play_side||'')||classifyPlaySide(row);
+  return row;
+}
+function extractIntentFromObject(obj){
+  const keys=['surface','motionPurpose','runScheme','passStructure','series','conflictDefender','primaryStress','routeFamily','readType','routeTiming','beatsCoverage','weakVs','requiresProtection','hasHot','installConfidence'];
+  const aliases={motion_purpose:'motionPurpose',run_scheme:'runScheme',pass_structure:'passStructure',conflict_defender:'conflictDefender',primary_stress:'primaryStress',route_family:'routeFamily',read_type:'readType',route_timing:'routeTiming',beats_coverage:'beatsCoverage',weak_vs:'weakVs',requires_protection:'requiresProtection',has_hot:'hasHot',install_confidence:'installConfidence'};
+  const out={};
+  Object.keys(obj||{}).forEach(k=>{const canon=aliases[k]||k;if(keys.includes(canon)&&obj[k]!=null&&String(obj[k]).trim()!=='')out[canon]=String(obj[k]).trim();});
+  return out;
+}
+function splitRowsBySide(rows){
+  const offense=[], defense=[], unknown=[];
+  const seenOff=new Set(), seenDef=new Set(), seenUnk=new Set();
+  (rows||[]).forEach((r,i)=>{
+    const row=normalizeImportedPlayRow(r,i)||r;
+    if(!row||!row.formation||!row.play)return;
+    const side=row.side||classifyPlaySide(row);
+    row.side=side;
+    const k=dbKey(row.formation,row.play);
+    if(side==='defense'){
+      if(!seenDef.has(k)){seenDef.add(k);defense.push(row);}
+    }else if(side==='offense'){
+      if(!seenOff.has(k)){seenOff.add(k);offense.push(row);}
+    }else{
+      if(!seenUnk.has(k)){seenUnk.add(k);unknown.push(row);}
+    }
+  });
+  return {offense,defense,unknown,stats:{offense:offense.length,defense:defense.length,unknown:unknown.length,total:offense.length+defense.length+unknown.length}};
+}
+function parseUploadedJSON(text){
+  let data;
+  try{data=JSON.parse(String(text||'').replace(/^\uFEFF/,''));}catch(e){return {error:'Invalid JSON: '+e.message};}
+  let arr=Array.isArray(data)?data:(Array.isArray(data.plays)?data.plays:Array.isArray(data.rows)?data.rows:Array.isArray(data.data)?data.data:null);
+  if(!arr)return {error:'JSON must be an array of plays or an object with plays/rows/data array'};
+  const normalized=[];let skippedMissing=0;
+  arr.forEach((obj,i)=>{const row=normalizeImportedPlayRow(obj,i);if(row)normalized.push(row);else skippedMissing++;});
+  const split=splitRowsBySide(normalized);
+  if(!split.stats.total)return {error:'No valid play rows found in JSON'};
+  return {rows:split.offense, defenseRows:split.defense, unknownRows:split.unknown, sideStats:split.stats, skippedMissing, skippedDuplicate:0, isGameDatabase:true};
+}
 function parseCSVRecords(text){
   const rows=[];let row=[],cur='',inQ=false;
   text=String(text||'').replace(/^\uFEFF/,'');
@@ -5364,14 +5572,17 @@ function parseUploadedCSV(text){
     const motRaw=get(motioni);
     const motion=(motRaw!==''&&!isNaN(Number(motRaw)))?Math.max(0,Math.min(2,Number(motRaw))):inferMotion(formation,play);
     const row={formation,play,family,concept,pers,motion};
-    row.intent=mergeIntentTags(autoIntentTags(row), extractIntentFromCSV(parts,cols));
+    const explicitIntent=extractIntentFromCSV(parts,cols);
+    if(Object.keys(explicitIntent||{}).length) row.intent=explicitIntent;
     const k=dbKey(row.formation,row.play);
     if(seen.has(k)){skippedDuplicate++;continue;}
     seen.add(k);
     parsedRows.push(row);
   }
   if(!parsedRows.length) return {error:'No valid rows found. Check column format.'};
-  return {rows:parsedRows, skippedMissing, skippedDuplicate};
+  // Split CSV uploads too. Normal offensive/team CSVs will almost all classify as offense.
+  const split=splitRowsBySide(parsedRows);
+  return {rows:split.offense, defenseRows:split.defense, unknownRows:split.unknown, sideStats:split.stats, skippedMissing, skippedDuplicate};
 }
 
 /* Re-apply an exported corrections CSV back into the live correction stores */
@@ -5409,7 +5620,17 @@ function applyCorrectionsCSV(corrLines, cols){
 }
 
 function commitCSVUpload(){
-  if(!_csvPending||!_csvPending.length){toast('Nothing to commit');return;}
+  if((!_csvPending||!_csvPending.length)&&(!_csvDefensePending||!_csvDefensePending.length)){toast('No offensive plays to commit');return;}
+
+  if(_csvDefensePending&&_csvDefensePending.length){
+    const dExisting=_defenseDbRows?[..._defenseDbRows]:[];
+    const dKeys=new Set(dExisting.map(r=>dbKey(r.formation,r.play)));
+    _csvDefensePending.forEach(r=>{const k=dbKey(r.formation,r.play); if(!dKeys.has(k)){dKeys.add(k); dExisting.push(r);}});
+    _defenseDbRows=dExisting; save(LS_DEFENSE_DB,_defenseDbRows);
+  }
+  if(!_csvPending||!_csvPending.length){
+    renderCsvDbStatus(); $('#csv-preview').style.display='none'; $('#csv-status').textContent='✓ Defensive plays stored separately. No offensive plays were added.'; return;
+  }
 
   const skipDupes=document.querySelector&&document.querySelector('#csv-skip-dupes')&&document.querySelector('#csv-skip-dupes').checked;
   const builtinKeys=new Set(PLAYS.map(p=>dbKey(p.formation,p.play)));
@@ -5433,7 +5654,10 @@ function commitCSVUpload(){
   _customDbRows=existing;
   save(LS_CUSTOM_DB,_customDbRows);
   _csvPending=null;
-  _csvPendingName='Uploaded playbook CSV';
+  _csvDefensePending=[];
+  _csvUnknownPending=[];
+  _csvSideStats=null;
+  _csvPendingName='Uploaded playbook file';
   renderCsvDbStatus();
   renderIntentTable();
   $('#csv-preview').style.display='none';
@@ -5450,17 +5674,20 @@ function commitCSVUpload(){
 
 function renderCsvDbStatus(){
   const s=$('#csv-db-status');if(!s)return;
-  if(!_customDbRows||!_customDbRows.length){s.textContent=`Using built-in database only (${BASE_DB_COUNT} plays).`;return;}
+  const defCount=(_defenseDbRows&&_defenseDbRows.length)||0;
+  const defText=defCount?` · ${defCount} defensive plays stored separately for future defensive tools`:'';
+  if(!_customDbRows||!_customDbRows.length){s.textContent=`Using built-in offensive database only (${BASE_DB_COUNT} plays)${defText}.`;return;}
   const builtinKeys=new Set(PLAYS.map(p=>dbKey(p.formation,p.play)));
   const customKeys=new Set();
   let updates=0, additions=0;
   _customDbRows.forEach(r=>{
+    if((r.side||'offense')==='defense') return;
     const k=dbKey(r.formation,r.play);
     if(customKeys.has(k)) return;
     customKeys.add(k);
     if(builtinKeys.has(k)) updates++; else additions++;
   });
-  s.textContent=`Custom database active: ${additions} added plays + ${updates} uploaded updates merged with ${BASE_DB_COUNT} built-in plays (${effectivePlays().length} active plays).`;
+  s.textContent=`Offensive master database active: ${additions} added offensive plays + ${updates} uploaded updates merged with ${BASE_DB_COUNT} built-in plays (${effectivePlays().length} offensive plays active)${defText}.`;
 }
 
 /* Apply corrections + custom DB rows to PLAYS array at generation time */
@@ -5470,6 +5697,7 @@ function effectivePlays(){
   PLAYS.forEach(p=>byKey.set(dbKey(p.formation,p.play),p));
   if(_customDbRows&&_customDbRows.length){
     _customDbRows.forEach((r,i)=>{
+      if((r.side||'offense')==='defense') return;
       const key=dbKey(r.formation,r.play);
       const prev=byKey.get(key)||{};
       byKey.set(key,{
@@ -5495,7 +5723,7 @@ function effectivePlays(){
    This keeps Michigan State / custom books from being mixed with the global DB. */
 function sourceRowsToPlays(rows){
   const seen=new Set();
-  return (rows||[]).map((r,i)=>{
+  return (rows||[]).filter(r=>(r.side||classifyPlaySide(r))!=='defense').map((r,i)=>{
     const base={
       id:r.id!=null?r.id:900000+i,
       formation:r.formation||'',
@@ -5508,7 +5736,6 @@ function sourceRowsToPlays(rows){
       intent:r.intent||null
     };
     base.hasMotion=base.motion>0;
-    if(!base.intent) base.intent=autoIntentTags(base);
     return applyCorr(base);
   }).filter(r=>{
     if(!r.formation||!r.play) return false;
@@ -5518,7 +5745,7 @@ function sourceRowsToPlays(rows){
   });
 }
 function saveTeamSource(rows,name){
-  const clean=sourceRowsToPlays(rows).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:getIntentTags(pl)}));
+  const clean=sourceRowsToPlays(rows).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent)}));
   _teamSource={name:name||'Uploaded team playbook',rows:clean,savedAt:Date.now()};
   save(LS_TEAM_SOURCE,_teamSource);
   renderPlaybookSourcePanel();
@@ -5556,13 +5783,13 @@ function buildAudiblesScoped(book,pool){
 function setActivePlaybookFromRows(rows,name,mode){
   const pool=sourceRowsToPlays(rows);
   if(!pool.length){toast('No valid plays in source');return null;}
-  const final=pool.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:getIntentTags(pl),_source:'team'}));
+  const final=pool.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team'}));
   playbook={
     meta:{generated:Date.now(),identity:'team_source',aggr:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:final.length,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:mode||'exact',sourceName:name||'Team source'},
     plays:final,
     audibles:buildAudiblesScoped(final,pool)
   };
-  save(LS.pb,playbook);
+  save(LS.pb,playbook); invalidateCallableCache();
   seedIngameFromBook();
   renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
   toast('Active base playbook set: '+final.length+' plays');
@@ -5630,16 +5857,16 @@ function generatePlaybookFromRows(rows,name){
     }
   }
   for(const {pl} of scored){if(book.length>=target)break;tryAdd(pl);}
-  const finalBook=seededShuffle(book.slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:getIntentTags(pl),_source:'team_generated'}));
+  const finalBook=seededShuffle(book.slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team_generated'}));
   playbook={meta:{generated:Date.now(),identity:p.identity,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
-  save(LS.pb,playbook); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
+  save(LS.pb,playbook); invalidateCallableCache(); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
   toast('Generated '+finalBook.length+'-play Coach Brain book from '+(name||'team source'));
   return playbook;
 }
 function startBlankCustomPlaybook(){
   if(playbook&&playbook.plays&&playbook.plays.length&&!confirm('Start a blank custom playbook? Your current saved base playbook will be replaced. Download a backup first if needed.'))return;
   playbook={meta:{generated:Date.now(),identity:'custom',aggr:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
-  save(LS.pb,playbook); ingame=null; localStorage.removeItem(LS.ig); renderPlaybook(); initAddPlayForm(); toast('Blank custom playbook started — add plays below');
+  save(LS.pb,playbook); invalidateCallableCache(); ingame=null; localStorage.removeItem(LS.ig); renderPlaybook(); initAddPlayForm(); toast('Blank custom playbook started — add plays below');
 }
 function renderPlaybookSourcePanel(){
   const box=$('#pb-source-status'); if(!box)return;
@@ -5719,6 +5946,7 @@ const FAIL_REASONS=[
 
 function renderSuggestion(plays){
   const box=$('#ig-plays'); box.innerHTML='';
+  plays=(plays||[]).map((p,i)=>sanitizePlayForCall(p,i)).filter(Boolean);
   if(!plays||!plays.length){
     box.innerHTML='<div class="hint" style="padding:14px 0">Generate a playbook and hit Suggest.</div>';
     return;
@@ -5875,208 +6103,6 @@ function renderSuggestion(plays){
   box.appendChild(cards);
 }
 
-
-/* ============================================================
-   v12.2 HARD FIX — GUARANTEED SUGGEST 3 PATH
-   ------------------------------------------------------------
-   This replaces the fragile full render/caller path with a guaranteed
-   caller and a safe card renderer. The advanced Coach Brain still feeds
-   the score when it can, but the button must never silently fail.
-   ============================================================ */
-function v122CoercePlay(pl){
-  if(!pl)return null;
-  if(Array.isArray(pl)){
-    try{
-      const db=(typeof DB!=='undefined')?DB:(window&&window.__DB);
-      return {
-        formation:db.forms[pl[0]]||'Unknown Formation',
-        play:String(pl[1]||''),
-        family:db.fams[pl[2]]||'unknown',
-        concept:db.concepts[pl[3]]||'Other / Unknown',
-        pers:String(pl[4]??''),
-        motion:Number(pl[5]||0),
-        hasMotion:Number(pl[5]||0)>0
-      };
-    }catch(e){return null;}
-  }
-  const out={
-    formation:String(pl.formation||pl.form||pl.set||'Unknown Formation'),
-    play:String(pl.play||pl.name||pl.title||''),
-    family:String(pl.family||pl.family_guess||pl.fam||'unknown'),
-    concept:String(pl.concept||pl.parentConcept||'Other / Unknown'),
-    pers:String(pl.pers||pl.personnel||pl.personnel_guess||''),
-    motion:Number(pl.motion||0),
-    hasMotion:!!pl.hasMotion || Number(pl.motion||0)>0,
-    _manual:pl._manual,
-    _source:pl._source
-  };
-  // Keep enriched fields if present so other parts of the app still work.
-  Object.keys(pl).forEach(k=>{ if(out[k]===undefined) out[k]=pl[k]; });
-  if(!out.play.trim())return null;
-  return out;
-}
-function v122ActivePlayPool(){
-  try{ if((!playbook||!Array.isArray(playbook.plays)) && typeof loadJSON==='function' && typeof LS!=='undefined') playbook=loadJSON(LS.pb)||playbook; }catch(e){}
-  const raw=(playbook&&Array.isArray(playbook.plays))?playbook.plays:[];
-  return raw.map(v122CoercePlay).filter(Boolean);
-}
-function v122IsRun(pl){
-  const f=(pl.family||'').toLowerCase(), c=(pl.concept||'').toLowerCase(), p=(pl.play||'').toLowerCase();
-  return f.includes('run')||f.includes('option')||/zone|power|counter|trap|duo|dive|sweep|toss|draw|read|base/.test(c+' '+p);
-}
-function v122IsQuick(pl){
-  const c=(pl.concept||'').toLowerCase(), p=(pl.play||'').toLowerCase();
-  return /stick|quick|slant|spot|spacing|hitch|curl|flat|mesh|shallow/.test(c+' '+p);
-}
-function v122IsScreen(pl){
-  return String(pl.family||'').toLowerCase().includes('screen')||/screen|bubble|smoke|now|slip/.test((pl.concept+' '+pl.play).toLowerCase());
-}
-function v122IsShot(pl){
-  return /vert|go|post|dagger|shot|fade|wheel|corner/.test((pl.concept+' '+pl.play).toLowerCase());
-}
-function v122BaseScore(pl,down,dist,zone,yards){
-  down=String(down||'1'); dist=dist||'med'; zone=zone||'normal';
-  const run=v122IsRun(pl), quick=v122IsQuick(pl), screen=v122IsScreen(pl), shot=v122IsShot(pl);
-  let s=1;
-  try{ if(ingame&&ingame.concepts&&ingame.concepts[pl.concept]) s*=Math.max(.35,Number(ingame.concepts[pl.concept].w)||1); }catch(e){}
-  // Fast down/distance buckets — no advanced dependency required.
-  if(down==='1'){
-    if(run)s*=1.18; if(quick)s*=1.12; if(screen)s*=0.95; if(shot)s*=0.88;
-  }else if(down==='2'){
-    if(dist==='short'){ if(run)s*=1.24; if(quick)s*=1.10; if(shot)s*=0.86; }
-    else if(dist==='long'){ if(!run)s*=1.20; if(screen)s*=1.18; if(shot)s*=1.08; if(run)s*=0.70; }
-    else { if(quick)s*=1.18; if(!run)s*=1.08; if(run)s*=1.02; }
-  }else if(down==='3'){
-    if(dist==='short'){ if(run)s*=1.22; if(quick)s*=1.32; if(screen)s*=0.92; if(shot)s*=0.72; }
-    else if(dist==='long'){ if(!run)s*=1.36; if(screen)s*=1.22; if(shot)s*=1.18; if(run)s*=0.42; }
-    else { if(quick)s*=1.34; if(!run)s*=1.20; if(screen)s*=1.08; if(run)s*=0.65; }
-  }else if(down==='4'){
-    if(dist==='short'){ if(run)s*=1.35; if(quick)s*=1.24; if(shot)s*=0.58; }
-    else { if(quick)s*=1.25; if(!run)s*=1.18; if(run)s*=0.55; }
-  }
-  if(zone==='redzone'){ if(quick)s*=1.12; if(run)s*=1.10; if(shot)s*=0.82; }
-  if(zone==='goalline'){ if(run)s*=1.28; if(quick)s*=1.18; if(shot)s*=0.45; if(screen)s*=0.65; }
-  if(zone==='twominute'){ if(quick||screen)s*=1.25; if(run)s*=0.48; }
-  // Soft-use the advanced scoring if available; never allow it to break the caller.
-  try{
-    if(typeof coreCallScore==='function'){
-      const adv=Number(coreCallScore(pl,down,dist,zone,yards,{nudges:runPassNudgesFor(zone)}));
-      if(Number.isFinite(adv)&&adv>0) s*=Math.max(.45,Math.min(2.25,adv));
-    }
-  }catch(e){ console.warn('v12.2 advanced score skipped',e); }
-  // Defensive-style library should only nudge, never dictate.
-  try{ if(typeof defenseStyleMult==='function') s*=Math.max(.82,Math.min(1.22,Number(defenseStyleMult(pl))||1)); }catch(e){}
-  // Avoid exact stale repeats if recent history exists.
-  try{ if(typeof _isRecent==='function' && _isRecent(pl)) s*=0.30; }catch(e){}
-  // Tiny stable jitter so ties do not always show the same three.
-  const key=(pl.formation+'|'+pl.play+'|'+pl.concept);
-  let h=0; for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))>>>0;
-  s*=1+((h%17)-8)/500;
-  return Math.max(0,s);
-}
-function safeSuggestPlay(down,dist,zone,yards){
-  const pool=v122ActivePlayPool();
-  if(!pool.length)return [];
-  try{ if(!ingame && typeof seedIngameFromBook==='function') seedIngameFromBook(); }catch(e){}
-  let scored=[];
-  // Try the full caller first, but do not trust it as the only path.
-  try{
-    if(typeof suggestPlay==='function' && suggestPlay!==safeSuggestPlay){
-      const advanced=suggestPlay(down,dist,zone,yards);
-      if(Array.isArray(advanced)&&advanced.length){
-        const clean=advanced.map(v122CoercePlay).filter(Boolean);
-        if(clean.length>=3)return clean.slice(0,3);
-      }
-    }
-  }catch(e){ console.error('Full Suggest 3 failed; v12.2 fallback engaged',e); }
-  try{
-    scored=pool.map(pl=>({pl,s:v122BaseScore(pl,down,dist,zone,yards)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
-  }catch(e){
-    console.error('v12.2 score failed; using raw playbook order',e);
-    return pool.slice(0,3);
-  }
-  const picks=[]; const used=new Set(); const forms=new Set();
-  for(const x of scored){
-    const k=x.pl.formation+'|'+x.pl.play;
-    if(used.has(k))continue;
-    // Try for formation diversity first.
-    if(picks.length<3 && !forms.has(x.pl.formation)){picks.push(x.pl);used.add(k);forms.add(x.pl.formation);}
-    if(picks.length>=3)break;
-  }
-  if(picks.length<3){
-    for(const x of scored){
-      const k=x.pl.formation+'|'+x.pl.play;
-      if(!used.has(k)){picks.push(x.pl);used.add(k);}
-      if(picks.length>=3)break;
-    }
-  }
-  try{ picks.forEach(p=>{ if(typeof _pushRecent==='function') _pushRecent(p); }); }catch(e){}
-  return picks.slice(0,3);
-}
-function v122LogQuick(pl,outcome,card){
-  try{
-    const diagnosis={quick:true,reason:outcome==='failure'?'Negative TFL':'',reaction:'no_adjustment',notes:['Quick log used.']};
-    const note=(typeof logResult==='function')?logResult(pl.concept,outcome,diagnosis.reason,diagnosis.reaction,pl,diagnosis):'';
-    card.classList.remove('logged-ok','logged-mid','logged-bad');
-    card.classList.add(outcome==='success'?'logged-ok':outcome==='neutral'?'logged-mid':'logged-bad');
-    const label=outcome==='success'?'✓ Good':outcome==='neutral'?'0 No harm':'✕ Bad';
-    const old=card.querySelector('.pc-results');
-    if(old){ old.innerHTML='<div class="pc-logged '+(outcome==='success'?'ok':outcome==='neutral'?'mid':'bad')+'">'+label+' logged</div>'+(note?'<div class="pc-adj">'+note+'</div>':''); }
-    try{renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();renderIngameStats();}catch(e){}
-    if(typeof toast==='function')toast((pl.concept||pl.play)+' logged');
-  }catch(e){ console.error('Quick log failed',e); if(typeof toast==='function')toast('Log failed — call still displayed'); }
-}
-function renderSuggestion(plays){
-  const box=document.getElementById('ig-plays'); if(!box)return;
-  box.innerHTML='';
-  const clean=(Array.isArray(plays)?plays:[]).map(v122CoercePlay).filter(Boolean).slice(0,3);
-  if(!clean.length){
-    box.innerHTML='<div class="callout">No playable calls found. Make sure the Base Playbook tab has an active playbook, then try again.</div>';
-    return;
-  }
-  const cards=document.createElement('div'); cards.className='play-cards';
-  clean.forEach((pl,idx)=>{
-    const card=document.createElement('div'); card.className='play-card';
-    const hdr=document.createElement('div'); hdr.className='pc-header';
-    hdr.innerHTML='<div class="pc-num">'+(idx+1)+'</div><div style="flex:1"><div class="pc-play"></div><div class="pc-form"></div></div>';
-    hdr.querySelector('.pc-play').textContent=pl.play;
-    hdr.querySelector('.pc-form').textContent=pl.formation;
-    card.appendChild(hdr);
-    const body=document.createElement('div'); body.className='pc-body';
-    const tagLine=document.createElement('div'); tagLine.className='pc-tags';
-    tagLine.innerHTML='<span class="pill pers">'+(pl.pers||'--')+'</span><span class="pill '+(pl.family||'unknown')+'">'+String(pl.family||'unknown').replace('_',' ')+'</span>'+(Number(pl.motion)>0?'<span class="pill motion">Motion</span>':'');
-    body.appendChild(tagLine);
-    const concept=document.createElement('div'); concept.className='pc-concept'; concept.textContent=(pl.concept||'Other / Unknown'); body.appendChild(concept);
-    try{
-      const note=(typeof coachBrainNoteFor==='function')?coachBrainNoteFor(pl):'';
-      if(note){const n=document.createElement('div'); n.className='pc-beats'; n.style.fontStyle='normal'; n.textContent=note; body.appendChild(n);}
-    }catch(e){}
-    card.appendChild(body);
-    const rw=document.createElement('div'); rw.className='pc-results';
-    const lab=document.createElement('div'); lab.className='pc-results-label'; lab.textContent='Fast log'; rw.appendChild(lab);
-    const q=document.createElement('div'); q.className='quick-log-row';
-    [['success','q-ok','✓ Good'],['neutral','q-mid','0 No harm'],['failure','q-bad','✕ Bad']].forEach(([out,cls,txt])=>{
-      const b=document.createElement('button'); b.className=cls; b.textContent=txt; b.addEventListener('click',()=>v122LogQuick(pl,out,card)); q.appendChild(b);
-    });
-    rw.appendChild(q); card.appendChild(rw); cards.appendChild(card);
-  });
-  box.appendChild(cards);
-}
-function v122HandleSuggestClick(){
-  try{
-    const plays=safeSuggestPlay(_igDown,_igDist,_igZone,_igYards);
-    renderSuggestion(plays);
-    if(!plays||!plays.length){
-      if(typeof toast==='function')toast('No active base playbook found');
-    }
-  }catch(e){
-    console.error('Suggest 3 hard failure',e);
-    const box=document.getElementById('ig-plays');
-    if(box)box.innerHTML='<div class="callout">Suggest 3 hit an error, but the app is still open. Go to Base Playbook and confirm a book is active, then reload this page.</div>';
-    if(typeof toast==='function')toast('Suggest 3 error — see card');
-  }
-}
-
 /* ============================================================
    EVENT WIRING
    ============================================================ */
@@ -6164,12 +6190,14 @@ fileInput.addEventListener('change',e=>{
 });
 
 function handleCsvFile(file){
-  if(!file.name.endsWith('.csv')&&file.type!=='text/csv'){
-    $('#csv-status').textContent='Please upload a .csv file.';return;
+  if(!/\.(csv|json)$/i.test(file.name||'') && !/json|csv/.test(file.type||'')){
+    $('#csv-status').textContent='Please upload a .csv or .json file.';return;
   }
   const reader=new FileReader();
   reader.onload=e=>{
-    const result=parseUploadedCSV(e.target.result);
+    const rawText=e.target.result;
+    const isJson=/\.json$/i.test(file.name||'') || /^\s*[\[{]/.test(String(rawText||''));
+    const result=isJson?parseUploadedJSON(rawText):parseUploadedCSV(rawText);
     if(result.error){$('#csv-status').textContent='Error: '+result.error;return;}
 
     // ── Corrections reimport ──
@@ -6182,8 +6210,11 @@ function handleCsvFile(file){
     }
 
     // ── New play DB upload — analyse duplicates before preview ──
-    _csvPending=result.rows;
-    _csvPendingName=file.name||'Uploaded playbook CSV';
+    _csvPending=result.rows||[];
+    _csvDefensePending=result.defenseRows||[];
+    _csvUnknownPending=result.unknownRows||[];
+    _csvSideStats=result.sideStats||{offense:_csvPending.length,defense:_csvDefensePending.length,unknown:_csvUnknownPending.length,total:_csvPending.length+_csvDefensePending.length+_csvUnknownPending.length};
+    _csvPendingName=file.name||'Uploaded playbook file';
 
     // Classify each row
     const builtinKeys=new Set(PLAYS.map(p=>dbKey(p.formation,p.play)));
@@ -6213,7 +6244,7 @@ function handleCsvFile(file){
       tbody.appendChild(tr);
     });
 
-    $('#csv-preview-title').textContent='Preview — '+result.rows.length+' plays from '+file.name;
+    $('#csv-preview-title').textContent='Preview — '+(_csvSideStats.total||result.rows.length)+' rows from '+file.name+' · '+_csvPending.length+' offensive · '+_csvDefensePending.length+' defensive · '+_csvUnknownPending.length+' unknown';
 
     // Rich description of what will happen
     const parts=[];
@@ -6224,7 +6255,8 @@ function handleCsvFile(file){
     if(result.skippedDuplicate) notes.push(`${result.skippedDuplicate} duplicate row${result.skippedDuplicate!==1?'s':''} inside the CSV were collapsed`);
     if(result.skippedMissing) notes.push(`${result.skippedMissing} row${result.skippedMissing!==1?'s':''} missing formation/play were ignored`);
     const desc=document.createElement('div');
-    desc.innerHTML=parts.join(' · ')+'.'+(notes.length?`<br><span style="color:#8a7320;font-size:11px">${notes.join(' · ')}.</span>`:'')+'<br><span style="color:#2c7a52;font-size:11px">✓ Uploaded rows are auto-tagged for Coach Brain / Play IQ. You can add them to the master DB, use the file directly as the active base playbook, or generate a smaller Coach Brain book from this file only.</span>';
+    const sideLine=`<br><span style="color:#4a5048;font-size:11px"><b>Split:</b> ${_csvPending.length} offense · ${_csvDefensePending.length} defense · ${_csvUnknownPending.length} unknown. Defensive rows are stored separately and will not enter offensive suggestions.</span>`;
+    desc.innerHTML=parts.join(' · ')+'.'+(notes.length?`<br><span style="color:#8a7320;font-size:11px">${notes.join(' · ')}.</span>`:'')+sideLine+'<br><span style="color:#2c7a52;font-size:11px">✓ Offensive rows are auto-tagged for Coach Brain / Play IQ. You can add them to the master offensive DB, use the offensive subset directly as the active base playbook, or generate a smaller Coach Brain book from the offensive subset only.</span>';
     const existing=$('#csv-preview-desc');
     if(existing){existing.innerHTML='';existing.appendChild(desc);}
 
@@ -6249,13 +6281,15 @@ function handleCsvFile(file){
 
 $('#btn-csv-commit').addEventListener('click',()=>commitCSVUpload());
 $('#btn-csv-save-source').addEventListener('click',()=>{
-  if(!_csvPending||!_csvPending.length){toast('No CSV rows loaded');return;}
+  if(!_csvPending||!_csvPending.length){toast('No offensive rows loaded');return;}
+  if(_csvDefensePending&&_csvDefensePending.length){const dExisting=_defenseDbRows?[..._defenseDbRows]:[];const dKeys=new Set(dExisting.map(r=>dbKey(r.formation,r.play)));_csvDefensePending.forEach(r=>{const k=dbKey(r.formation,r.play);if(!dKeys.has(k)){dKeys.add(k);dExisting.push(r);}});_defenseDbRows=dExisting;save(LS_DEFENSE_DB,_defenseDbRows);renderCsvDbStatus();}
   saveTeamSource(_csvPending,_csvPendingName);
   $('#csv-status').textContent='✓ Saved '+_csvPending.length+' plays as a reusable team source. Go to Base Playbook to use it exactly or generate from it.';
   toast('Team source saved');
 });
 $('#btn-csv-use-base').addEventListener('click',()=>{
-  if(!_csvPending||!_csvPending.length){toast('No CSV rows loaded');return;}
+  if(!_csvPending||!_csvPending.length){toast('No offensive rows loaded');return;}
+  if(_csvDefensePending&&_csvDefensePending.length){const dExisting=_defenseDbRows?[..._defenseDbRows]:[];const dKeys=new Set(dExisting.map(r=>dbKey(r.formation,r.play)));_csvDefensePending.forEach(r=>{const k=dbKey(r.formation,r.play);if(!dKeys.has(k)){dKeys.add(k);dExisting.push(r);}});_defenseDbRows=dExisting;save(LS_DEFENSE_DB,_defenseDbRows);renderCsvDbStatus();}
   saveTeamSource(_csvPending,_csvPendingName);
   setActivePlaybookFromRows(_csvPending,_csvPendingName,'exact_csv_base');
   $('#csv-preview').style.display='none';
@@ -6263,7 +6297,8 @@ $('#btn-csv-use-base').addEventListener('click',()=>{
   switchTab('playbook');
 });
 $('#btn-csv-gen-base').addEventListener('click',()=>{
-  if(!_csvPending||!_csvPending.length){toast('No CSV rows loaded');return;}
+  if(!_csvPending||!_csvPending.length){toast('No offensive rows loaded');return;}
+  if(_csvDefensePending&&_csvDefensePending.length){const dExisting=_defenseDbRows?[..._defenseDbRows]:[];const dKeys=new Set(dExisting.map(r=>dbKey(r.formation,r.play)));_csvDefensePending.forEach(r=>{const k=dbKey(r.formation,r.play);if(!dKeys.has(k)){dKeys.add(k);dExisting.push(r);}});_defenseDbRows=dExisting;save(LS_DEFENSE_DB,_defenseDbRows);renderCsvDbStatus();}
   saveTeamSource(_csvPending,_csvPendingName);
   generatePlaybookFromRows(_csvPending,_csvPendingName);
   $('#csv-preview').style.display='none';
@@ -6272,7 +6307,10 @@ $('#btn-csv-gen-base').addEventListener('click',()=>{
 });
 $('#btn-csv-cancel').addEventListener('click',()=>{
   _csvPending=null;
-  _csvPendingName='Uploaded playbook CSV';
+  _csvDefensePending=[];
+  _csvUnknownPending=[];
+  _csvSideStats=null;
+  _csvPendingName='Uploaded playbook file';
   $('#csv-preview').style.display='none';
   $('#csv-status').textContent='Upload cancelled.';
 });
@@ -6280,6 +6318,7 @@ $('#btn-csv-db-reset').addEventListener('click',()=>{
   if(!confirm('Remove all uploaded plays and return to the built-in database?'))return;
   _customDbRows=null;
   localStorage.removeItem(LS_CUSTOM_DB);
+  _defenseDbRows=null; localStorage.removeItem(LS_DEFENSE_DB);
   renderCsvDbStatus();
   renderIntentTable();
   toast('Custom database cleared — using built-in DB');
@@ -6423,7 +6462,18 @@ if($('#ig-down-exact')) $('#ig-down-exact').addEventListener('change',e=>setIgSi
 if($('#ig-yards-exact')) $('#ig-yards-exact').addEventListener('input',e=>setIgSituation(_igDown,e.target.value));
 updateIgExactControls();
 $('#btn-ig-reset').addEventListener('click',()=>{if(!playbook){toast('No playbook');return;}seedIngameFromBook();clearRecentSuggestions();$('#ig-plays').innerHTML='';renderIngame();toast('In-game tracking reset to base');});
-$('#btn-suggest').addEventListener('click',()=>v122HandleSuggestClick());
+$('#btn-suggest').addEventListener('click',()=>{
+  try{
+    const plays=safeSuggestPlay(_igDown,_igDist,_igZone,_igYards);
+    renderSuggestion(plays);
+    if(!plays||!plays.length)toast('No playable calls found — generate or import an active base playbook');
+  }catch(e){
+    console.error('Suggest 3 click failed hard',e);
+    try{renderSuggestion(simpleFallbackSuggest(_igDown,_igDist,_igZone,_igYards));}
+    catch(e2){console.error('Emergency render failed',e2); $('#ig-plays').innerHTML='<div class="callout">Suggest failed. Try Base Playbook → Reload saved or regenerate/import the active base playbook.</div>';}
+    toast('Suggest repaired path used — check active playbook if empty');
+  }
+});
 if($('#btn-seq-clear')) $('#btn-seq-clear').addEventListener('click',()=>{clearSequenceMemory();toast('Drive sequence memory cleared');});
 $$('#ig-sort button').forEach(b=>b.addEventListener('click',()=>{igSort=b.dataset.s;$$('#ig-sort button').forEach(x=>x.classList.toggle('on',x===b));renderBoard();}));
 
@@ -6519,7 +6569,7 @@ $('#btn-twom-csv').addEventListener('click',()=>{
    BOOT
    ============================================================ */
 initPhilosophyForm();
-if(playbook&&!ingame)seedIngameFromBook();
+if(playbook){ensureActivePlaybookUsable(); if(!ingame)seedIngameFromBook();}
 console.log('Call Sheet ready · plays:',PLAYS.length,'· saved book:',playbook?playbook.plays.length:'none');
 </script>
 </body>
