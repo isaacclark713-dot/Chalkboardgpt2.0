@@ -1,22 +1,22 @@
-# Call Sheet — Coach Brain v11
+# Call Sheet Coach Brain v12
 
-Static single-page football play-calling app.
+Static HTML version of the Call Sheet Coach Brain app.
 
-## v11 additions
+## New in v12
 
-- 30-second quick logging: one-tap Good / No harm / Bad buttons on each suggested play card.
-- Detailed diagnostics are still available, but they are collapsed behind a "Detailed diagnosis / defensive tell" section.
-- Anti-spam recognition logic: successful concepts stay hot, but repeated concepts are cooled so a real opponent does not sit on them.
-- Hot-concept changeups: when a concept like Stick is working, the caller promotes related answers/changeups instead of repeatedly forcing the exact same call.
-- Recognition notes on play cards explain when a concept is getting stale or when a call is being promoted as a changeup.
+- Added a **Defensive Style / System** selector on the Scout page.
+- Embedded a soft-weighted `DEFENSIVE_STYLE_LIBRARY` based on the Defensive Style Library research summary.
+- Defensive styles influence the play caller with boosts and penalties, but do **not** absolutely dictate calls.
+- Added a Defensive Style Plan card showing:
+  - what the defense is trying to do
+  - concepts/formations that get boosted
+  - concepts that get slightly cooled
+  - opening-script questions to test the profile
+- Opening script can now insert defensive-style questions, such as force defender, edge stress, seams, box count, and motion/trips adjustments.
+- Existing Coach Brain features remain active: custom/team source playbooks, quick logging, concept targets, Play IQ, sequencing, diagnostics, and self-scout guardrails.
 
-## Deploy to GitHub Pages
+## GitHub Pages
 
-1. Create a new GitHub repository.
-2. Upload `index.html`, `README.md`, and `global_unique_plays.csv`.
-3. Go to Settings → Pages.
-4. Choose Deploy from branch.
-5. Select `main` and `/ root`.
-6. Save.
+Upload the contents of this folder to a GitHub repository, then enable GitHub Pages from the repository settings.
 
-The app stores playbooks and corrections locally in the browser. Use the app's download/export features to move a playbook between devices.
+Use `index.html` as the main file.

@@ -676,6 +676,25 @@
 
       <h2 style="font-size:13px;margin-top:22px">Defensive scouting report</h2>
       <p class="hint" style="margin:2px 0 10px">What you expect pre-snap. These become tentative reads (dashed) until the opening script confirms them.</p>
+
+      <div style="margin:10px 0 14px">
+        <label class="fld">Defensive style / system</label>
+        <select id="sc-def-style">
+          <option value="">No style selected / unknown</option>
+          <option value="33_stack">3-3-5 Stack</option>
+          <option value="33_tite">3-3-5 Tite / Mint</option>
+          <option value="425_nickel">4-2-5 Nickel</option>
+          <option value="34_odd">3-4 Odd</option>
+          <option value="43_over_under">4-3 Over / Under</option>
+          <option value="bear">Bear / 5-man front</option>
+          <option value="man_blitz">Man / Blitz focused</option>
+          <option value="drop8_c3">Drop-8 / Cover 3 base</option>
+          <option value="quarters_match">Quarters / Match two-high</option>
+          <option value="c3_spot">Cover 3 Spot-Drop</option>
+        </select>
+        <div id="def-style-plan" class="callout" style="display:none;margin-top:10px"></div>
+      </div>
+
       <div class="grid3">
         <div>
           <label class="fld">Base front</label>
@@ -2073,6 +2092,251 @@ function conceptFamilyForName(concept){
   const pl=(playbook&&playbook.plays?playbook.plays:PLAYS).find(p=>p.concept===concept);
   return pl?pl.family:'unknown';
 }
+
+/* ============================================================
+   DEFENSIVE STYLE LIBRARY — v12
+   Soft boosts only. These profiles seed the call engine with
+   research-backed tendencies, but live reads, down/distance,
+   sequencing, targets, and user corrections still win.
+   ============================================================ */
+const DEFENSIVE_STYLE_LIBRARY={
+  "33_stack":{
+    label:"3-3-5 Stack",
+    summary:"Flexible, athletic odd-stack defense. Stress the edges, seams, trips/overloads, and motion adjustment rules.",
+    plan:["Find the force defender","Stress perimeter run support","Test seam/vertical windows","Use motion/overload to make the stack declare"],
+    boosts:[
+      {tag:"perimeter_run",label:"outside zone / toss / stretch / sweep",m:1.14},
+      {tag:"trips",label:"trips and 3x1 overloads",m:1.10},
+      {tag:"vertical_seam",label:"seams and verticals vs C3",m:1.10},
+      {tag:"bubble_access",label:"bubble / quick perimeter access",m:1.08},
+      {tag:"motion_shift",label:"motion to force stack adjustment",m:1.08}
+    ],
+    penalties:[{tag:"inside_run",label:"straight inside run into stack",m:.94}],
+    scriptQuestions:["Who is the force defender?","Can we outflank the edge?","Are seams open behind the stack?","How do they adjust to trips or motion?"]
+  },
+  "33_tite":{
+    label:"3-3-5 Tite / Mint",
+    summary:"Odd structure with 4i/inside-shade ends designed to clog A/B gaps and force the ball horizontally.",
+    plan:["Confirm 4i/tite alignment","Attack perimeter and edges","Use screens/access throws","Test boot/keeper edge discipline"],
+    boosts:[
+      {tag:"perimeter_run",label:"perimeter runs / stretch",m:1.15},
+      {tag:"quick_perimeter",label:"quick throws outside",m:1.10},
+      {tag:"screen",label:"screens to the perimeter",m:1.08},
+      {tag:"boot",label:"boot/keeper off inside-flow",m:1.10},
+      {tag:"motion_shift",label:"shifts to widen the tite front",m:1.07}
+    ],
+    penalties:[{tag:"inside_zone",label:"inside zone/dive into closed B gaps",m:.88},{tag:"inside_run",label:"downhill interior run",m:.93}],
+    scriptQuestions:["Are the ends in 4i/tite?","Can we win on the edge?","Who has contain when the ball bounces?","Do screens/access throws force them to widen?"]
+  },
+  "425_nickel":{
+    label:"4-2-5 Nickel",
+    summary:"Even front nickel defense: good run fits and edge force, but can be stressed by heavy TE surfaces, quick game, and matchup isolation.",
+    plan:["Test whether they stay nickel vs 12/21","Attack safeties/overhangs as force","Use quick slant-flat/curl-flat answers","Find if the free safety can clean up alleys"],
+    boosts:[
+      {tag:"heavy_personnel",label:"12/21/22 heavy surfaces",m:1.10},
+      {tag:"gap_run",label:"power/counter/trap with extra blockers",m:1.08},
+      {tag:"quick_game",label:"quick game vs nickel spacing",m:1.08},
+      {tag:"curl_flat",label:"curl-flat / slant-flat",m:1.10},
+      {tag:"te_surface",label:"TE/wing edge stress",m:1.09}
+    ],
+    penalties:[{tag:"slow_shot",label:"slow-developing shot without protection",m:.94}],
+    scriptQuestions:["Do they stay nickel vs heavy personnel?","Who sets force: safety, nickel, or corner?","Can the DE/edge hold up vs TE surfaces?","Is it C3/C1 or quarters?"]
+  },
+  "34_odd":{
+    label:"3-4 Odd",
+    summary:"Three-down, four-LB front with pressure flexibility. Spread, trips, motion, and edge runs can force LBs/safeties into space.",
+    plan:["Spread the OLBs out","Test box count vs trips/4WR","Isolate Sam/Jack in coverage","Attack edges and flood two-high looks"],
+    boosts:[
+      {tag:"spread",label:"spread / 4WR / empty",m:1.13},
+      {tag:"trips",label:"trips stress to coverage/box",m:1.11},
+      {tag:"perimeter_run",label:"outside zone/toss edge stress",m:1.10},
+      {tag:"flood",label:"flood/levels vs two-high",m:1.08},
+      {tag:"motion_shift",label:"motion to force OLB/safety rotation",m:1.08}
+    ],
+    penalties:[{tag:"inside_run",label:"interior run at a loaded odd front",m:.93}],
+    scriptQuestions:["How many are in the box vs spread?","Can the OLB cover #2/#3?","Which safety rolls down to trips?","Can we win the edge?"]
+  },
+  "43_over_under":{
+    label:"4-3 Over / Under",
+    summary:"Gap-sound seven-man box. Spread sets, perimeter runs, and edge leverage can make bigger LBs and DEs defend in space.",
+    plan:["Make them declare over/under strength","Use spread/empty to reduce box","Attack perimeter with stretch/jet","Stress LBs with quick/intermediate routes"],
+    boosts:[
+      {tag:"spread",label:"spread/empty to lighten the box",m:1.12},
+      {tag:"perimeter_run",label:"outside zone / toss / jet",m:1.10},
+      {tag:"bubble_access",label:"bubble/WR screen",m:1.08},
+      {tag:"flood",label:"flood/levels vs zone",m:1.07},
+      {tag:"motion_shift",label:"motion to change strength",m:1.06}
+    ],
+    penalties:[{tag:"inside_run",label:"inside run into 7-man box",m:.92}],
+    scriptQuestions:["Is it over or under to strength?","Does spread create a 5-box?","Can the DE hold the edge?","How do LBs adjust to motion?"]
+  },
+  "bear":{
+    label:"Bear / 5-man front",
+    summary:"Heavy interior front built to choke zone/RPO inside. Attack perimeter, gap angles, screens, and single-high pass answers.",
+    plan:["Confirm three interior bodies / high box","Avoid banging inside zone repeatedly","Test perimeter and gap angles","Look for single-high shot or screen answers"],
+    boosts:[
+      {tag:"perimeter_run",label:"outside/perimeter run",m:1.14},
+      {tag:"gap_run",label:"gap runs: power/counter",m:1.10},
+      {tag:"screen",label:"quick screens behind pressure",m:1.10},
+      {tag:"vertical_seam",label:"single-high seams/fades",m:1.08},
+      {tag:"boot",label:"boot/action away from loaded front",m:1.07}
+    ],
+    penalties:[{tag:"inside_zone",label:"inside zone into bear",m:.82},{tag:"rpo",label:"basic RPO into clean LB fits",m:.92}],
+    scriptQuestions:["Is it true Bear/5-down?","Can we get the edge?","Are corners in press or C3?","Does gap scheme displace the front?"]
+  },
+  "man_blitz":{
+    label:"Man / Blitz focused",
+    summary:"Pressure and man coverage. Need fast answers, rubs, bunch, screens, draws, and protected shots.",
+    plan:["Identify C0/C1","Use bunch/rubs/motion","Have hot answers ready","Punish blitz lanes with screen/draw"],
+    boosts:[
+      {tag:"mesh_man",label:"mesh/rubs/shallow vs man",m:1.16},
+      {tag:"bunch_condensed",label:"bunch/stack natural rubs",m:1.12},
+      {tag:"quick_game",label:"hot quick game",m:1.12},
+      {tag:"screen",label:"screens vs blitz",m:1.12},
+      {tag:"draw",label:"draw vs vacated rush lanes",m:1.07}
+    ],
+    penalties:[{tag:"slow_shot",label:"slow pass without hot/protection",m:.82},{tag:"zone_sit",label:"pure zone sit-down routes",m:.94}],
+    scriptQuestions:["Is it Cover 0 or Cover 1?","Who travels with motion?","Can rubs/bunch create traffic?","Where is the hot answer?"]
+  },
+  "drop8_c3":{
+    label:"Drop-8 / Cover 3 base",
+    summary:"Three-deep zone structure that limits explosives but can be stressed with seams, floods, curl-flat, and patience underneath.",
+    plan:["Confirm flat defender and seam player","Stress C3 with four verts/seams","Use flood/curl-flat/smash","Run when the rush count is low"],
+    boosts:[
+      {tag:"vertical_seam",label:"4 verts/seams",m:1.14},
+      {tag:"flood",label:"flood/levels",m:1.12},
+      {tag:"curl_flat",label:"curl-flat / flat-seam",m:1.11},
+      {tag:"smash",label:"smash/corner vs flat defender",m:1.07},
+      {tag:"draw",label:"draw vs soft pass rush",m:1.06}
+    ],
+    penalties:[{tag:"quick_inside",label:"short inside into occupied hook zones",m:.94}],
+    scriptQuestions:["Who owns the flat?","Who carries the seam?","Does trips change the rotation?","Can we run/draw against light rush?"]
+  },
+  "quarters_match":{
+    label:"Quarters / Match two-high",
+    summary:"Two-high match defense built to cap verticals. Stress run count, quarters flat defenders, safeties, and short-to-intermediate windows.",
+    plan:["Run them out of two-high if box is light","Conflict quarters flat defenders","Use play-action/floods/crossers","Watch match rules vs trips/bunch"],
+    boosts:[
+      {tag:"run_light_box",label:"run vs light box",m:1.10},
+      {tag:"flood",label:"flood/levels/Y-cross",m:1.12},
+      {tag:"bubble_access",label:"bubble/access screens",m:1.08},
+      {tag:"play_action",label:"PA after forcing safety fits",m:1.09},
+      {tag:"quick_game",label:"short/intermediate windows",m:1.07}
+    ],
+    penalties:[{tag:"vertical_seam",label:"pure verticals into quarters cap",m:.91}],
+    scriptQuestions:["Is it Cover 4 or Cover 6?","Who is the quarters flat defender?","Can we run them out of two-high?","How do they match trips/bunch?"]
+  },
+  "c3_spot":{
+    label:"Cover 3 Spot-Drop",
+    summary:"Cover 3 variant handling trips/compressed sets by squeezing/spotting flats. Attack boundary/seams and flood the spot defender.",
+    plan:["Find the spot/flat defender","Test boundary vertical/seam","Flood the trips side","Use quick game before rotation settles"],
+    boosts:[
+      {tag:"trips",label:"trips-induced stress",m:1.09},
+      {tag:"boundary_deep",label:"boundary vertical/seam",m:1.13},
+      {tag:"flood",label:"flood/levels to spot side",m:1.12},
+      {tag:"quick_perimeter",label:"quick flats/outs",m:1.07},
+      {tag:"screen",label:"screen if flat defender is removed",m:1.05}
+    ],
+    penalties:[{tag:"quick_inside",label:"short inside into spot/hook zones",m:.95}],
+    scriptQuestions:["Does corner squeeze trips?","Who takes the flat?","Can boundary vertical win?","Is it true C3 or quarters check?"]
+  }
+};
+function activeDefStyle(){return (scout&&scout.defStyle&&DEFENSIVE_STYLE_LIBRARY[scout.defStyle])?DEFENSIVE_STYLE_LIBRARY[scout.defStyle]:null;}
+function defStyleText(pl){
+  const t=intentSafe(pl)||{};
+  return [pl&&pl.formation,pl&&pl.play,pl&&pl.concept,pl&&pl.family,pl&&pl.pers,
+    t.surface,t.motionType,t.motionPurpose,t.runScheme,t.passStructure,t.routeFamily,t.beatsCoverage,
+    t.weakVs,t.requiresProtection,t.hasHot,t.installConfidence,t.primaryStress,t.conflictDefender,t.series,t.actionFamily]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+function defStyleHas(text,arr){return arr.some(x=>text.includes(x));}
+function defStyleTagMatch(pl,tag){
+  const text=defStyleText(pl); const t=intentSafe(pl)||{}; const c=(pl&&pl.concept)||''; const f=(pl&&pl.family)||'';
+  switch(tag){
+    case 'perimeter_run': return defStyleHas(text,['outside zone','stretch','sweep','toss','jet','wide_zone','sweep_toss','perimeter']);
+    case 'inside_zone': return c==='Inside Zone'||c==='HB Base / Zone'||defStyleHas(text,['inside zone','inside_zone','dive']);
+    case 'inside_run': return isRunFamily(f)&&defStyleHas(text,['inside','dive','duo','iso','base','zone']);
+    case 'gap_run': return defStyleHas(text,['power','counter','trap','wham','gap','duo']) || ['Power / Power O','Counter','Trap','Duo'].includes(c);
+    case 'run_light_box': return isRunFamily(f)||f==='option_rpo';
+    case 'heavy_personnel': return ['12','21','22','23'].includes(String(pl&&pl.pers||''))||defStyleHas(text,['wing','y off','y-off','tight','i form','ace','heavy','nub']);
+    case 'te_surface': return defStyleHas(text,['wing','y off','y-off','tight','nub','te','ace','i form']);
+    case 'spread': return ['10','11'].includes(String(pl&&pl.pers||''))||defStyleHas(text,['empty','trips','spread','doubles','5wr','5 wr']);
+    case 'empty': return defStyleHas(text,['empty','5wr','5 wr']);
+    case 'trips': return defStyleHas(text,['trips','trey','trio','3x1']);
+    case 'bunch_condensed': return defStyleHas(text,['bunch','stack','nasty','condensed','tight']);
+    case 'motion_shift': return (pl&&pl.motion>=1)||defStyleHas(text,['motion','shift','orbit','jet','trade','return']);
+    case 'quick_game': return ['Quick Game','Slants','Stick','Spot','Spacing','Curls / Curl Flats'].includes(c)||defStyleHas(text,['quick','slant','stick','spot','spacing','hitch','curl']);
+    case 'quick_perimeter': return defStyleHas(text,['bubble','now','smoke','swing','flat','speed out','quick out']);
+    case 'quick_inside': return ['Stick','Spot','Spacing','Quick Game','Slants'].includes(c)||defStyleHas(text,['stick','spacing','slant','spot','shallow']);
+    case 'curl_flat': return c==='Curls / Curl Flats'||defStyleHas(text,['curl flat','curl-flat','flat','stick','spacing']);
+    case 'bubble_access': return defStyleHas(text,['bubble','now','smoke','access','rpo_access'])||f==='option_rpo';
+    case 'screen': return f==='screen'||defStyleHas(text,['screen','slip','tunnel','bubble','now']);
+    case 'draw': return c==='Draw'||defStyleHas(text,['draw']);
+    case 'rpo': return f==='option_rpo'||defStyleHas(text,['rpo','read','option','glance']);
+    case 'boot': return c==='Boot / Play Action'||defStyleHas(text,['boot','naked','keeper','waggle','roll']);
+    case 'play_action': return f==='play_action'||defStyleHas(text,['play action','play_action','pa ','boot','naked']);
+    case 'vertical_seam': return ['Verticals / Four Verticals','Go Routes','Post','Wheel'].includes(c)||defStyleHas(text,['vertical','four verts','verts','seam','fade','go route','post']);
+    case 'boundary_deep': return ['Verticals / Four Verticals','Go Routes','Post','Wheel','Dagger'].includes(c)||defStyleHas(text,['boundary','fade','go','seam','vertical']);
+    case 'flood': return ['Flood','Sail','Y Cross','Dagger','Levels'].includes(c)||defStyleHas(text,['flood','sail','cross','levels','dagger']);
+    case 'smash': return c==='Smash'||c==='Bench / Corner Strike'||defStyleHas(text,['smash','corner','bench']);
+    case 'mesh_man': return ['Mesh','Shallow','Wheel','Slants'].includes(c)||defStyleHas(text,['mesh','shallow','rub','pick','drag','wheel']);
+    case 'slow_shot': return defStyleHas(text,['shot','deep','long_developing','dagger','post','go routes'])||['Dagger','Post','Go Routes'].includes(c);
+    case 'zone_sit': return ['Stick','Spot','Spacing'].includes(c)||defStyleHas(text,['sit','spacing','spot']);
+    default: return false;
+  }
+}
+function defenseStyleMult(pl){
+  const prof=activeDefStyle(); if(!prof||!pl)return 1;
+  let m=1;
+  (prof.boosts||[]).forEach(b=>{ if(defStyleTagMatch(pl,b.tag)) m*=b.m; });
+  (prof.penalties||[]).forEach(p=>{ if(defStyleTagMatch(pl,p.tag)) m*=p.m; });
+  return Math.max(0.78,Math.min(1.32,m));
+}
+function defenseStyleConceptMult(concept,family){
+  const fake={formation:'',play:concept,concept:concept,family:family||conceptFamilyForName(concept),pers:'',motion:0};
+  const m=defenseStyleMult(fake);
+  // Concept board gets a softer preview than full play-level scoring.
+  return 1+(m-1)*0.55;
+}
+function defenseStylePlanHtml(){
+  const prof=activeDefStyle(); if(!prof)return '';
+  const boosts=(prof.boosts||[]).slice(0,5).map(b=>`<span class="chip">+ ${b.label}</span>`).join(' ');
+  const pens=(prof.penalties||[]).slice(0,3).map(b=>`<span class="chip bad">↓ ${b.label}</span>`).join(' ');
+  const qs=(prof.scriptQuestions||[]).slice(0,4).map(q=>`<li>${q}</li>`).join('');
+  return `<b>${prof.label}</b><br><span class="hint">${prof.summary}</span><div style="margin-top:8px">${boosts}${pens?'<br>'+pens:''}</div><div class="hint" style="margin-top:8px"><b>Opening-script questions:</b><ul style="margin:4px 0 0 18px;padding:0">${qs}</ul></div>`;
+}
+function renderDefStylePlan(){
+  const box=$('#def-style-plan'); if(!box)return;
+  const html=defenseStylePlanHtml();
+  if(!html){box.style.display='none'; box.innerHTML=''; return;}
+  box.style.display='block'; box.innerHTML=html;
+}
+function defensiveStyleScriptSpecs(){
+  const prof=activeDefStyle(); if(!prof)return [];
+  return (prof.scriptQuestions||[]).slice(0,3).map((q,i)=>{
+    let role='general_probe';
+    const l=q.toLowerCase();
+    if(/force|edge|contain|perimeter|outflank/.test(l)) role='force_probe';
+    else if(/motion|shift|adjust|trips|bunch/.test(l)) role='motion_probe';
+    else if(/seam|vertical|shell|cover|quarter|single|two/.test(l)) role='shell_probe';
+    else if(/pressure|blitz|hot/.test(l)) role='pressure_probe';
+    else if(/box|run|gap|inside|tite|bear/.test(l)) role='run_fit_probe';
+    return {
+      setLabel:'DEFENSIVE STYLE · '+prof.label,
+      question:q, role, sit:{down:i===2?'2':'1',dist:i===2?'med':'med'},
+      pred:p=>defenseStyleMult(p)>1.08,
+      fallbacks:[p=>defenseStyleMult(p)>1.02,p=>true],
+      purpose:'Use the defensive-style profile to test a structural stress point without making it an absolute rule.',
+      scratch:'If the live look contradicts the profile, log the defensive tell and let live reads override the scout.',
+      circle:'If this profile stress point hits twice, keep it in the call plan until the defense changes.',
+      observe:[
+        {label:'Profile confirmed',sets:{},note:'Keep the style boost active.'},
+        {label:'Profile contradicted',sets:{},note:'Trust the live read over the pregame defensive style.'},
+        {label:'Defense adjusted after stress',sets:{},note:'Move to the same-picture answer or complementary series call.'}
+      ]
+    };
+  });
+}
 function scoutConceptMultFor(concept,family){
   const f=family||conceptFamilyForName(concept);
   const c=concept;
@@ -2093,6 +2357,7 @@ function scoutConceptMultFor(concept,family){
   else if(scout.force==='sam'){ if(["Outside Zone / Stretch","Jet Sweep","Boot / Play Action"].includes(c))m*=1.06; }
   if(scout.front==='odd'){ if(["Outside Zone / Stretch","Power / Power O","Counter","Boot / Play Action"].includes(c))m*=1.07; }
   else if(scout.front==='even'){ if(["Inside Zone","Duo","Trap","Quick Game"].includes(c))m*=1.06; }
+  if(scout.defStyle)m*=defenseStyleConceptMult(c,f);
   return Math.max(0.65,Math.min(1.65,m));
 }
 function applyScoutWeightBase(){
@@ -2136,7 +2401,7 @@ ensurePhilosophyShape();
 
 // run/pass band defaults per identity (run% min,max)
 const IDENTITY_RP={balanced:[45,58],run:[52,68],pass:[28,42],spread:[38,52],pro:[46,60]};
-function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,scriptState:null,twoMin:null};}
+function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',defStyle:'',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,scriptState:null,twoMin:null};}
 function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){return d;}}
 function save(k,v){try{localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch(e){toast('Storage unavailable');}}
@@ -2767,6 +3032,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=zoneFit(pl,zone);
   s*=readMult(pl);
   s*=scoutConceptMultFor(pl.concept,pl.family);
+  s*=defenseStyleMult(pl);
   s*=conceptTargetGameMult(pl);
   s*=coachBrainMult(pl);
   s*=sequenceFit(pl);
@@ -3701,6 +3967,8 @@ function buildOpeningScript(){
     }
   ];
 
+  const styleSpecs=defensiveStyleScriptSpecs();
+  if(styleSpecs.length) Q.splice(1,0,...styleSpecs);
   Q.slice(0,scriptTarget).forEach(addQuestion);
   scout.script=items;
   scout.scriptState={idx:0,situation:{down:'1',dist:'med',yards:10},history:[]};
@@ -3967,8 +4235,10 @@ function renderScout(){
   $('#scout-nobook').style.display=noBook?'block':'none';
   // situation inputs
   $('#sc-role').value=scout.role;$('#sc-intent').value=scout.intent;$('#sc-cond').value=scout.cond;$('#sc-tempo').value=scout.tempo;
+  if($('#sc-def-style')) $('#sc-def-style').value=scout.defStyle||'';
   $('#sc-front').value=scout.front;$('#sc-shell').value=scout.shell;$('#sc-pers').value=scout.pers;
   $('#sc-press').value=scout.press;$('#sc-force').value=scout.force;$('#sc-lbfit').value=scout.lbfit;
+  renderDefStylePlan();
   renderPosture();
   renderReadsEditor();
   renderReadsSummary('#reads-summary');
@@ -5911,7 +6181,7 @@ if($('#btn-seq-clear')) $('#btn-seq-clear').addEventListener('click',()=>{clearS
 $$('#ig-sort button').forEach(b=>b.addEventListener('click',()=>{igSort=b.dataset.s;$$('#ig-sort button').forEach(x=>x.classList.toggle('on',x===b));renderBoard();}));
 
 // scout
-const SC_FIELDS={'sc-role':'role','sc-intent':'intent','sc-cond':'cond','sc-tempo':'tempo','sc-front':'front','sc-shell':'shell','sc-pers':'pers','sc-press':'press','sc-force':'force','sc-lbfit':'lbfit'};
+const SC_FIELDS={'sc-role':'role','sc-intent':'intent','sc-cond':'cond','sc-tempo':'tempo','sc-def-style':'defStyle','sc-front':'front','sc-shell':'shell','sc-pers':'pers','sc-press':'press','sc-force':'force','sc-lbfit':'lbfit'};
 Object.keys(SC_FIELDS).forEach(id=>{
   $('#'+id).addEventListener('change',e=>{
     scout[SC_FIELDS[id]]=e.target.value; save(LS.scout,scout);
@@ -5923,6 +6193,7 @@ Object.keys(SC_FIELDS).forEach(id=>{
       renderBoard(); renderIngameStats();
     }
     if(['role','intent','cond','tempo'].includes(SC_FIELDS[id])){ renderPosture(); renderRunPassMeter(); }
+    if(SC_FIELDS[id]==='defStyle') renderDefStylePlan();
     renderReadsEditor(); renderReadsSummary('#reads-summary'); renderReadsSummary('#ig-reads-summary');
   });
 });
