@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v15.0</title>
+<title>Call Sheet — Coach Brain v15.2</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -2724,7 +2724,7 @@ function enforceFormationMixMargin(book,pool,target){
   return out.slice(0,target);
 }
 
-// v15.1 — Hard formation menu rules. A selected formation must carry a real
+// v15.2 — Hard formation menu rules. A selected formation must carry a real
 // call sheet package, not just one or two high-scoring plays. Every formation
 // kept in a generated book must have at least five unique plays and must include
 // a true run, a non-PA/non-RPO dropback answer, and a play-action / boot answer.
@@ -2760,13 +2760,18 @@ function hardRuleCandidateFilter(x){
   return !!pl && (x.s||0)>0 && formationTypeAllowedByUser(pl.formation) && formationMeetsPackageCoverage(pl.formation) && personnelAllowedByUser(pl);
 }
 function formationCandidatePoolForForm(form,scoredPool){
+  // v15.2: Build the candidate list from only this formation before sorting.
+  // v15.1 sorted the entire scored pool for every formation, which could freeze
+  // the browser when Generate Base Playbook was clicked.
   const seen=new Set(), arr=[];
-  (scoredPool||[]).filter(hardRuleCandidateFilter).sort((a,b)=>(b.s||0)-(a.s||0)).forEach(x=>{
-    if(x.pl.formation!==form)return;
+  for(const x of (scoredPool||[])){
+    if(!hardRuleCandidateFilter(x))continue;
+    if(x.pl.formation!==form)continue;
     const k=playUniqueKey(x.pl);
-    if(seen.has(k))return;
+    if(seen.has(k))continue;
     seen.add(k); arr.push(x);
-  });
+  }
+  arr.sort((a,b)=>(b.s||0)-(a.s||0));
   return arr;
 }
 function formationCandidateMeetsHardRules(form,scoredPool){
@@ -2805,81 +2810,116 @@ function canRemoveFormationPlay(out,idx){
   return remaining.length===0 || formationReqMet(remaining);
 }
 function enforceFormationHardRules(book,scoredPool,target){
-  let out=uniquePlayArray(book).filter(pl=>formationTypeAllowedByUser(pl.formation)&&formationMeetsPackageCoverage(pl.formation)&&personnelAllowedByUser(pl));
-  const scored=(scoredPool||[]).filter(hardRuleCandidateFilter).sort((a,b)=>(b.s||0)-(a.s||0));
-  if(!scored.length)return [];
-  const scoreOf=scoreLookupFromPool(scored);
-  const used=new Set(out.map(playUniqueKey));
-  const formsInBook=()=>[...new Set(out.map(p=>p.formation))];
+  // v15.2: Fast hard-rule repair. Pre-group scored plays by formation once.
+  // Rules preserved:
+  //   - no duplicate Formation + Play
+  //   - no formation below 5 unique plays
+  //   - every included formation has a run, dropback pass, and PA/boot answer
+  //   - candidates still obey formation sliders, package coverage, personnel gate, and scheme scoring
+  const rawScored=(scoredPool||[]).filter(hardRuleCandidateFilter).sort((a,b)=>(b.s||0)-(a.s||0));
+  if(!rawScored.length)return [];
+
+  const scoreOf=scoreLookupFromPool(rawScored);
+  const poolsByForm=new Map();
+  const poolSeenByForm=new Map();
+  for(const x of rawScored){
+    const form=x.pl.formation;
+    if(!poolsByForm.has(form)){poolsByForm.set(form,[]);poolSeenByForm.set(form,new Set());}
+    const seen=poolSeenByForm.get(form), k=playUniqueKey(x.pl);
+    if(seen.has(k))continue;
+    seen.add(k); poolsByForm.get(form).push(x);
+  }
+  const formationPool=(form)=>poolsByForm.get(form)||[];
+  const viableForms=[...poolsByForm.keys()].filter(f=>formationReqMet(formationPool(f).map(x=>x.pl)));
+  const viableSet=new Set(viableForms);
+  function formationRank(form){
+    const c=formationPool(form).slice(0,8);
+    return c.length?c.reduce((s,x)=>s+(x.s||0),0)/c.length:0;
+  }
+  viableForms.sort((a,b)=>formationRank(b)-formationRank(a));
+
+  let out=[];
+  const used=new Set();
+  function add(pl){
+    const k=playUniqueKey(pl);
+    if(used.has(k))return false;
+    if(!formationTypeAllowedByUser(pl.formation)||!formationMeetsPackageCoverage(pl.formation)||!personnelAllowedByUser(pl))return false;
+    out.push(pl); used.add(k); return true;
+  }
   function removeFormation(form){
     out=out.filter(pl=>{const keep=pl.formation!==form; if(!keep)used.delete(playUniqueKey(pl)); return keep;});
   }
+  function current(form){return out.filter(p=>p.formation===form);}
+  function formsInOut(){return [...new Set(out.map(p=>p.formation))];}
   function fillFormation(form){
-    const cands=formationCandidatePoolForForm(form,scored);
-    if(!formationReqMet(cands.map(x=>x.pl)))return false;
-    // Add missing required roles first.
-    const current=()=>out.filter(p=>p.formation===form);
+    if(!viableSet.has(form))return false;
+    const cands=formationPool(form);
+    const st=()=>formationReqState(current(form));
     const needs=[
-      {ok:()=>formationReqState(current()).run,pred:formationReqRun},
-      {ok:()=>formationReqState(current()).dropback,pred:formationReqDropback},
-      {ok:()=>formationReqState(current()).pa,pred:formationReqPlayAction}
+      {ok:()=>st().run,pred:formationReqRun},
+      {ok:()=>st().dropback,pred:formationReqDropback},
+      {ok:()=>st().pa,pred:formationReqPlayAction}
     ];
-    needs.forEach(n=>{
-      if(n.ok())return;
+    for(const n of needs){
+      if(n.ok())continue;
       const x=cands.find(c=>n.pred(c.pl)&&!used.has(playUniqueKey(c.pl)));
-      if(x){out.push(x.pl);used.add(playUniqueKey(x.pl));}
-    });
-    for(const x of cands){
-      if(current().length>=FORMATION_MIN_PACKAGE_PLAYS)break;
-      const k=playUniqueKey(x.pl); if(!used.has(k)){out.push(x.pl);used.add(k);}
+      if(x)add(x.pl);
     }
-    return formationReqMet(current());
+    for(const x of cands){
+      if(current(form).length>=FORMATION_MIN_PACKAGE_PLAYS)break;
+      add(x.pl);
+    }
+    return formationReqMet(current(form));
   }
 
-  // Repair or remove every formation already selected.
-  formsInBook().forEach(form=>{ if(!fillFormation(form)) removeFormation(form); });
-
-  // Add new complete formation packages when the book is short. This keeps the
-  // hard minimum from being violated just to hit the requested size.
-  function formationRank(form){
-    const c=formationCandidatePoolForForm(form,scored).slice(0,8);
-    if(!c.length)return 0;
-    return c.reduce((s,x)=>s+(x.s||0),0)/c.length;
+  // Start from the existing book, but only keep plays from formations that can be repaired.
+  for(const pl of uniquePlayArray(book||[])){
+    if(viableSet.has(pl.formation))add(pl);
   }
-  const viableForms=[...new Set(scored.map(x=>x.pl.formation))]
-    .filter(f=>formationCandidateMeetsHardRules(f,scored))
-    .sort((a,b)=>formationRank(b)-formationRank(a));
+  const maxLegalForms=Math.max(1,Math.floor(target/FORMATION_MIN_PACKAGE_PLAYS));
+  // Do not repair more formations than the requested book size can legally support.
+  // Otherwise every thin formation becomes a 5-play package and the book balloons.
+  formsInOut().sort((a,b)=>formationRank(b)-formationRank(a)).slice(maxLegalForms).forEach(removeFormation);
+  for(const form of formsInOut()){
+    if(!fillFormation(form))removeFormation(form);
+  }
+
+  // If the book is short, seed top complete packages, but never more formations
+  // than the target can support at the 5-play minimum.
   for(const form of viableForms){
     if(out.length>=target)break;
-    if(formsInBook().includes(form))continue;
-    if(target-out.length<FORMATION_MIN_PACKAGE_PLAYS)break;
-    const cands=formationCandidatePoolForForm(form,scored);
-    seedOneFormationPackage(form,cands,out,used);
+    if(formsInOut().length>=maxLegalForms)break;
+    if(formsInOut().includes(form))continue;
+    if(out.length===0 || target-out.length>=FORMATION_MIN_PACKAGE_PLAYS){
+      const before=out.length;
+      fillFormation(form);
+      if(out.length===before)removeFormation(form);
+    }
   }
 
-  // Top up with best remaining plays from already valid formations only.
+  // Top up from already valid formations first.
   while(out.length<target){
     let added=false;
-    const validForms=new Set(formsInBook().filter(f=>formationReqMet(out.filter(p=>p.formation===f))));
-    for(const x of scored){
-      const pl=x.pl, k=playUniqueKey(pl);
-      if(used.has(k)||!validForms.has(pl.formation))continue;
-      out.push(pl); used.add(k); added=true; break;
+    const validForms=new Set(formsInOut().filter(f=>formationReqMet(current(f))));
+    for(const x of rawScored){
+      if(used.has(playUniqueKey(x.pl)))continue;
+      if(!validForms.has(x.pl.formation))continue;
+      add(x.pl); added=true; break;
     }
     if(added)continue;
-    // If existing formations are exhausted, add one more full formation if there is room.
-    const next=viableForms.find(f=>!formsInBook().includes(f));
-    if(next && target-out.length>=FORMATION_MIN_PACKAGE_PLAYS){
-      seedOneFormationPackage(next,formationCandidatePoolForForm(next,scored),out,used);
-      added=true;
+    const next=viableForms.find(f=>!formsInOut().includes(f));
+    if(next && formsInOut().length<maxLegalForms && target-out.length>=FORMATION_MIN_PACKAGE_PLAYS){
+      const before=out.length;
+      fillFormation(next);
+      added=out.length>before;
     }
     if(!added)break;
   }
 
-  // Trim to target without breaking package validity. Remove low-scoring extra
-  // plays first, never the last required run/dropback/PA or the 5-play floor.
+  // Trim without breaking package validity. Since this runs after generation, it
+  // is better to return slightly under target than keep an illegal formation.
   let guard=0;
-  while(out.length>target && guard++<target*10){
+  while(out.length>target && guard++<Math.max(50,target*10)){
     let idx=-1, worst=Infinity;
     for(let i=0;i<out.length;i++){
       if(!canRemoveFormationPlay(out,i))continue;
@@ -2890,9 +2930,31 @@ function enforceFormationHardRules(book,scoredPool,target){
     used.delete(playUniqueKey(out[idx])); out.splice(idx,1);
   }
 
-  // Final validation: no partial/thin formations survive.
-  formsInBook().forEach(form=>{ if(!formationReqMet(out.filter(p=>p.formation===form))) removeFormation(form); });
-  return uniquePlayArray(out).slice(0,target);
+  // If still over target because all remaining formations sit at the 5-play floor,
+  // remove the lowest-scoring complete formation package rather than slicing a
+  // formation into an illegal partial package.
+  let packageGuard=0;
+  while(out.length>target && packageGuard++<100){
+    const forms=formsInOut();
+    if(forms.length<=1)break;
+    const over=out.length-target;
+    let candidates=forms.map(f=>{
+      const arr=current(f), avg=arr.reduce((s,p)=>s+(scoreOf.get(playUniqueKey(p))||0),0)/Math.max(1,arr.length);
+      return {f,n:arr.length,avg};
+    }).filter(x=>out.length-x.n>=Math.max(0,target-4));
+    if(!candidates.length)candidates=forms.map(f=>{
+      const arr=current(f), avg=arr.reduce((s,p)=>s+(scoreOf.get(playUniqueKey(p))||0),0)/Math.max(1,arr.length);
+      return {f,n:arr.length,avg};
+    });
+    candidates.sort((a,b)=>a.avg-b.avg || b.n-a.n);
+    removeFormation(candidates[0].f);
+  }
+
+  // Final strict validation.
+  for(const form of formsInOut()){
+    if(!formationReqMet(current(form)))removeFormation(form);
+  }
+  return uniquePlayArray(out);
 }
 
 // v15.0 — Formation package completeness. A formation is not selected just
@@ -4700,8 +4762,23 @@ function generatePlaybook(){
   });
   // Formation score = mean of top-3 play scores
   // Pre-filter: exclude formations the DB can't even give us MIN_FORM_PLAYS plays for
+  // v15.2: Build hard-rule candidate pools once for formation ranking.
+  // This prevents the Generate button from freezing while scanning/sorting the
+  // full play database once per formation.
+  const hardPoolByForm=new Map();
+  const hardSeenByForm=new Map();
+  for(const x of scoringPool){
+    if(!hardRuleCandidateFilter(x))continue;
+    const form=x.pl.formation, k=playUniqueKey(x.pl);
+    if(!hardPoolByForm.has(form)){hardPoolByForm.set(form,[]);hardSeenByForm.set(form,new Set());}
+    const seen=hardSeenByForm.get(form);
+    if(seen.has(k))continue;
+    seen.add(k); hardPoolByForm.get(form).push(x);
+  }
+  hardPoolByForm.forEach(arr=>arr.sort((a,b)=>(b.s||0)-(a.s||0)));
+  const hardPoolFor=(form)=>hardPoolByForm.get(form)||[];
   let formRanked=[...formScoreMap.entries()]
-    .filter(([form])=>formationCandidateMeetsHardRules(form,scoringPool))
+    .filter(([form])=>formationReqMet(hardPoolFor(form).map(x=>x.pl)))
     .map(([form,scores])=>{const ss=scores.slice().sort((a,b)=>b-a);return {form, fscore:ss.slice(0,3).reduce((a,b)=>a+b,0)/Math.min(3,ss.length)};})
     .sort((a,b)=>b.fscore-a.fscore)
     .slice(0, MAX_FORMS)
@@ -8366,7 +8443,7 @@ function renderCsvDbStatus(){
   const customKeys=new Set();
   let updates=0, additions=0;
   _customDbRows.forEach(r=>{
-    if((r.side||'offense')==='defense') return;
+    if((r.side||classifyPlaySide(r))==='defense') return;
     const k=dbKey(r.formation,r.play);
     if(customKeys.has(k)) return;
     customKeys.add(k);
@@ -8382,7 +8459,7 @@ function effectivePlays(){
   PLAYS.forEach(p=>byKey.set(dbKey(p.formation,p.play),p));
   if(_customDbRows&&_customDbRows.length){
     _customDbRows.forEach((r,i)=>{
-      if((r.side||'offense')==='defense') return;
+      if((r.side||classifyPlaySide(r))==='defense') return;
       const key=dbKey(r.formation,r.play);
       const prev=byKey.get(key)||{};
       byKey.set(key,{
@@ -8399,7 +8476,7 @@ function effectivePlays(){
       });
     });
   }
-  return [...byKey.values()].map(applyCorr);
+  return [...byKey.values()].map(applyCorr).filter(pl=>classifyPlaySide(pl)!=='defense');
 }
 
 /* ── Team source / custom base playbook engine ─────────────────────────

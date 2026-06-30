@@ -1,22 +1,20 @@
-# Call Sheet — Coach Brain v15.1
+# Call Sheet — Coach Brain v15.2
 
-GitHub Pages package for the Call Sheet Coach Brain app.
+Patch for v15 generation stability and formation-package hard rules.
 
-## Install on GitHub Pages
+## Fixes in v15.2
 
-1. Upload every file in this folder to a GitHub repository.
-2. In GitHub, open Settings → Pages.
-3. Select the branch/folder that contains `index.html`.
-4. Open the published GitHub Pages URL.
+- Fixes the Generate Base Playbook freeze/break caused by v15.1 formation hard-rule scanning.
+- Pre-groups formation candidate pools so the generator does not scan and sort the full database once per formation.
+- Keeps the v15.1 hard rules:
+  - no duplicate Formation + Play entries
+  - no defensive calls in offensive generated books
+  - every included formation must carry at least 5 unique plays
+  - every included formation must include at least 1 run, 1 dropback/conversion pass, and 1 play-action/boot answer
+  - formations still have to fit the scheme, personnel gate, formation sliders, surface sliders, and package coverage rules
+- Prevents the final validation step from slicing formations into illegal partial packages.
+- Caps the number of repaired formation packages so a requested book does not balloon just because every thin formation gets filled to five plays.
 
-## v15.1 patch notes
+## Deploy to GitHub Pages
 
-- Removes duplicate Formation + Play entries from generated books.
-- Filters defensive/coverage rows out of generated offensive playbooks.
-- Formation hard rule: every included formation must have at least 5 unique plays.
-- Formation hard rule: every included formation must include at least one run, one dropback/conversion pass, and one play-action/boot answer.
-- Formation hard rule: formations must pass the selected system/sliders/package coverage before inclusion.
-- Core concept sliders now seed actual plays into the generated book through tag matching, not only soft boosts.
-- Keeps v15.0 formation-surface recognition, package coverage, and rank-lottery play suggestions.
-
-If upgrading from an older version, regenerate the base playbook once so the new package rules and tag matching apply.
+Upload the contents of this folder to your repo root. `index.html` is the app entry point. `.nojekyll` is included.
