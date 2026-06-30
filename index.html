@@ -363,7 +363,7 @@
   .intent-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:9.5px;font-weight:800;background:#dfeeff;color:#2f5891;margin-left:4px}
   .intent-sel{width:100%;min-width:120px;padding:4px 5px;font-size:11.5px;font-family:inherit;border:1px solid #bfcbd8;border-radius:2px;background:#f8fbff}
 
-  /* ---------- v14.10 setup flow + situation scoring cleanup ---------- */
+  /* ---------- v14.12 RPO vs option separation + situation scoring cleanup ---------- */
   .setup-flow{display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px}
   .step-card{border:1px solid #ddd9cd;background:#fbfaf5;border-radius:7px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
   .step-head{display:flex;gap:11px;align-items:flex-start;margin-bottom:10px}
@@ -419,7 +419,7 @@
             <div><h3>Choose your starting point</h3><p>Templates build a system from a coach profile. Custom ignores templates and uses only your sliders.</p></div>
           </div>
           <div class="mode-grid">
-            <button class="mode-card" id="btn-mode-template" type="button"><span class="mode-title">Use template</span><span class="mode-copy">Best for Shanahan, RVO, Paul Johnson, Briles, Leach, Manning/Moore, Harbaugh, or Erhardt-Perkins.</span></button>
+            <button class="mode-card" id="btn-mode-template" type="button"><span class="mode-title">Use template</span><span class="mode-copy">Best for Shanahan, RVO, DeBesse, Paul Johnson, Briles, Leach, Manning/Moore, Harbaugh, or Erhardt-Perkins.</span></button>
             <button class="mode-card" id="btn-mode-custom" type="button"><span class="mode-title">Go custom</span><span class="mode-copy">No coach profile. Build from your personnel, formation, concept, run/pass, and motion sliders.</span></button>
           </div>
         </div>
@@ -434,6 +434,7 @@
             <option value="none">Custom sliders only — no system profile</option>
             <option value="shanahan_wide_zone">Kyle Shanahan — WZ/YAC play-action</option>
             <option value="rvo_reliable_violent">RVO — Reliable Violent Offense</option>
+            <option value="debesse_spread_option">DeBesse — shotgun triple spread option</option>
             <option value="paul_johnson_flexbone">Paul Johnson — flexbone option</option>
             <option value="art_briles_spread">Art Briles — Baylor wide-split spread</option>
             <option value="mike_leach_air_raid">Mike Leach — Air Raid</option>
@@ -1116,7 +1117,8 @@
             <option value="run">Run</option>
             <option value="pass">Pass</option>
             <option value="play_action">Play Action / Boot</option>
-            <option value="rpo">RPO / Read</option>
+            <option value="option_run">Read / Speed / Load Option</option>
+            <option value="rpo_access">RPO Access</option>
             <option value="screen">Screen</option>
             <option value="draw">Draw</option>
           </select>
@@ -1232,11 +1234,24 @@ function classifyCoreConcept(play,family,legacyConcept,formation){
   const p=String(play||'').toLowerCase();
   const f=String(formation||'').toLowerCase();
   const legacy=String(legacyConcept||'').trim();
+  if(/zone\s*triple|triple\s*zone|gun\s*triple|pistol\s*triple/.test(p)) return 'Zone Triple';
+  if(/outside\s*veer/.test(p)) return 'Outside Veer';
+  if(/arc\s*read|arc\s*option/.test(p)) return 'Arc Read';
+  if(/qb\s*power\s*read|quarterback\s*power\s*read/.test(p)) return 'QB Power Read';
+  if(/qb\s*counter|quarterback\s*counter/.test(p)) return 'QB Counter';
+  if(/dive\s*\/\s*give|give\s*phase|dive\s*phase/.test(p)) return 'Dive / Give';
+  if(/bubble\s*access/.test(p)) return 'Bubble Access';
+  if(/hitch\s*access/.test(p)) return 'Hitch Access';
+  if(/pop\s*pass|y\s*pop/.test(p)) return 'Pop Pass';
   if(/flexbone/.test(f) && /veer/.test(p) && !/pass/.test(p)) return 'Inside Veer';
   if(/flexbone/.test(f) && /(triple|option)/.test(p)) return 'Triple Option';
   if(/flexbone/.test(f) && /midline/.test(p)) return 'Midline';
   if(/flexbone/.test(f) && /rocket/.test(p)) return 'Rocket Toss';
   if(/flexbone/.test(f) && /counter/.test(p) && /option/.test(p)) return 'Counter Option';
+  if(/speed\s*option/i.test(play||'')) return 'Speed Option';
+  if(/load\s*option/i.test(play||'')) return 'Load Option';
+  if(/zone\s*read|read\s*option|qb\s*read/i.test(play||'')) return 'Read Option';
+  if(/power\s*read|inverted\s*veer|bash/i.test(play||'')) return 'Power Read';
   if(/choice/i.test(play||'')) return 'Choice';
   if(/levels?/i.test(play||'')) return 'Levels';
   if(/all\s*curl|all curls/i.test(play||'')) return 'All Curl';
@@ -1342,6 +1357,18 @@ const CONCEPT_BEATS={
   "Levels":"hi-low timing window","All Curl":"vs soft/off zone","Dag / Smash":"high-low corner/flat","Ghost":"vertical + out/flat concept","Tosser":"double slants / quick man answer","INC":"in + curl concept","Drive":"shallow-to-dig timing","Zone Dive":"quick interior option dive","Dart":"spread iso / tackle pull","Power Read":"conflict run read",
   "Other / Unknown":"changeup"
 };
+
+Object.assign(CONCEPT_BEATS,{
+  "Zone Triple":"vs assignment conflict / dive-QB-pitch stress",
+  "Outside Veer":"vs squeezed interior / perimeter read stress",
+  "Arc Read":"vs crashing edge / overhang conflict",
+  "QB Power Read":"vs widening defense / QB run numbers",
+  "QB Counter":"vs over-rotation / QB run counter",
+  "Dive / Give":"vs light box / interior give phase",
+  "Bubble Access":"vs tucked apex / free perimeter access",
+  "Hitch Access":"vs soft corner / cushion access",
+  "Pop Pass":"vs downhill linebackers / scrape exchange"
+});
 Object.assign(CONCEPT_BEATS,{
   "Y Stick":"vs underneath zone / nickel leverage",
   "Y Corner":"vs Cover 2 / red zone leverage",
@@ -2214,11 +2241,11 @@ const SITUATIONS = {
 };
 
 const MOTION_LABELS=[[0,"Static"],[20,"Light motion"],[40,"Moderate motion"],[65,"Heavy motion"],[85,"Max disguise"]];
-const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Trap","Dive","Zone Dive","Draw","Sweep","Jet Sweep","Rocket Toss","Triple Option","Inside Veer","Midline","Counter Option","Veer Pass","Option / RPO","Power Read","Dart","Boot / Play Action","Quick Game","Stick","Y Stick","Y Corner","Y Cross","Mesh","Shallow","H Wheel","Flood","Sail","Smash","Dag / Smash","Levels","Seam Read","All Curl","Curls / Curl Flats","Spacing","Hitch","Screen","Verticals / Four Verticals","Go Routes","Post","Bang Post","Glance","Slants","Choice","Ghost","Tosser","INC","Drive"];
+const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Trap","Dive","Zone Dive","Draw","Sweep","Jet Sweep","Rocket Toss","Zone Triple","Outside Veer","Arc Read","Triple Option","Inside Veer","Midline","Counter Option","Veer Pass","Read Option","Speed Option","Load Option","Option / RPO","Power Read","QB Power Read","QB Counter","Dart","Dive / Give","Bubble Access","Hitch Access","Pop Pass","Boot / Play Action","Quick Game","Stick","Y Stick","Y Corner","Y Cross","Mesh","Shallow","H Wheel","Flood","Sail","Smash","Dag / Smash","Levels","Seam Read","All Curl","Curls / Curl Flats","Spacing","Hitch","Screen","Verticals / Four Verticals","Go Routes","Post","Bang Post","Glance","Slants","Choice","Ghost","Tosser","INC","Drive"];
 const CONCEPT_TARGET_GUIDE={
   "Inside Zone":"base run guide 15–30%","Outside Zone / Stretch":"base run guide 12–25%","Power / Power O":"base run guide 12–25%","Counter":"constraint guide 6–15%","Duo":"base run guide 10–22%",
   "Trap":"constraint/quick hitter 3–10%","Dive":"short-yard / B-back guide 6–18%","Draw":"pass-game constraint 3–8%","Sweep":"perimeter guide 4–12%","Jet Sweep":"motion stress 4–10%","Rocket Toss":"option perimeter guide 6–14%",
-  "Triple Option":"option base guide 15–30%","Inside Veer":"option base guide 10–20%","Midline":"option base guide 10–20%","Counter Option":"option constraint 5–12%","Veer Pass":"option PA shot 4–10%",
+  "Zone Triple":"gun triple base guide 12–24%","Outside Veer":"perimeter option guide 5–12%","Arc Read":"edge conflict guide 6–14%","Triple Option":"option base guide 15–30%","Inside Veer":"option base guide 10–20%","Midline":"option base guide 10–20%","Counter Option":"option constraint 5–12%","Veer Pass":"option PA shot 4–10%","QB Power Read":"QB run guide 5–12%","QB Counter":"QB run constraint 4–10%",
   "Boot / Play Action":"married PA guide 6–14%","Option / RPO":"access guide 8–20%","Quick Game":"rhythm guide 8–18%","Stick":"conversion guide 5–12%","Mesh":"man answer guide 5–12%",
   "Flood":"zone/boot answer 4–10%","Smash":"coverage answer 4–10%","Screen":"pressure answer 5–12%","Verticals / Four Verticals":"shot guide 3–8%","Go Routes":"vertical isolation 3–8%","Post":"single-high shot 3–8%","Slants":"quick/RPO access 4–10%","Choice":"option-route / isolation 5–14%"
 };
@@ -2827,6 +2854,41 @@ const BUILT_IN_OFFENSE_SYSTEMS={
     ],
     tagPenalties:[{tag:'screen_constraint',label:'screen-heavy calls not central to Johnson identity',m:.82},{tag:'static_spread_dropback',label:'static dropback divorced from option action',m:.85},{tag:'empty',label:'empty only as change-up',m:.90}], genCap:1.95, gameCap:1.22
   },
+
+  debesse_spread_option:{
+    label:'Bob DeBesse / Shotgun Triple Spread Option', shortLabel:'DeBesse Option', source:'DeBesse Shotgun Triple Spread Option PDF', sourceBacked:true,
+    summary:'Run-first shotgun/pistol spread option built from gun triple, zone-read math, two-back and three-back structures, motion-created perimeter stress, QB run game, access throws, and play-action explosives.',
+    philosophy:'Make the defense play assignment football every snap. Force them to defend dive, QB, pitch/perimeter, screen/access, and vertical shots while using option math instead of perfect blocking.',
+    runIdentity:'Gun/pistol triple option, zone read, inside/outside veer, arc read, speed/load option, QB power/counter, rocket/orbit sweep, counter option, and dive/give constraints.',
+    passIdentity:'Low-volume, high-leverage passing: play-action vertical shots, boot/naked, perimeter screens, simple access throws, post-wheel, switch verticals, seam read, glance/slant, hitch/bubble, pop pass, and boot flood.',
+    coreFormations:['Pistol 2-back spread','Gun split backs','Gun 20 personnel 2x2','Gun 20 personnel 3x1','Pistol 30 / diamond','Gun flexbone variation','Unbalanced spread option','Nub TE + trips'],
+    preferredPersonnel:['20','21','11','10','12'],
+    motionShift:'Motion is not decoration. Orbit, rocket, return, slot insert, H-back across, RB fast motion, wing trade, and pistol back shifts change option math, create pitch phase, reveal coverage, widen force, and set up counter/PA.',
+    baseConcepts:['Zone Triple','Inside Veer','Outside Veer','Zone Read','Arc Read','Speed Option','Load Option','QB Power Read','QB Counter','Counter Option','Rocket Toss','Dive / Give','Bubble Access','Hitch Access'],
+    constraintConcepts:['Counter Option','Reverse','Pop Pass','Glance','Bubble Access','Crack Toss','QB Draw','PA Wheel','Split-flow Boot','Arc Bluff Screen'],
+    shotConcepts:['PA Post-Wheel','PA Slot Fade','PA Switch Verts','PA Seam','PA Yankee','PA Flood Wheel','Orbit Fake Vertical','Rocket Fake Post','Nub TE Leak','Stalk-and-Go'],
+    screensRpos:['Bubble Access','Hitch Access','Now Screen','Smoke','Glance','Slant','Stick/Bubble','Arrow','Pop Pass','Tunnel Screen','RB Flare Screen','Orbit Screen','Throwback Screen','Slip Screen'],
+    playActionFamily:['Triple PA','Rocket PA','Boot / Naked','Pop PA','Counter PA','Post-Wheel','Flood','Y-Pop','Seam','Glance','Deep Over','TE/H Leak'],
+    bestAudibles:['Light box → give','Soft edge → speed option','Apex tucked inside → bubble/smoke','Slow bump to motion → rocket','Defense widens with option → QB power','Safeties trigger → PA shot','Read side overloaded → check away','No adjustment to unbalanced → nub option'],
+    scriptQuestions:['Can they line up to 2-back gun?','Can they handle motion without busting?','Who has dive, QB, and pitch?','Does the safety fit fast?','Does the backside LB scrape?','Does the DE crash, slow play, or feather?','Does the overhang widen with orbit?','Can they handle unbalanced?','Are they playing assignment football or chasing the ball?'],
+    defensesStressed:['even fronts with slow-adjusting overhangs','4-2-5 teams with aggressive nickel fits','man teams with bad eyes','single-high late rotation','spill teams without pitch support','undersized/aggressive edges','fast-scrape linebackers','safeties who overfit run','teams that do not practice option every week'],
+    defensesStruggles:['disciplined assignment-option teams','odd/tite fronts that muddy reads','bear fronts covering OL','fast safeties who fit and recover','corners who tackle bubbles and beat stalks','dominant nose/DT','exchange teams that force the give and beat blocks inside'],
+    sequencingRules:['Start by identifying option rules.','Run base triple early to identify dive, QB, and pitch players.','If the DE crashes, keep or arc.','If the overhang widens, run inside.','If the LB scrapes, call counter or pop pass.','If the safety fits hard, call PA shot.','If motion bumps poorly, keep using orbit/rocket.','After repeated inside give, call speed option or PA seam.','Do not abandon the dive phase unless they are physically whipping you inside.'],
+    selfScoutGuardrails:['Do not generate too many dropback passes.','Do not become random spread.','Every formation needs option, constraint, and play-action answers.','Every motion needs a reason.','Do not call rocket/orbit without counter off it.','Do not call PA shots unless run action is established or safeties are triggering.','Track QB carry count, pitch touches, inside give efficiency, and formation+concept tendency.','Do not let 3rd-and-long volume get high.'],
+    identityPreset:'run', rpBand:[62,78], motionPreset:75, sizeHint:300,
+    persMixPreset:{'20':38,'21':27,'11':18,'10':7,'12':6,'22':2,'13':1,'23':1},
+    conceptTargetsPreset:{'Zone Triple':14,'Inside Veer':12,'Read Option':10,'Arc Read':8,'Speed Option':8,'QB Power Read':7,'QB Counter':6,'Counter Option':8,'Rocket Toss':7,'Dive / Give':7,'Bubble Access':4,'Hitch Access':3,'Glance':3,'Pop Pass':3,'Boot / Play Action':5,'Screen':4},
+    conceptBoosts:{'Zone Triple':1.74,'Inside Veer':1.62,'Outside Veer':1.50,'Read Option':1.46,'Arc Read':1.48,'Speed Option':1.44,'Load Option':1.34,'QB Power Read':1.42,'QB Counter':1.38,'Power Read':1.34,'Counter Option':1.42,'Rocket Toss':1.36,'Dive / Give':1.26,'Dive':1.18,'Bubble Access':1.18,'Hitch Access':1.14,'Glance':1.12,'Pop Pass':1.16,'Screen':1.08,'Boot / Play Action':1.16,'Veer Pass':1.10,'Verticals / Four Verticals':1.10,'Post':1.08,'Wheel':1.08,'Flood':1.08},
+    familyBoosts:{run:1.20,option_rpo:1.32,play_action:1.10,screen:1.06,pass:.84},
+    surfaceBoosts:{spread:1.12,trips:1.10,pistol:1.20,full_house:1.18,wing:1.08,y_off:1.06,unbalanced:1.08,flexbone:1.06,empty:.55},
+    motionBoosts:{orbit:1.18,jet:1.14,motion:1.12,shift:1.08,perimeter_leverage:1.18,widen_force:1.16,add_gap:1.10,formation_disguise:1.08},
+    persBoosts:{'20':1.24,'21':1.18,'11':1.08,'10':1.04,'12':1.04},
+    tagBoosts:[
+      {tag:'debesse_core',label:'gun/pistol triple option core',m:1.28},{tag:'spread_option_surface',label:'spread option surface',m:1.18},{tag:'two_back_gun',label:'2-back gun option structure',m:1.20},{tag:'three_back_pistol',label:'3-back pistol/diamond structure',m:1.16},{tag:'option_read',label:'true read/option run',m:1.22},{tag:'arc_read',label:'arc/read edge conflict',m:1.18},{tag:'pitch_phase',label:'pitch/perimeter phase',m:1.14},{tag:'qb_run_game',label:'QB run game',m:1.12},{tag:'rpo_access',label:'cheap access throw only',m:1.08},{tag:'pa_option_shot',label:'option play-action shot',m:1.12},{tag:'motion_shift',label:'motion changes option math',m:1.10}
+    ],
+    tagPenalties:[{tag:'static_spread_dropback',label:'random static spread dropback',m:.58},{tag:'empty',label:'empty is rare change-up',m:.60},{tag:'slow_no_hot',label:'slow pass without option/run marriage',m:.78},{tag:'heavy_personnel',label:'heavy personnel outside option structure',m:.92}], genCap:2.85, gameCap:1.52
+  },
+
   art_briles_spread:{
     label:'Art Briles / Veer-and-Shoot Spread', shortLabel:'Briles Spread', source:'Art Briles–Style Spread Offensive System PDF', sourceBacked:true,
     summary:'Ultra-fast spread offense built around extreme spacing, inside zone/dart/power-read, vertical choice routes, RPO screens, tempo, and explosive one-on-one isolation.',
@@ -3171,6 +3233,9 @@ Object.assign(BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone,{systemStrengthPreset:
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread,{systemStrengthPreset:90,formMixPreset:{shotgun:72,singleback:0,pistol:5,i_form:0,flexbone:0,wingbone:0,empty:18,under_center:0,other:5},formTypeBoosts:{shotgun:1.30,empty:1.18,pistol:1.05,singleback:.42,i_form:.30,under_center:.28,flexbone:.22,wingbone:.22,other:.92},genCap:2.75,gameCap:1.48});
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.peyton_manning_moore,{systemStrengthPreset:90,formMixPreset:{shotgun:38,singleback:34,pistol:2,i_form:1,flexbone:0,wingbone:0,empty:10,under_center:12,other:3},formTypeBoosts:{shotgun:1.15,singleback:1.18,empty:1.08,under_center:1.08,pistol:.74,i_form:.42,flexbone:.16,wingbone:.16,other:.82},genCap:2.65,gameCap:1.44});
 
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.debesse_spread_option,{systemStrengthPreset:92,formMixPreset:{shotgun:50,singleback:0,pistol:30,i_form:0,flexbone:5,wingbone:0,empty:2,under_center:0,other:13},formTypeBoosts:{shotgun:1.24,pistol:1.24,flexbone:1.04,other:1.00,empty:.48,singleback:.30,i_form:.22,under_center:.22,wingbone:.30},genCap:2.90,gameCap:1.54});
+
+
 const LS_OFF_SYS='callsheet_offense_systems_v1';
 let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
 function allOffenseSystems(){return {...BUILT_IN_OFFENSE_SYSTEMS,...(_customOffenseSystems||{})};}
@@ -3207,7 +3272,7 @@ function offSysTagMatch(pl,tag){
     case 'unknown_other': return c==='Other / Unknown'||f==='unknown';
     case 'flexbone_surface': return /(^|\s)flexbone(\s|$)/.test(text);
     case 'wingbone_surface': return offSysHas(text,['wingbone','wishbone','split t','split back','split backs']);
-    case 'option_read': return f==='option_rpo'||t.runScheme==='option_read'||offSysHas(text,['option','read','triple','pitch','load option','speed option']);
+    case 'option_read': return (typeof TRUE_OPTION_CONCEPTS!=='undefined'&&TRUE_OPTION_CONCEPTS.has(c))||t.runScheme==='option_read'||offSysHas(text,['read option','zone read','triple option','zone triple','inside veer','outside veer','midline','arc read','load option','speed option','counter option','pitch phase']);
     case 'inside_veer': return offSysHas(text,['inside veer','veer'])&&!offSysHas(text,['veer pass']);
     case 'midline': return offSysHas(text,['midline']);
     case 'rocket_toss': return c==='Jet Sweep'||t.runScheme==='sweep_toss'||offSysHas(text,['rocket','toss','sweep','speed option']);
@@ -3220,7 +3285,16 @@ function offSysTagMatch(pl,tag){
     case 'vertical_choice': return offSysHas(text,['choice','slot choice','single choice','outside choice','verts','vertical','go','fade','post','seam','sluggo'])||['Verticals / Four Verticals','Go Routes','Post','Wheel'].includes(c);
     case 'single_choice': return offSysHas(text,['single choice','backside','x go','x fade','x post'])||(['Go Routes','Post'].includes(c)&&offSysHas(text,['trips','single']));
     case 'dart_power': return c==='Power / Power O'||t.runScheme==='power'||offSysHas(text,['dart','power read','power','iso','pull']);
-    case 'rpo_access': return f==='option_rpo'||t.passStructure==='rpo_access'||offSysHas(text,['rpo','read','bubble','glance','back out','access','peek']);
+    case 'rpo_access': return t.passStructure==='rpo_access'||offSysHas(text,['rpo','alert','bubble','glance','back out','access','peek','lookie','smoke','now screen','hitch access','bubble access','gift fade']);
+    case 'debesse_core': return ['Zone Triple','Inside Veer','Outside Veer','Read Option','Arc Read','Speed Option','Load Option','QB Power Read','QB Counter','Counter Option','Rocket Toss','Dive / Give'].includes(c)||offSysHas(text,['shotgun triple','gun triple','pistol triple','zone triple','spread option','gun veer','pistol option','option math']);
+    case 'spread_option_surface': return offSysHas(text,['gun','shotgun','pistol','spread','split back','split backs','full house','diamond','flexbone gun','nub','unbalanced','trips','2x2','3x1']);
+    case 'two_back_gun': return (pers==='20'||pers==='21')&&offSysHas(text,['gun','shotgun','split','go go','duo','2 back','two back']);
+    case 'three_back_pistol': return offSysHas(text,['pistol full house','pistol full diamond','pistol diamond','pistol 30','full house','diamond']);
+    case 'arc_read': return c==='Arc Read'||offSysHas(text,['arc read','arc option','arc bluff','arc screen']);
+    case 'pitch_phase': return ['Speed Option','Load Option','Rocket Toss','Triple Option','Zone Triple','Outside Veer'].includes(c)||offSysHas(text,['pitch','rocket','orbit','speed option','load option','perimeter toss']);
+    case 'qb_run_game': return ['QB Power Read','QB Counter','Read Option','Power Read','Arc Read','Speed Option'].includes(c)||offSysHas(text,['qb power','qb counter','quarterback power','quarterback counter','qb run','keeper']);
+    case 'perimeter_stress': return ['Rocket Toss','Speed Option','Load Option','Bubble Access','Hitch Access','Screen'].includes(c)||offSysHas(text,['perimeter','bubble','smoke','rocket','orbit','toss','pitch']);
+    case 'pa_option_shot': return (f==='play_action'||c==='Boot / Play Action'||c==='Veer Pass'||offSysHas(text,['pa ','play action','post wheel','post-wheel','rocket fake','triple pa','option pass','boot','naked']))&&offSysHas(text,['post','wheel','seam','flood','glance','yankee','vertical','shot','leak','boot','pa ']);
     default: return false;
   }
 }
@@ -3336,6 +3410,7 @@ function systemRailFormationMatch(form,systemKey){
   const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
   switch(systemKey||((philosophy&&philosophy.system)||'none')){
     case 'paul_johnson_flexbone': return /(^|\s)flexbone(\s|$)/.test(f);
+    case 'debesse_spread_option': return /\bgun\b|shotgun|pistol|split\s*backs|split|go\s*go|duo|full\s*house|diamond|flexbone|spread|trips|doubles|unbalanced|tackle\s*over|nub|y\s*off|wing/.test(f);
     case 'rvo_reliable_violent': return /i\s*form|strong\s*i|weak\s*i|singleback|ace|wing|y\s*off|bunch|tight|nub|pistol|\bgun\b|shotgun|trips|doubles/.test(f);
     case 'art_briles_spread': return /\bgun\b|shotgun|spread|trips|doubles|empty|pistol|stack/.test(f);
     case 'mike_leach_air_raid': return /\bgun\b|shotgun|spread|trips|trey|doubles|empty|ace|blue|green|open/.test(f);
@@ -3372,6 +3447,16 @@ function applySystemFormationRails(formRanked, allForms, maxForms){
 }
 function systemRailSeedPlans(systemKey,target){
 
+
+  if(systemKey==='debesse_spread_option'){
+    return [
+      {label:'Gun/pistol triple core',re:/zone triple|triple option|inside veer|outside veer|zone read|read option|arc read|speed option|load option|option/i,n:Math.max(34,Math.round(target*.32))},
+      {label:'QB run option answers',re:/qb power|qb counter|power read|inverted veer|bash|keeper/i,n:Math.max(10,Math.round(target*.10))},
+      {label:'Counter / perimeter option',re:/counter option|rocket|orbit|toss|sweep|pitch|crack/i,n:Math.max(14,Math.round(target*.13))},
+      {label:'Access and screens',re:/bubble|hitch|smoke|now|glance|slant|pop pass|screen|flare|arrow|access/i,n:Math.max(10,Math.round(target*.09))},
+      {label:'Option play-action shots',re:/pa |play action|post wheel|post-wheel|wheel|seam|switch vert|yankee|boot|naked|flood|leak/i,n:Math.max(10,Math.round(target*.09))}
+    ];
+  }
   if(systemKey==='rvo_reliable_violent'){
     return [
       {label:'RVO run core',re:/outside zone|wide zone|stretch|duo|split zone|inside zone|counter|insert|iso|lead/i,n:Math.max(26,Math.round(target*.24))},
@@ -3477,7 +3562,7 @@ function renderSystemOptions(){
   sel.innerHTML='';
   const add=(value,label,parent=sel)=>{const o=el('option');o.value=value;o.textContent=label;parent.appendChild(o);};
   add('none','Custom sliders only — no system profile');
-  ['shanahan_wide_zone','rvo_reliable_violent','paul_johnson_flexbone','art_briles_spread','mike_leach_air_raid','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
+  ['shanahan_wide_zone','rvo_reliable_violent','debesse_spread_option','paul_johnson_flexbone','art_briles_spread','mike_leach_air_raid','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
   const customKeys=Object.keys(_customOffenseSystems||{});
   if(customKeys.length){const og=el('optgroup');og.label='Imported profiles';customKeys.forEach(k=>add(k,_customOffenseSystems[k].label||k,og));sel.appendChild(og);}
   const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
@@ -4252,7 +4337,10 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=playIntentSituationFit(pl,down,dist,yards);
   if(s<=0)return 0;
   if(!info.overrideBalance){
-    if(isRunFamily(pl.family)) s*=info.runNudge; else s*=info.passNudge;
+    const pik=playIntentKey(pl);
+    if(isStraightRunCall(pl)) s*=info.runNudge;
+    else if(pik==='rpo_access') s*=Math.max(0.82,Math.min(1.12,(info.runNudge+info.passNudge)/2));
+    else s*=info.passNudge;
   }
   if(AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=band.shotMult;
   if(pl.concept==='Other / Unknown') s*=0.5;
@@ -4398,6 +4486,7 @@ function isDrawCall(pl){
 }
 function isStraightRunCall(pl){
   if(isDrawCall(pl)) return false;
+  if(isOptionRunText(pl)) return true;
   const key=playIntentKey(pl);
   if(['base_run','downhill_run','perimeter_run','option_run','run_constraint'].includes(key)) return true;
   if(['rpo_access','screen','play_action','boot_keeper','quick_game','dropback_pass','shot','draw'].includes(key)) return false;
@@ -5987,7 +6076,7 @@ function intentOptionLabel(v){
 
 /* v14.6 — Play Intent replaces visible legacy Family buckets.
    Family is retained internally only as a compatibility field for old save data. */
-const TRUE_OPTION_CONCEPTS=new Set(['Inside Veer','Midline','Triple Option','Counter Option','Rocket Toss','Zone Dive']);
+const TRUE_OPTION_CONCEPTS=new Set(['Inside Veer','Midline','Triple Option','Zone Triple','Outside Veer','Arc Read','Counter Option','Rocket Toss','Zone Dive','Read Option','Speed Option','Load Option','Power Read','QB Power Read','QB Counter','Dive / Give']);
 const PLAY_INTENT_OPTIONS=[
   {v:'auto',label:'Auto',color:'#eef1ed',ink:'#4a5048'},
   {v:'base_run',label:'Base Run',color:'#e8f1e9',ink:'#2c6a42'},
@@ -6009,11 +6098,8 @@ const PLAY_INTENT_META=Object.fromEntries(PLAY_INTENT_OPTIONS.map(o=>[o.v,o]));
 function playIntentMeta(key){return PLAY_INTENT_META[key]||PLAY_INTENT_META.other;}
 function isTrueOptionRun(pl){
   if(!pl)return false;
-  const text=((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')).toLowerCase();
-  if(/\brpo\b|glance|peek|bubble|now screen|smoke|screen|alert/.test(text))return false;
   if(TRUE_OPTION_CONCEPTS.has(pl.concept))return true;
-  return /(inside veer|midline|triple\s*opt|tr\s*option|counter\s*option|option\s*cntr|rocket\s*toss|load\s*option|speed\s*option|veer\b|midline\s*qb|fb\s*toss\s*lead|pitch\s*read)/.test(text)
-    && /(flexbone|option|veer|midline|rocket|pitch|toss)/.test(text);
+  return isOptionRunText(pl);
 }
 function normalizeIntentForOptionRuns(pl,tags){
   if(!isTrueOptionRun(pl))return tags||{};
@@ -6035,7 +6121,7 @@ function normalizeIntentForOptionRuns(pl,tags){
 }
 function playIntentKey(pl){
   if(!pl)return 'other';
-  if(isTrueOptionRun(pl))return 'option_run';
+  if(isOptionRunText(pl)||isTrueOptionRun(pl))return 'option_run';
   const t=(typeof getIntentTags==='function')?getIntentTags(pl):{};
   const c=(pl.concept||'');
   if(t.playType==='screen'||t.passStructure==='screen')return 'screen';
@@ -6065,7 +6151,7 @@ function playIntentPill(plOrKey){
   return s;
 }
 function playIntentFamilyForKey(key){
-  return ({base_run:'run',downhill_run:'run',perimeter_run:'run',option_run:'run',run_constraint:'run',rpo_access:'option_rpo',play_action:'play_action',boot_keeper:'play_action',quick_game:'pass',dropback_pass:'pass',shot:'pass',screen:'screen',draw:'run',other:'unknown'})[key]||'';
+  return ({base_run:'run',downhill_run:'run',perimeter_run:'run',option_run:'run',run_constraint:'run',rpo_access:'pass',play_action:'play_action',boot_keeper:'play_action',quick_game:'pass',dropback_pass:'pass',shot:'pass',screen:'screen',draw:'run',other:'unknown'})[key]||'';
 }
 function playIntentPatchForKey(key){
   const patch={};
@@ -6075,7 +6161,7 @@ function playIntentPatchForKey(key){
   if(key==='perimeter_run')Object.assign(patch,{playType:'run',runScheme:'sweep_toss',passStructure:'none',series:'Perimeter Series',actionFamily:'Perimeter Run',primaryStress:'horizontal_stretch',conflictDefender:'force'});
   if(key==='option_run')Object.assign(patch,{playType:'run',runScheme:'option_read',passStructure:'none',series:'Option Series',actionFamily:'Option Run',primaryStress:'assignment_conflict',conflictDefender:'read_key',readType:'key_defender'});
   if(key==='run_constraint')Object.assign(patch,{playType:'run',runScheme:'counter',passStructure:'none',series:'Counter Series',actionFamily:'Run Constraint',primaryStress:'lb_flow',conflictDefender:'backside_lb'});
-  if(key==='rpo_access')Object.assign(patch,{playType:'rpo',runScheme:'option_read',passStructure:'rpo_access',series:'RPO Access Series',actionFamily:'RPO',primaryStress:'apex_conflict',conflictDefender:'apex',routeFamily:'rpo_access',readType:'key_defender'});
+  if(key==='rpo_access')Object.assign(patch,{playType:'rpo',runScheme:'inside_zone',passStructure:'rpo_access',series:'RPO Access Series',actionFamily:'RPO Access',primaryStress:'apex_conflict',conflictDefender:'apex',routeFamily:'rpo_access',readType:'key_defender',hasHot:'built_in'});
   if(key==='play_action')Object.assign(patch,{playType:'play_action',passStructure:'play_action',series:'Play-Action/Boot Series',actionFamily:'Play-Action',primaryStress:'eye_discipline',conflictDefender:'edge',routeTiming:'intermediate'});
   if(key==='boot_keeper')Object.assign(patch,{playType:'play_action',passStructure:'boot',series:'Play-Action/Boot Series',actionFamily:'Boot',primaryStress:'eye_discipline',conflictDefender:'edge',routeTiming:'intermediate'});
   if(key==='quick_game')Object.assign(patch,{playType:'pass',passStructure:'quick_game',series:'Quick Game Series',actionFamily:'Quick Game',primaryStress:'coverage_leverage',conflictDefender:'coverage_shell',routeFamily:'quick',routeTiming:'quick',hasHot:'built_in'});
@@ -6096,6 +6182,28 @@ function setPlayIntentOverride(formation,play,key){
   if(fam) setCorr(formation,play,{family:fam}); // compatibility only; no longer shown as identity.
 }
 function playText(pl){return ((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')).toLowerCase();}
+
+/* v14.12 — separate true option runs from RPO access.
+   Read/speed/load/midline/veer/triple/power-read concepts are run plays with
+   a key defender. RPO access is a pass-access attachment such as alert/glance/
+   bubble/peek/smoke/now. The old game DB sometimes put both under option_rpo,
+   so the caller classifies by play text + core concept before scoring. */
+const OPTION_RUN_TEXT_RE=/\b(inside\s*veer|midline|mid\s*line|triple\s*option|tr\s*option|counter\s*option|option\s*cntr|speed\s*option|load\s*option|zone\s*read|read\s*option|qb\s*read|power\s*read|inverted\s*veer|bash|veer\b|pitch\s*read|load\s*read|keep\s*read)\b/i;
+const RPO_ACCESS_TEXT_RE=/\b(rpo|alert|peek|glance|lookie|bubble|smoke|now\s*screen|access|back\s*out)\b/i;
+function isExplicitRpoAccessText(pl){
+  const txt=playText(pl);
+  return RPO_ACCESS_TEXT_RE.test(txt) || /\bzone\s+alert\b|\bread\s+alert\b|\bnow\b.*\bscreen\b/i.test(txt);
+}
+function isOptionRunText(pl){
+  if(!pl)return false;
+  const txt=playText(pl);
+  const c=String(pl.concept||'');
+  if(isExplicitRpoAccessText(pl)) return false;
+  if(['Inside Veer','Midline','Triple Option','Counter Option','Rocket Toss','Zone Dive','Read Option','Speed Option','Load Option','Power Read'].includes(c)) return true;
+  if(OPTION_RUN_TEXT_RE.test(txt)) return true;
+  if(/\boption\b/i.test(txt) && !/route|choice|rpo|alert|glance|peek|bubble|smoke|screen/i.test(txt)) return true;
+  return false;
+}
 function autoIntentTags(pl){
   const text=playText(pl);
   const form=(pl.formation||'').toLowerCase();
@@ -6141,8 +6249,12 @@ function autoIntentTags(pl){
   else if(pl.motion===2) motionType='motion';
   else if(pl.motion===1) motionType='formation_disguise';
 
+  const trueOptionRun=isOptionRunText(pl);
+  const explicitRpoAccess=isExplicitRpoAccessText(pl);
+
   let runScheme='none';
   if(/draw/.test(text)) runScheme='draw';
+  else if(trueOptionRun) runScheme='option_read';
   else if(/counter|gt|gh/.test(text)) runScheme='counter';
   else if(/power/.test(text)) runScheme='power';
   else if(/trap|wham/.test(text)) runScheme='trap_wham';
@@ -6152,19 +6264,20 @@ function autoIntentTags(pl){
   else if(/\b(zone|base)\b/.test(text)) runScheme='inside_zone';
   else if(/iso|dive|lead/.test(text)) runScheme='iso_dive';
   else if(/sweep|toss|jet/.test(text)&&fam==='run') runScheme='sweep_toss';
-  else if(/read|option|bash/.test(text)) runScheme='option_read';
   else if(fam==='run') runScheme=(brain.runFamily==='gap'?'power':brain.runFamily==='zone'?'inside_zone':'iso_dive');
 
   let passStructure='none';
   if(/draw/.test(text)) passStructure='draw';
+  else if(trueOptionRun) passStructure='none';
   else if(fam==='screen'||/screen|bubble|smoke|slip|tunnel|jailbreak/.test(text)) passStructure='screen';
-  else if(fam==='option_rpo'||/rpo|glance|peek|alert|read|option/.test(text)) passStructure='rpo_access';
+  else if(explicitRpoAccess || fam==='option_rpo') passStructure='rpo_access';
   else if(fam==='play_action'||/boot|naked|keeper|waggle|play.action|\bpa\b|leak/.test(text)) passStructure=/boot|naked|keeper|waggle/.test(text)?'boot':'play_action';
   else if(/verts|vertical|post|go|shot|fade|seam|wheel|dagger/.test(text)) passStructure='shot';
   else if(/stick|slant|quick|hitch|spot|spacing|now|smoke/.test(text)) passStructure='quick_game';
   else if(fam==='pass') passStructure='dropback';
 
   let playType=fam==='screen'?'screen':(passStructure==='draw'?'draw':(passStructure==='rpo_access'?'rpo':(fam==='play_action'?'play_action':(fam==='pass'?'pass':(fam==='run'?'run':fam)))));
+  if(trueOptionRun) playType='run';
   if(passStructure==='screen') playType='screen';
   if(passStructure==='draw') playType='draw';
 
@@ -6190,9 +6303,10 @@ function autoIntentTags(pl){
   else if(runScheme==='inside_zone') actionFamily='Inside Zone';
   else if(runScheme==='wide_zone') actionFamily='Wide Zone';
   else if(runScheme==='draw') actionFamily='Draw';
+  else if(runScheme==='option_read') actionFamily='Option Run';
   else if(passStructure==='boot') actionFamily='Boot';
   else if(passStructure==='screen') actionFamily='Screen';
-  else if(passStructure==='rpo_access') actionFamily='RPO';
+  else if(passStructure==='rpo_access') actionFamily='RPO Access';
   else if(passStructure==='quick_game') actionFamily='Quick Game';
 
   let series=(brain&&brain.series)||'Changeup';
@@ -6203,6 +6317,7 @@ function autoIntentTags(pl){
   if(runScheme==='counter') series='Counter Series';
   if(runScheme==='trap_wham') series='Trap/Wham Series';
   if(runScheme==='sweep_toss') series=/jet/.test(text)?'Jet Series':'Perimeter Series';
+  if(runScheme==='option_read') series='Option Series';
   if(passStructure==='rpo_access') series='RPO Access Series';
   if(passStructure==='quick_game') series='Quick Game Series';
   if(passStructure==='screen') series='Screen Series';
@@ -6215,6 +6330,7 @@ function autoIntentTags(pl){
 
   let role=(brain&&brain.role)||'changeup';
   if(playType==='run' && ['inside_zone','wide_zone','duo','power'].includes(runScheme)) role='base run';
+  if(runScheme==='option_read') role='option run / assignment conflict';
   if(['counter','trap_wham','draw'].includes(runScheme)) role='constraint run';
   if(playType==='rpo') role='conflict answer';
   if(playType==='screen') role='space / pressure answer';
@@ -6227,6 +6343,7 @@ function autoIntentTags(pl){
   else if(passStructure==='screen') conflictDefender='pass_rush';
   else if(passStructure==='boot'||passStructure==='play_action') conflictDefender='edge';
   else if(['wide_zone','sweep_toss'].includes(runScheme)) conflictDefender='force';
+  else if(runScheme==='option_read') conflictDefender='read_key';
   else if(['power','counter','inside_zone','duo'].includes(runScheme)) conflictDefender='playside_lb';
   else if(passStructure==='shot') conflictDefender='safety';
   else if(passStructure==='quick_game'||passStructure==='dropback') conflictDefender='coverage_shell';
@@ -6237,6 +6354,7 @@ function autoIntentTags(pl){
   else if(passStructure==='boot'||passStructure==='play_action') primaryStress='eye_discipline';
   else if(passStructure==='shot') primaryStress='vertical_stretch';
   else if(passStructure==='quick_game'||passStructure==='dropback') primaryStress='coverage_leverage';
+  else if(runScheme==='option_read') primaryStress='assignment_conflict';
   else if(runScheme==='wide_zone'||runScheme==='sweep_toss') primaryStress='horizontal_stretch';
   else if(runScheme==='power'||runScheme==='counter') primaryStress='extra_gap';
   else if(runScheme==='inside_zone'||runScheme==='duo'||runScheme==='iso_dive') primaryStress='box_count';
@@ -6318,6 +6436,11 @@ function autoIntentTags(pl){
   if(pl.concept==='Other / Unknown') installConfidence='installed';
   if(['Inside Zone','Power / Power O','Counter','Stick','Quick Game','Screen','Boot / Play Action'].includes(pl.concept)) installConfidence='trusted';
   if(['Verticals / Four Verticals','Dagger','Post','Go Routes'].includes(pl.concept)) installConfidence='repped';
+  if(trueOptionRun){
+    passStructure='none'; playType='run'; runScheme='option_read'; actionFamily='Option Run'; series='Option Series';
+    role='option run / assignment conflict'; conflictDefender='read_key'; primaryStress='assignment_conflict';
+    timing='normal'; protection='none'; routeFamily='none'; readType='key_defender'; routeTiming='none'; beatsCoverage='balanced'; weakVs='loaded_box'; requiresProtection='none'; hasHot='none';
+  }
 
   const confidence=(pl.concept&&pl.concept!=='Other / Unknown'?0.78:0.55) + (playType!=='unknown'?0.08:0) + (motionType!=='none'?0.04:0);
   return {
@@ -6340,6 +6463,8 @@ function getIntentTags(pl){
 function intentMatchesType(tags,type){
   if(!type)return true;
   if(type==='play_action')return tags.playType==='play_action'||tags.passStructure==='boot'||tags.passStructure==='play_action';
+  if(type==='option_run')return tags.playType==='run'&&tags.runScheme==='option_read';
+  if(type==='rpo_access')return tags.playType==='rpo'||tags.passStructure==='rpo_access';
   return tags.playType===type||tags.passStructure===type||tags.runScheme===type;
 }
 function intentRows(){
@@ -6354,14 +6479,14 @@ function intentRows(){
       return (p.formation+' '+p.play+' '+p.concept+' '+Object.values(t).join(' ')).toLowerCase().includes(q);
     });
   }
-  if(_intentType) plays=plays.filter(p=>intentMatchesType(getIntentTags(p),_intentType));
+  if(_intentType) plays=plays.filter(p=>['option_run','rpo_access','base_run','downhill_run','perimeter_run','run_constraint','quick_game','dropback_pass','shot'].includes(_intentType)?playIntentKey(p)===_intentType:intentMatchesType(getIntentTags(p),_intentType));
   return plays;
 }
 function renderIntentStats(rows){
   const wrap=$('#intent-stats'); if(!wrap)return; wrap.innerHTML='';
-  const counts={run:0,pass:0,play_action:0,rpo:0,screen:0,draw:0,edited:Object.keys(_intentOverrides).length};
-  (rows||[]).forEach(p=>{const t=getIntentTags(p); if(counts[t.playType]!=null) counts[t.playType]++;});
-  [['Visible',rows.length],['Run',counts.run],['Pass',counts.pass],['PA/Boot',counts.play_action],['RPO',counts.rpo],['Screen',counts.screen],['Draw',counts.draw],['Edited',counts.edited]].forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));wrap.appendChild(c);});
+  const counts={run:0,pass:0,play_action:0,rpo:0,option:0,screen:0,draw:0,edited:Object.keys(_intentOverrides).length};
+  (rows||[]).forEach(p=>{const t=getIntentTags(p); const k=playIntentKey(p); if(k==='option_run')counts.option++; else if(counts[t.playType]!=null) counts[t.playType]++;});
+  [['Visible',rows.length],['Run',counts.run],['Option',counts.option],['Pass',counts.pass],['PA/Boot',counts.play_action],['RPO Access',counts.rpo],['Screen',counts.screen],['Draw',counts.draw],['Edited',counts.edited]].forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));wrap.appendChild(c);});
 }
 function makeIntentSel(formation,play,field,current){
   const sel=el('select','intent-sel');
@@ -6411,12 +6536,12 @@ function renderIntentTable(){
 function exportIntentTags(){
   const rows=intentRows();
   if(!rows.length){toast('No intent tags to export');return;}
-  const head=['Formation','Play','Concept','Play Type','Surface','Motion Purpose','Run Scheme','Pass Structure','Series','Conflict Defender','Primary Stress','Route Family','Read Type','Route Timing','Beats Coverage','Weak Vs','Requires Protection','Has Hot','Install Confidence','Edited'];
+  const head=['Formation','Play','Concept','Play Intent','Play Type','Surface','Motion Purpose','Run Scheme','Pass Structure','Series','Conflict Defender','Primary Stress','Route Family','Read Type','Route Timing','Beats Coverage','Weak Vs','Requires Protection','Has Hot','Install Confidence','Edited'];
   const esc=v=>/[",\n]/.test(String(v))?'"'+String(v).replace(/"/g,'""')+'"':String(v);
   const body=rows.map(p=>{
     const t=getIntentTags(p);
     const edited=!!getIntentPatch(p.formation,p.play);
-    return [p.formation,p.play,p.concept,t.playType,t.surface,t.motionPurpose,t.runScheme,t.passStructure,t.series,t.conflictDefender,t.primaryStress,t.routeFamily,t.readType,t.routeTiming,t.beatsCoverage,t.weakVs,t.requiresProtection,t.hasHot,t.installConfidence,edited?'yes':'no'].map(esc).join(',');
+    return [p.formation,p.play,p.concept,playIntentLabel(p),t.playType,t.surface,t.motionPurpose,t.runScheme,t.passStructure,t.series,t.conflictDefender,t.primaryStress,t.routeFamily,t.readType,t.routeTiming,t.beatsCoverage,t.weakVs,t.requiresProtection,t.hasHot,t.installConfidence,edited?'yes':'no'].map(esc).join(',');
   });
   const blob=new Blob([[head.join(','),...body].join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='play_intent_tags.csv';document.body.appendChild(a);a.click();a.remove();
@@ -6736,12 +6861,14 @@ function inferMotion(form,play){
 }
 function normalizeFamily(family, play){
   const f=cleanCell(family).toLowerCase().replace(/[\s-]+/g,'_');
-  if(['run','pass','play_action','option_rpo','screen','unknown'].includes(f)) return f;
   const p=cleanCell(play).toLowerCase();
   if(/\b(screen|bubble|smoke|slip|tunnel|jailbreak)\b/.test(p)) return 'screen';
   if(/veer pass|rocket pass|tr cntr pass|\b(pa|play action|play-action|boot|fake|leak)\b/.test(p)) return 'play_action';
-  if(/\b(rpo|read|option|alert|peek|glance|bash|midline|veer)\b/.test(p)) return 'option_rpo';
-  if(/\b(zone|duo|power|counter|trap|dive|iso|toss|sweep|draw|base|stretch)\b/.test(p)) return 'run';
+  // v14.12: read/speed/load/veer/midline options are runs; RPO/access tags are separate.
+  if(/\b(rpo|alert|peek|glance|lookie)\b/.test(p)) return 'option_rpo';
+  if(/\b(inside\s*veer|midline|mid\s*line|triple\s*option|tr\s*option|counter\s*option|speed\s*option|load\s*option|zone\s*read|read\s*option|power\s*read|inverted\s*veer|bash|veer\b|pitch\s*read)\b/.test(p)) return 'run';
+  if(['run','pass','play_action','option_rpo','screen','unknown'].includes(f)) return f;
+  if(/\b(zone|duo|power|counter|trap|dive|iso|toss|sweep|draw|base|stretch|option)\b/.test(p)) return 'run';
   return 'pass';
 }
 function inferConcept(play, family){
@@ -6755,9 +6882,21 @@ function inferConcept(play, family){
   if(/bang\s*post|glance\s*post/.test(p)) return 'Bang Post';
   if(/glance/.test(p)) return 'Glance';
   if(/hitch/.test(p)) return 'Hitch';
+  if(/zone\s*triple|triple\s*zone|gun\s*triple|pistol\s*triple/.test(p)) return 'Zone Triple';
+  if(/outside\s*veer/.test(p)) return 'Outside Veer';
+  if(/arc\s*read|arc\s*option/.test(p)) return 'Arc Read';
+  if(/qb\s*power\s*read|quarterback\s*power\s*read/.test(p)) return 'QB Power Read';
+  if(/qb\s*counter|quarterback\s*counter/.test(p)) return 'QB Counter';
+  if(/dive\s*\/\s*give|give\s*phase|dive\s*phase/.test(p)) return 'Dive / Give';
+  if(/bubble\s*access/.test(p)) return 'Bubble Access';
+  if(/hitch\s*access/.test(p)) return 'Hitch Access';
+  if(/pop\s*pass|y\s*pop/.test(p)) return 'Pop Pass';
   if(/veer pass|rocket pass|tr cntr pass|option pass/.test(p)) return 'Veer Pass';
   if(/zone dive/.test(p)) return 'Zone Dive';
   if(/\bdart\b/.test(p)) return 'Dart';
+  if(/speed\s*option/.test(p)) return 'Speed Option';
+  if(/load\s*option/.test(p)) return 'Load Option';
+  if(/zone\s*read|read\s*option|qb\s*read/.test(p)) return 'Read Option';
   if(/power read|inverted veer|bash/.test(p)) return 'Power Read';
   if(/\bghost\b/.test(p)) return 'Ghost';
   if(/\btosser\b/.test(p)) return 'Tosser';
@@ -6803,7 +6942,8 @@ function inferConcept(play, family){
   if(/\b(outside zone|wide zone|stretch)\b/.test(p)) return 'Outside Zone / Stretch';
   if(/\binside zone\b/.test(p)) return 'Inside Zone';
   if(/\b(zone|base|duo)\b/.test(p)) return 'HB Base / Zone';
-  if(/\b(rpo|read|option|alert|peek|glance|bash)\b/.test(p)) return 'Option / RPO';
+  if(/\b(rpo|alert|peek|glance|lookie)\b/.test(p)) return 'Option / RPO';
+  if(/\b(read|option|bash)\b/.test(p)) return 'Read Option';
   if(fam==='screen') return 'Screen';
   if(fam==='option_rpo') return 'Option / RPO';
   if(fam==='play_action') return 'Boot / Play Action';
@@ -7738,7 +7878,7 @@ $('#btn-csv-db-reset').addEventListener('click',()=>{
 $$('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 
 // philosophy inputs
-// v14.10: broad Identity selector removed. System template or Custom mode is the top-level build path; situation scoring now gates PA/runs on long downs.
+// v14.12: broad Identity selector removed. System template or Custom mode is the top-level build path; situation scoring gates PA/runs on long downs and separates true option runs from RPO access.
 $('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none'; if(philosophy.system==='none'){philosophy.systemStrength=0; if($('#ph-system-strength'))$('#ph-system-strength').value=0; updateSystemStrengthLabel();} else { if(!Number(philosophy.systemStrength))philosophy.systemStrength=85; applyOffenseSystemDisciplineBlend({render:true}); } updateBuildModeUI(); renderOffenseSystemPlan(); save(LS.ph,philosophy);toast(philosophy.system==='none'?'Custom sliders only':'Offensive system set: '+labelSystem(philosophy.system));});
 $('#btn-system-preset').addEventListener('click',()=>applyOffenseSystemPreset());
 $('#btn-system-export').addEventListener('click',()=>exportSelectedSystemProfile());
@@ -7994,3 +8134,5 @@ console.log('Call Sheet ready · plays:',PLAYS.length,'· saved book:',playbook?
 </script>
 </body>
 </html>
+
+<!-- v14.12 patch: true option runs are separated from RPO access in auto-tags, filters, and live scoring. -->
