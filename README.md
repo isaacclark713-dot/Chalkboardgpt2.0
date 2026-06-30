@@ -1,20 +1,14 @@
-# Call Sheet — Coach Brain v14.7
+# Call Sheet — Coach Brain v14.8
 
-GitHub Pages ready build.
+Standalone GitHub Pages package.
 
-## v14.7 changes
-
-- Retired the old broad Identity selector from the Philosophy page.
-- Offensive System Template is now the primary scheme selection.
-- System Discipline now blends from default/manual sliders toward the selected system preset.
-- Formation style sliders are now hard rails:
-  - A 0% formation family is excluded from generated playbooks.
-  - Live suggestions also heavily suppress 0% formation families.
-- Paul Johnson can now be run two ways:
-  - Flexbone-heavy when Flexbone is selected.
-  - Non-Flexbone option adaptation when Flexbone is set to 0%.
-- Removed additional legacy identity/family influence from generation scoring.
+## What's new in v14.8
+- Adds source-backed RVO / Reliable Violent Offense preset.
+- Adds source-backed Mike Leach / Air Raid preset.
+- Refreshes Kyle Shanahan, Art Briles, and Peyton Manning / Tom Moore profiles from the latest uploaded app-ready PDFs.
+- Adds/expands core concepts needed by those profiles: Y Stick, Y Corner, Y Cross, Shallow, H Wheel, Seam Read, Bang Post, Glance, Hitch, and more.
+- Adds new system seed plans and formation rails for RVO and Air Raid.
+- Keeps v14.7 behavior where the old Identity selector no longer drives generation; offensive system templates, formation sliders, personnel sliders, core concept targets, run/pass band, and motion are the controlling inputs.
 
 ## Deploy
-
-Upload this folder to a GitHub repository and enable GitHub Pages from the repository settings.
+Upload all files in this folder to the root of a GitHub Pages repo.

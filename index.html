@@ -401,9 +401,11 @@
           <label class="fld">Offensive system template</label>
           <select id="ph-system">
             <option value="none">Custom sliders only — no system profile</option>
-            <option value="shanahan_wide_zone">Kyle Shanahan — wide zone / keeper</option>
+            <option value="shanahan_wide_zone">Kyle Shanahan — WZ/YAC play-action</option>
+            <option value="rvo_reliable_violent">RVO — Reliable Violent Offense</option>
             <option value="paul_johnson_flexbone">Paul Johnson — flexbone option</option>
-            <option value="art_briles_spread">Art Briles — veer-and-shoot spread</option>
+            <option value="art_briles_spread">Art Briles — Baylor wide-split spread</option>
+            <option value="mike_leach_air_raid">Mike Leach — Air Raid</option>
             <option value="peyton_manning_moore">Peyton Manning / Tom Moore — no-huddle precision</option>
             <option value="harbaugh_power_west_coast">Jim Harbaugh — power West Coast multiple</option>
             <option value="erhardt_perkins">Erhardt-Perkins — concept offense</option>
@@ -1302,6 +1304,20 @@ const CONCEPT_BEATS={
   "Levels":"hi-low timing window","All Curl":"vs soft/off zone","Dag / Smash":"high-low corner/flat","Ghost":"vertical + out/flat concept","Tosser":"double slants / quick man answer","INC":"in + curl concept","Drive":"shallow-to-dig timing","Zone Dive":"quick interior option dive","Dart":"spread iso / tackle pull","Power Read":"conflict run read",
   "Other / Unknown":"changeup"
 };
+Object.assign(CONCEPT_BEATS,{
+  "Y Stick":"vs underneath zone / nickel leverage",
+  "Y Corner":"vs Cover 2 / red zone leverage",
+  "Y Cross":"vs zone / linebackers losing depth",
+  "Shallow":"vs man / mesh traffic",
+  "H Wheel":"vs man / LB-safety mismatch",
+  "Seam Read":"vs two-high or rotated safety",
+  "Bang Post":"vs safety insert / middle-field void",
+  "Glance":"vs RPO access / safety trigger",
+  "Hitch":"vs cushion / access throw",
+  "Spacing":"vs zone spacing / underneath windows",
+  "Sail":"vs Cover 3 / boundary high-low"
+});
+
 
 
 /* ============================================================
@@ -2160,7 +2176,7 @@ const SITUATIONS = {
 };
 
 const MOTION_LABELS=[[0,"Static"],[20,"Light motion"],[40,"Moderate motion"],[65,"Heavy motion"],[85,"Max disguise"]];
-const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Trap","Dive","Zone Dive","Draw","Sweep","Jet Sweep","Rocket Toss","Triple Option","Inside Veer","Midline","Counter Option","Veer Pass","Option / RPO","Power Read","Dart","Boot / Play Action","Quick Game","Stick","Mesh","Flood","Smash","Dag / Smash","Levels","All Curl","Curls / Curl Flats","Screen","Verticals / Four Verticals","Go Routes","Post","Slants","Choice","Ghost","Tosser","INC","Drive"];
+const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Trap","Dive","Zone Dive","Draw","Sweep","Jet Sweep","Rocket Toss","Triple Option","Inside Veer","Midline","Counter Option","Veer Pass","Option / RPO","Power Read","Dart","Boot / Play Action","Quick Game","Stick","Y Stick","Y Corner","Y Cross","Mesh","Shallow","H Wheel","Flood","Sail","Smash","Dag / Smash","Levels","Seam Read","All Curl","Curls / Curl Flats","Spacing","Hitch","Screen","Verticals / Four Verticals","Go Routes","Post","Bang Post","Glance","Slants","Choice","Ghost","Tosser","INC","Drive"];
 const CONCEPT_TARGET_GUIDE={
   "Inside Zone":"base run guide 15–30%","Outside Zone / Stretch":"base run guide 12–25%","Power / Power O":"base run guide 12–25%","Counter":"constraint guide 6–15%","Duo":"base run guide 10–22%",
   "Trap":"constraint/quick hitter 3–10%","Dive":"short-yard / B-back guide 6–18%","Draw":"pass-game constraint 3–8%","Sweep":"perimeter guide 4–12%","Jet Sweep":"motion stress 4–10%","Rocket Toss":"option perimeter guide 6–14%",
@@ -2936,6 +2952,138 @@ const BUILT_IN_OFFENSE_SYSTEMS={
     conceptBoosts:{'Inside Zone':1.24,'Option / RPO':1.24,'Quick Game':1.15,'Stick':1.12,'Screen':1.13,'Verticals / Four Verticals':1.08,'Draw':1.08,'Jet Touch Pass':1.10},familyBoosts:{run:1.08,option_rpo:1.25,pass:1.06,screen:1.08},surfaceBoosts:{spread:1.14,trips:1.12,empty:1.10},motionBoosts:{orbit:1.14,jet:1.14,across:1.08},persBoosts:{'11':1.14,'10':1.12,'20':1.06},tagBoosts:[],tagPenalties:[],genCap:1.55,gameCap:1.15
   }
 };
+
+// v14.8 — source-backed profile refresh + new templates from latest uploaded PDFs.
+// These profiles use the app's current structure: system rails + formation sliders + core concept targets + play intent.
+BUILT_IN_OFFENSE_SYSTEMS.rvo_reliable_violent={
+  label:'RVO / Reliable Violent Offense', shortLabel:'RVO', source:'RVO Reliable Violent Offense Profile PDF', sourceBacked:true,
+  summary:'Few plays, many pictures, physical answers. A run-first multiple pro-spread profile built around wide zone, duo, split zone, counter, insert blockers, shifts, formation variation, and play-action stress.',
+  philosophy:'Be reliable enough to stay on schedule and violent enough to punish bad fits. Win with formation variation, not a bloated call sheet; repeat core run families through many pictures and marry them to boots, crossers, flood, and shots.',
+  runIdentity:'Wide zone, duo, split zone, insert/lead zone, inside zone, and Counter GT/GH form the base. The offense creates gaps and angles with TE/H-back/FB movement and punishes flowing linebackers with counters and cutbacks.',
+  passIdentity:'Play-action first, answers second, dropback third. Boot, keeper, deep cross, flood, Y-cross, sail, glance, bang post, leak, stick, spacing, hitch, choice, and mesh punish second-level overreaction.',
+  coreFormations:['Under-center I / I-Wing / Strong I / Weak I','Ace 12 / Wing Tight / Bunch TE / Nub TE','Gun 11 / Gun 12 / Gun Wing / Gun Y-Off','Pistol Strong','Condensed bunch / snug / nasty / nub looks'],
+  preferredPersonnel:['12','21','11','22'],
+  motionShift:'High-value shifts and motions: add a gap, remove a gap, change the strength, create leverage, expose coverage, and force defensive communication without losing the physical run identity.',
+  baseConcepts:['Outside Zone / Stretch','Duo','Inside Zone','Counter','Power / Power O','Boot / Play Action','Flood','Y Cross','Stick','Mesh'],
+  constraintConcepts:['Split Zone','Counter','Trap','Wham / Insert','Screen','Glance','Quick Game','Hitch','Spacing'],
+  shotConcepts:['Bang Post','Post','Y Cross','Sail','Flood','Verticals / Four Verticals','Go Routes','Dagger'],
+  screensRpos:['Screen','Glance access','Stick/spacing access','Bubble/now as changeup','Low-medium RPO rate'],
+  playActionFamily:['Boot / Play Action','Keeper','Leak','Y Cross','Flood','Sail','Bang Post','Deep Cross'],
+  bestAudibles:['Light box → wide zone/duo','Edge squeeze → boot/keeper/split-flow','LB overflow → counter/insert/throwback','Safety trigger → bang post/glance/Y-cross','Pressure → screen/quick access'],
+  scriptQuestions:['Can wide zone or duo stay on schedule?','Can shifts add/remove a gap and make the defense communicate?','Does the backside edge chase split-flow/boot?','Do linebackers overrun the run action?','Which condensed picture creates the cleanest PA crosser?'],
+  defensesStressed:['odd fronts that overfit width','two-high structures with light boxes','linebackers with poor eye discipline','defenses that struggle to adjust to shifts','nickel defenses versus 12/21 surfaces'],
+  defensesStruggles:['elite interior disruption','disciplined edges that cancel boot','teams that communicate shifts without moving gaps','loaded boxes if no access answer'],
+  sequencingRules:['Start with wide zone/duo/split-zone to test fit rules.','If width is overplayed, hit duo or counter.','If linebackers trigger, use boot/Y-cross/flood/bang post.','If the defense widens to motion, run inside.','Repeat the same core family from different pictures instead of chasing random calls.'],
+  selfScoutGuardrails:['Do not let the book drift into random spread calls.','Do not call wide zone without duo/counter/split-flow answers.','Do not make 11 personnel the only passing group.','Do not use motion unless it creates a gap, leverage, or information.'],
+  identityPreset:'balanced', rpBand:[56,64], motionPreset:65, sizeHint:300,
+  persMixPreset:{'12':34,'21':26,'11':24,'22':10,'13':2,'20':2,'10':2,'23':0},
+  formMixPreset:{shotgun:36,singleback:18,pistol:16,i_form:18,flexbone:0,wingbone:0,empty:1,under_center:7,other:4},
+  conceptTargetsPreset:{'Outside Zone / Stretch':14,'Duo':12,'Counter':9,'Inside Zone':8,'Power / Power O':6,'Boot / Play Action':9,'Y Cross':6,'Flood':6,'Sail':4,'Glance':4,'Bang Post':3,'Stick':5,'Spacing':4,'Mesh':4,'Screen':4},
+  conceptBoosts:{'Outside Zone / Stretch':1.30,'Duo':1.28,'Counter':1.20,'Inside Zone':1.16,'Power / Power O':1.12,'Boot / Play Action':1.22,'Y Cross':1.14,'Flood':1.14,'Sail':1.12,'Bang Post':1.10,'Glance':1.10,'Stick':1.08,'Spacing':1.08,'Mesh':1.06,'Screen':1.08,'Hitch':1.08},
+  familyBoosts:{run:1.20,play_action:1.16,pass:1.03,screen:1.05,option_rpo:1.02},
+  surfaceBoosts:{i_form:1.18,singleback:1.16,wing:1.18,y_off:1.16,condensed:1.16,bunch:1.12,tight:1.14,nub:1.12,pistol:1.10,spread:1.03},
+  motionBoosts:{shift:1.16,trade:1.14,motion:1.14,across:1.10,jet:1.08,orbit:1.08,add_gap:1.18,formation_disguise:1.14,widen_force:1.08},
+  persBoosts:{'12':1.22,'21':1.18,'11':1.06,'22':1.10,'13':1.04},
+  formTypeBoosts:{shotgun:1.12,singleback:1.16,pistol:1.12,i_form:1.16,under_center:1.08,empty:.55,flexbone:.34,wingbone:.42,other:.92},
+  tagBoosts:[{tag:'rvo_core',label:'RVO core run/PA family',m:1.24},{tag:'heavy_personnel',label:'12/21 physical surface',m:1.12},{tag:'motion_shift',label:'gap-changing motion/shift',m:1.12},{tag:'play_action_cross',label:'run-married PA crossers',m:1.10},{tag:'counter_constraint',label:'counter to fast flow',m:1.08}],
+  tagPenalties:[{tag:'static_spread_dropback',label:'random spread dropback drift',m:.66},{tag:'flexbone_core',label:'flexbone drift',m:.40},{tag:'empty',label:'empty is only a changeup',m:.65}], genCap:2.72, gameCap:1.48, systemStrengthPreset:90
+};
+
+BUILT_IN_OFFENSE_SYSTEMS.mike_leach_air_raid={
+  label:'Mike Leach / Air Raid', shortLabel:'Leach Air Raid', source:'Mike Leach Offense Air Raid PDF', sourceBacked:true,
+  summary:'Pass-first, hurry-up spread offense with a small playbook, many formations, wide spacing, 4–5 receiver structures, and repeated mastery of Mesh, Four Verts, All Curl, Y-Stick, Y-Corner, Y-Cross, Shallow, H-Wheel, screens, and quick throws.',
+  philosophy:'Threaten every point of the field with space, tempo, distribution, and repetition. Balance means distributing the ball to all skill players, not a 50/50 run-pass split.',
+  runIdentity:'Very limited and complementary: inside zone/dive, draw, occasional sweep/toss/counter/power, and checks into runs only against light boxes.',
+  passIdentity:'The pass game is the offense. Mesh, Four Verticals, All Curl/Hitch, Y Stick, Y Corner, Y Cross, Shallow, H Wheel, screens, quick game, and vertical seams force horizontal and vertical stress.',
+  coreFormations:['Ace / 2x2 spread','Trips / Trey Open','Blue / Green two-back spread','Open / Empty','4WR and 5WR spacing'],
+  preferredPersonnel:['10','11','20','12'],
+  motionShift:'Motion is not the main identity. Width, tempo, spacing, and repeated concepts are the stress. Use motion mostly as a changeup or to relocate backs/slots.',
+  baseConcepts:['Mesh','Verticals / Four Verticals','All Curl','Y Stick','Y Corner','Y Cross','Shallow','H Wheel','Screen','Quick Game','Stick'],
+  constraintConcepts:['Draw','Inside Zone','Screen','Quick Game','Hitch','All Curl','RB checkdown'],
+  shotConcepts:['Verticals / Four Verticals','Go Routes','Post','H Wheel','Y Cross','Y Corner','Slot Fade'],
+  screensRpos:['Screen','Bubble/now','RB screen','fast perimeter screens','run checks vs light box'],
+  playActionFamily:['Limited PA','Draw/throw constraint','rare play-action shot'],
+  bestAudibles:['Light box → inside zone/draw check','Blitz → hot screen/quick throw','Man → Mesh/Shallow/H-Wheel','Soft zone → All Curl/Hitch','Two-high → Four Verts seam or Y-Cross window'],
+  scriptQuestions:['Can they tackle Mesh and shallow crossers in space?','How do they carry Four Verts from 2x2 and Trips?','Does tempo force simple coverage?','Can All Curl/Hitch steal easy yards?','When is the box light enough to check run?'],
+  defensesStressed:['slow communication defenses','man coverage vulnerable to Mesh','zone teams with soft underneath windows','two-high teams that widen too much','LBs forced to run horizontally'],
+  defensesStruggles:['rush-three/drop-eight if QB gets impatient','tight man with pass rush','disciplined tackling in space','wind/rain if ball control is needed'],
+  sequencingRules:['Repeat core concepts until the defense proves it can stop them.','Use Mesh/Shallow to attack man and create YAC.','Use All Curl/Hitch to punish soft zone.','Use Four Verts/Y-Cross/Y-Corner when safeties or seams are vulnerable.','Only run when the box count clearly invites it.'],
+  selfScoutGuardrails:['Do not add too many run-game ideas.','Do not let empty become the only passing look.','Do not overcall shots without underneath completions.','Do not abandon the small-menu identity.'],
+  identityPreset:'pass', rpBand:[18,30], motionPreset:22, sizeHint:300,
+  persMixPreset:{'10':42,'11':44,'20':8,'12':4,'21':1,'13':0,'22':0,'23':0},
+  formMixPreset:{shotgun:70,singleback:0,pistol:2,i_form:0,flexbone:0,wingbone:0,empty:24,under_center:0,other:4},
+  conceptTargetsPreset:{'Mesh':14,'Verticals / Four Verticals':12,'All Curl':10,'Y Stick':9,'Y Corner':8,'Y Cross':8,'Shallow':8,'H Wheel':5,'Screen':8,'Quick Game':6,'Hitch':5,'Draw':3,'Inside Zone':3},
+  conceptBoosts:{'Mesh':1.34,'Verticals / Four Verticals':1.28,'All Curl':1.24,'Y Stick':1.22,'Y Corner':1.22,'Y Cross':1.20,'Shallow':1.20,'H Wheel':1.18,'Screen':1.18,'Quick Game':1.14,'Hitch':1.12,'Curls / Curl Flats':1.12,'Go Routes':1.10,'Post':1.06,'Draw':1.04,'Inside Zone':1.02},
+  familyBoosts:{pass:1.28,screen:1.14,run:.76,play_action:.72,option_rpo:.70},
+  surfaceBoosts:{spread:1.22,trips:1.20,empty:1.18,bunch:.92,condensed:.76,i_form:.45,wing:.45,y_off:.60},
+  motionBoosts:{motion:1.02,across:1.02,shift:.96,jet:.92,orbit:.92,add_gap:.82},
+  persBoosts:{'10':1.22,'11':1.20,'20':1.08,'12':.92,'21':.55,'22':.45,'13':.45},
+  formTypeBoosts:{shotgun:1.30,empty:1.24,pistol:.85,singleback:.38,i_form:.30,under_center:.30,flexbone:.20,wingbone:.20,other:.94},
+  tagBoosts:[{tag:'air_raid_core',label:'Air Raid core concept',m:1.28},{tag:'air_raid_spread',label:'spread/empty spacing',m:1.18},{tag:'screen_constraint',label:'screen/YAC constraint',m:1.08}],
+  tagPenalties:[{tag:'heavy_personnel',label:'heavy personnel drift',m:.48},{tag:'option_heavy',label:'option drift',m:.50},{tag:'keeper_boot',label:'boot/keeper drift',m:.72},{tag:'flexbone_core',label:'flexbone drift',m:.25}], genCap:2.75, gameCap:1.48, systemStrengthPreset:90
+};
+
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone,{
+  label:'Kyle Shanahan / WZ-YAC Play-Action', shortLabel:'Shanahan WZ/YAC', source:'Kyle Shanahan Offense App/Playbook Profile PDF', sourceBacked:true,
+  summary:'Heavy-personnel wide-zone offense using motion, condensed formations, and same-look play families to create run stress, play-action explosives, and YAC opportunities.',
+  philosophy:'Create the illusion that every play is the same until the ball declares otherwise: same picture, different answer.',
+  runIdentity:'Wide/outside zone is the foundation. Mid/inside zone, split zone, toss/crack toss, duo, wham/trap, and counter GH/power changeups keep defenses from overplaying lateral flow.',
+  passIdentity:'Play-action first, YAC second, dropback third: under-center PA, boot/keeper/naked, deep overs, crossers, drift, glance, leak, flood/sail, dagger, Y-cross, drive, choice, mesh, spacing, screens, and quick throws.',
+  coreFormations:['I / Pro sets','Singleback Ace / Deuce / Ace Wing','Condensed bunch / stack / tight','Heavy/movable 12/21/22/13','Empty from 21 / motion-to-I / unbalanced'],
+  preferredPersonnel:['21','12','11','22','13','20'],
+  baseConcepts:['Outside Zone / Stretch','Inside Zone','Duo','Counter','Boot / Play Action','Y Cross','Flood','Sail','Mesh','Drive','Choice','Screen'],
+  conceptTargetsPreset:{'Outside Zone / Stretch':16,'Boot / Play Action':12,'Y Cross':7,'Flood':6,'Sail':5,'Duo':6,'Counter':6,'Inside Zone':5,'Screen':6,'Mesh':5,'Drive':4,'Choice':4,'Glance':4,'Bang Post':3},
+  conceptBoosts:Object.assign({},BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone.conceptBoosts||{},{'Outside Zone / Stretch':1.38,'Boot / Play Action':1.34,'Y Cross':1.22,'Flood':1.20,'Sail':1.18,'Duo':1.14,'Screen':1.12,'Drive':1.10,'Choice':1.08,'Glance':1.10,'Bang Post':1.08}),
+  persMixPreset:{'21':30,'12':28,'11':20,'22':10,'13':5,'20':4,'10':2,'23':1},
+  formMixPreset:{shotgun:22,singleback:30,pistol:3,i_form:23,flexbone:0,wingbone:0,empty:2,under_center:17,other:3},
+  formTypeBoosts:{singleback:1.22,i_form:1.20,under_center:1.15,shotgun:1.08,pistol:1.00,empty:.65,flexbone:.26,wingbone:.30,other:.88},
+  motionPreset:78, rpBand:[50,63], systemStrengthPreset:90, sizeHint:300,
+  tagBoosts:[{tag:'wide_zone',label:'wide zone foundation',m:1.22},{tag:'keeper_boot',label:'boot/keeper/leak family',m:1.20},{tag:'condensed_surface',label:'condensed/heavy movable surface',m:1.14},{tag:'heavy_personnel',label:'21/12/22/13 personnel stress',m:1.12},{tag:'play_action_cross',label:'PA crossers/YAC',m:1.12},{tag:'motion_shift',label:'motion/shift/trade stress',m:1.10},{tag:'counter_constraint',label:'counter/duo constraint',m:1.08},{tag:'screen_constraint',label:'screen/leak constraint',m:1.08}],
+  tagPenalties:[{tag:'static_spread_dropback',label:'static spread dropback drift',m:.58},{tag:'flexbone_core',label:'flexbone drift',m:.26},{tag:'option_heavy',label:'option drift',m:.62}], genCap:2.75, gameCap:1.48
+});
+
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread,{
+  label:'Art Briles / Baylor Wide-Split Spread', shortLabel:'Briles Wide Split', source:'Art Briles PDF', sourceBacked:true,
+  summary:'Hyper-tempo spread-run offense built around ultra-wide splits, 10/11 personnel, RPOs, Dart/inside zone/power reads, bubble/now screens, and vertical choice shots.',
+  runIdentity:'Dart/iso, inside zone, outside zone, power read/inverted veer, counters, and QB/RB run-pass conflict from shotgun spacing.',
+  passIdentity:'Wide-split vertical choice passing, deep choice, slot choice, single choice, outside choice, screens, quick throws, and downfield isolation created by tempo and space.',
+  coreFormations:['Shotgun 3x1 / Trips','Shotgun 2x2 / Doubles','Empty / 10 personnel','Double stack / wide split looks','Pistol or 12 personnel as changeups'],
+  preferredPersonnel:['11','10','12'],
+  baseConcepts:['Dart','Inside Zone','Power Read','Option / RPO','Choice','Verticals / Four Verticals','Go Routes','Screen','Slants','Quick Game'],
+  conceptTargetsPreset:{'Dart':12,'Inside Zone':10,'Power Read':8,'Option / RPO':12,'Choice':12,'Verticals / Four Verticals':10,'Go Routes':6,'Screen':10,'Slants':5,'Post':5,'Quick Game':5},
+  conceptBoosts:Object.assign({},BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread.conceptBoosts||{},{'Dart':1.30,'Power Read':1.24,'Inside Zone':1.18,'Choice':1.28,'Verticals / Four Verticals':1.18,'Go Routes':1.18,'Screen':1.20,'Option / RPO':1.26,'Slants':1.10,'Post':1.10}),
+  persMixPreset:{'11':58,'10':28,'12':10,'20':2,'21':1,'13':0,'22':1,'23':0},
+  formMixPreset:{shotgun:72,singleback:0,pistol:5,i_form:0,flexbone:0,wingbone:0,empty:18,under_center:0,other:5},
+  formTypeBoosts:{shotgun:1.30,empty:1.18,pistol:1.05,singleback:.42,i_form:.30,under_center:.28,flexbone:.22,wingbone:.22,other:.92},
+  motionPreset:45, rpBand:[42,54], systemStrengthPreset:90, sizeHint:300,
+  tagBoosts:[{tag:'tempo_spread',label:'hyper-tempo spread spacing',m:1.16},{tag:'vertical_choice',label:'vertical/choice stress',m:1.22},{tag:'dart_power',label:'dart/power run conflict',m:1.18},{tag:'rpo_access',label:'RPO/screen access',m:1.16},{tag:'screen_constraint',label:'bubble/screen constraint',m:1.10}],
+  tagPenalties:[{tag:'heavy_personnel',label:'heavy personnel drift',m:.62},{tag:'flexbone_core',label:'flexbone drift',m:.28},{tag:'keeper_boot',label:'under-center boot drift',m:.68}], genCap:2.75, gameCap:1.48
+});
+
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.peyton_manning_moore,{
+  label:'Peyton Manning / Tom Moore Precision', shortLabel:'Manning Precision', source:'Peyton Manning / Tom Moore Offense Profile PDF', sourceBacked:true,
+  summary:'Low-motion, high-tempo, check-with-me, one-back 11/12 personnel system built around stretch, levels, dig, seam read, quick access throws, and Peyton-style run/pass checks.',
+  philosophy:'Simple to learn, hard to defend: a tight group of core answers that can be checked, tagged, and repeated with precision. Tempo creates information, and the QB becomes the post-huddle play caller.',
+  runIdentity:'Outside zone/stretch, inside zone, draw, weak zone, trap/cutback, and short-yardage zone/lead variants. The run game punishes light boxes and supports the passing/check system.',
+  passIdentity:'Rhythm, timing, coverage answers, and disciplined route adjustments: Levels, dig, seam read, three/four verticals, deep crossers, smash/Dag, quick access throws, and play-action stretch.',
+  coreFormations:['2x2 one-back Ace / Doubles / Ace Slot','3x1 one-back Trips / Trey','TE attached / wing Ace','Empty Doubles / Empty Trips','Bunch / stack as man answers','12/21 short-yardage looks'],
+  preferredPersonnel:['11','12','10','21'],
+  motionShift:'Low-volume and diagnostic. Motion confirms coverage, leverage, TE/RB relocation, or bunch/stack adjustments; the main stress is tempo and checks, not constant window dressing.',
+  baseConcepts:['Outside Zone / Stretch','Inside Zone','Draw','Levels','Seam Read','Dag / Smash','All Curl','Curls / Curl Flats','Quick Game','Screen','Verticals / Four Verticals'],
+  conceptTargetsPreset:{'Levels':14,'Seam Read':10,'Dag / Smash':9,'All Curl':8,'Curls / Curl Flats':8,'Quick Game':8,'Outside Zone / Stretch':10,'Inside Zone':6,'Draw':5,'Screen':5,'Verticals / Four Verticals':6,'Post':4,'Hitch':5,'Slants':4},
+  conceptBoosts:{'Levels':1.28,'Seam Read':1.24,'Dag / Smash':1.22,'Smash':1.20,'All Curl':1.18,'Curls / Curl Flats':1.16,'Quick Game':1.16,'Hitch':1.12,'Slants':1.10,'Outside Zone / Stretch':1.16,'Inside Zone':1.10,'Draw':1.10,'Screen':1.10,'Verticals / Four Verticals':1.08,'Post':1.08,'Go Routes':1.06,'Boot / Play Action':1.06},
+  familyBoosts:{pass:1.18,run:1.05,screen:1.05,play_action:1.04,option_rpo:.78},
+  surfaceBoosts:{spread:1.10,trips:1.10,empty:1.08,singleback:1.16,tight:1.06,bunch:1.05,condensed:.95,i_form:.72},
+  motionBoosts:{motion:.90,shift:.88,jet:.72,orbit:.72,add_gap:.70,formation_disguise:.90},
+  persBoosts:{'11':1.24,'12':1.16,'10':1.06,'21':.74,'22':.50,'13':.45},
+  persMixPreset:{'11':62,'12':25,'10':9,'21':3,'13':0,'20':1,'22':0,'23':0},
+  formMixPreset:{shotgun:38,singleback:34,pistol:2,i_form:1,flexbone:0,wingbone:0,empty:10,under_center:12,other:3},
+  formTypeBoosts:{shotgun:1.15,singleback:1.18,empty:1.08,under_center:1.08,pistol:.74,i_form:.42,flexbone:.16,wingbone:.16,other:.82},
+  motionPreset:15, rpBand:[34,46], systemStrengthPreset:90, sizeHint:220,
+  tagBoosts:[{tag:'manning_timing',label:'precision timing/check concept',m:1.22},{tag:'manning_ace_posse',label:'Ace/Posse one-back picture',m:1.14},{tag:'screen_constraint',label:'pressure screen/check answer',m:1.06}],
+  tagPenalties:[{tag:'motion_shift',label:'too much motion for Manning identity',m:.72},{tag:'option_heavy',label:'modern option/RPO drift',m:.45},{tag:'keeper_boot',label:'heavy boot/keeper drift',m:.76},{tag:'flexbone_core',label:'flexbone drift',m:.18}], genCap:2.65, gameCap:1.44
+});
+
 // v14.1 hard-scheme rails: profiles can now carry alignment-family presets and type boosts.
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.peyton_manning_moore,{
   systemStrengthPreset:88,
@@ -2993,6 +3141,14 @@ Object.assign(BUILT_IN_OFFENSE_SYSTEMS.spread_tempo_inside_zone,{
   formMixPreset:{shotgun:66,singleback:2,pistol:8,i_form:0,flexbone:0,wingbone:0,empty:20,under_center:0,other:4},
   formTypeBoosts:{shotgun:1.20,empty:1.12,pistol:1.06,singleback:.75,i_form:.60,flexbone:.50,wingbone:.50,under_center:.60}
 });
+
+// v14.8 re-assert updated profile rail presets after legacy starter assignments.
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.rvo_reliable_violent,{systemStrengthPreset:90,formMixPreset:{shotgun:36,singleback:18,pistol:16,i_form:18,flexbone:0,wingbone:0,empty:1,under_center:7,other:4},formTypeBoosts:{shotgun:1.12,singleback:1.16,pistol:1.12,i_form:1.16,under_center:1.08,empty:.55,flexbone:.34,wingbone:.42,other:.92},genCap:2.72,gameCap:1.48});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.mike_leach_air_raid,{systemStrengthPreset:90,formMixPreset:{shotgun:70,singleback:0,pistol:2,i_form:0,flexbone:0,wingbone:0,empty:24,under_center:0,other:4},formTypeBoosts:{shotgun:1.30,empty:1.24,pistol:.85,singleback:.38,i_form:.30,under_center:.30,flexbone:.20,wingbone:.20,other:.94},genCap:2.75,gameCap:1.48});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone,{systemStrengthPreset:90,formMixPreset:{shotgun:22,singleback:30,pistol:3,i_form:23,flexbone:0,wingbone:0,empty:2,under_center:17,other:3},formTypeBoosts:{singleback:1.22,i_form:1.20,under_center:1.15,shotgun:1.08,pistol:1.00,empty:.65,flexbone:.26,wingbone:.30,other:.88},genCap:2.75,gameCap:1.48});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread,{systemStrengthPreset:90,formMixPreset:{shotgun:72,singleback:0,pistol:5,i_form:0,flexbone:0,wingbone:0,empty:18,under_center:0,other:5},formTypeBoosts:{shotgun:1.30,empty:1.18,pistol:1.05,singleback:.42,i_form:.30,under_center:.28,flexbone:.22,wingbone:.22,other:.92},genCap:2.75,gameCap:1.48});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.peyton_manning_moore,{systemStrengthPreset:90,formMixPreset:{shotgun:38,singleback:34,pistol:2,i_form:1,flexbone:0,wingbone:0,empty:10,under_center:12,other:3},formTypeBoosts:{shotgun:1.15,singleback:1.18,empty:1.08,under_center:1.08,pistol:.74,i_form:.42,flexbone:.16,wingbone:.16,other:.82},genCap:2.65,gameCap:1.44});
+
 const LS_OFF_SYS='callsheet_offense_systems_v1';
 let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
 function allOffenseSystems(){return {...BUILT_IN_OFFENSE_SYSTEMS,...(_customOffenseSystems||{})};}
@@ -3006,6 +3162,10 @@ function offSysHas(text,arr){return arr.some(x=>text.includes(x));}
 function offSysTagMatch(pl,tag){
   const text=offSysText(pl); const t=(typeof intentSafe==='function')?(intentSafe(pl)||{}):{}; const c=(pl&&pl.concept)||''; const f=(pl&&pl.family)||''; const pers=String((pl&&pl.pers)||'');
   switch(tag){
+
+    case 'rvo_core': return ['Outside Zone / Stretch','Duo','Counter','Inside Zone','Boot / Play Action','Y Cross','Flood','Sail','Glance','Bang Post','Stick','Spacing','Mesh'].includes(c)||offSysHas(text,['wide zone','outside zone','duo','split zone','counter','insert','iso','lead zone','boot','keeper','y cross','flood','sail','glance','bang post']);
+    case 'air_raid_core': return ['Mesh','Verticals / Four Verticals','All Curl','Y Stick','Y Corner','Y Cross','Shallow','H Wheel','Screen','Quick Game','Hitch','Curls / Curl Flats'].includes(c)||offSysHas(text,['mesh','four verts','4 verts','all curl','y stick','y corner','y cross','shallow','h wheel','h-wheel','screen','hitch']);
+    case 'air_raid_spread': return ['spread','trips','empty'].includes(t.surface)||['10','11','20'].includes(pers)||offSysHas(text,['ace','trips','trey','blue','green','open','empty','spread','wide split','doubles']);
     case 'wide_zone': return c==='Outside Zone / Stretch'||t.runScheme==='wide_zone'||offSysHas(text,['outside zone','wide zone','stretch']);
     case 'keeper_boot': return c==='Boot / Play Action'||t.passStructure==='boot'||offSysHas(text,['boot','keeper','naked','waggle','leak','slide','drift']);
     case 'play_action_cross': return f==='play_action'||offSysHas(text,['play action','pa ','y cross','high cross','drift','flood','sail','crosser','mesh','levels','yankee']);
@@ -3154,8 +3314,10 @@ function systemRailFormationMatch(form,systemKey){
   const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
   switch(systemKey||((philosophy&&philosophy.system)||'none')){
     case 'paul_johnson_flexbone': return /(^|\s)flexbone(\s|$)/.test(f);
-    case 'art_briles_spread': return /\bgun\b|shotgun|spread|trips|doubles|empty|pistol/.test(f);
-    case 'peyton_manning_moore': return /ace|posse|singleback|gun\s+(doubles|trips|ace|big)|trips|doubles|jet/.test(f);
+    case 'rvo_reliable_violent': return /i\s*form|strong\s*i|weak\s*i|singleback|ace|wing|y\s*off|bunch|tight|nub|pistol|\bgun\b|shotgun|trips|doubles/.test(f);
+    case 'art_briles_spread': return /\bgun\b|shotgun|spread|trips|doubles|empty|pistol|stack/.test(f);
+    case 'mike_leach_air_raid': return /\bgun\b|shotgun|spread|trips|trey|doubles|empty|ace|blue|green|open/.test(f);
+    case 'peyton_manning_moore': return /ace|posse|singleback|gun\s+(doubles|trips|ace|big)|trips|doubles|empty|jet/.test(f);
     case 'harbaugh_power_west_coast': return /i\s*form|strong\s*i|weak\s*i|singleback|ace|deuce|pistol|\bgun\b|full\s*house|power\s*i|wing|tight|y\s*off/.test(f);
     case 'erhardt_perkins': return /singleback|ace|i\s*form|strong\s*i|weak\s*i|\bgun\b|empty|trips|bunch|doubles|y\s*off|tight/.test(f);
     case 'shanahan_wide_zone': return /i\s*form|strong\s*i|singleback|wing|y\s*off|bunch|tight|ace|deuce|gun\s+wing/.test(f);
@@ -3187,6 +3349,23 @@ function applySystemFormationRails(formRanked, allForms, maxForms){
   return out.slice(0,maxForms);
 }
 function systemRailSeedPlans(systemKey,target){
+
+  if(systemKey==='rvo_reliable_violent'){
+    return [
+      {label:'RVO run core',re:/outside zone|wide zone|stretch|duo|split zone|inside zone|counter|insert|iso|lead/i,n:Math.max(26,Math.round(target*.24))},
+      {label:'RVO PA crossers',re:/boot|keeper|play action|pa |y cross|flood|sail|deep cross|leak/i,n:Math.max(12,Math.round(target*.11))},
+      {label:'RVO access/checks',re:/stick|spacing|hitch|glance|screen|bubble|now|mesh/i,n:Math.max(10,Math.round(target*.09))},
+      {label:'RVO shots',re:/bang post|post|go|vertical|verts|shot|dagger/i,n:Math.max(6,Math.round(target*.05))}
+    ];
+  }
+  if(systemKey==='mike_leach_air_raid'){
+    return [
+      {label:'Air Raid core pass',re:/mesh|all curl|y stick|stick|y corner|y cross|shallow|h wheel|hitch|quick/i,n:Math.max(34,Math.round(target*.32))},
+      {label:'Air Raid vertical',re:/four vertical|verts|vertical|go|post|seam|fade|corner/i,n:Math.max(16,Math.round(target*.15))},
+      {label:'Air Raid screens',re:/screen|bubble|now|smoke|tunnel|swing/i,n:Math.max(12,Math.round(target*.10))},
+      {label:'Air Raid run checks',re:/inside zone|draw|dive|sweep|toss|counter/i,n:Math.max(6,Math.round(target*.05))}
+    ];
+  }
   if(systemKey==='paul_johnson_flexbone'){
     return [
       {label:'base option',re:/triple option|inside veer|midline|load option|speed option|veer|option/i,n:Math.max(24,Math.round(target*.30))},
@@ -3198,24 +3377,24 @@ function systemRailSeedPlans(systemKey,target){
   }
   if(systemKey==='shanahan_wide_zone'){
     return [
-      {label:'wide zone',re:/outside zone|wide zone|stretch/i,n:Math.max(8,Math.round(target*.08))},
-      {label:'keeper boot',re:/boot|keeper|leak|slide|drift|play action|\bpa\b/i,n:Math.max(8,Math.round(target*.09))},
-      {label:'constraint',re:/counter|trap|wham|screen/i,n:Math.max(6,Math.round(target*.06))}
+      {label:'wide zone/YAC run core',re:/outside zone|wide zone|stretch|duo|split zone|inside zone/i,n:Math.max(16,Math.round(target*.14))},
+      {label:'keeper boot and PA',re:/boot|keeper|leak|slide|drift|play action|\bpa\b|y cross|flood|sail|deep over/i,n:Math.max(16,Math.round(target*.14))},
+      {label:'same-picture constraints',re:/counter|trap|wham|screen|glance|choice|mesh|drive/i,n:Math.max(10,Math.round(target*.08))}
     ];
   }
   if(systemKey==='art_briles_spread'){
     return [
-      {label:'inside/dart',re:/inside zone|dart|power read|read option/i,n:Math.max(10,Math.round(target*.10))},
-      {label:'choice vertical',re:/choice|vertical|verts|go|fade|post/i,n:Math.max(10,Math.round(target*.10))},
-      {label:'rpo screen',re:/rpo|screen|bubble|smoke|tunnel/i,n:Math.max(8,Math.round(target*.08))}
+      {label:'Dart/inside power run',re:/inside zone|dart|power read|read option|iso|power/i,n:Math.max(16,Math.round(target*.15))},
+      {label:'choice vertical',re:/choice|vertical|verts|go|fade|post|seam/i,n:Math.max(18,Math.round(target*.16))},
+      {label:'RPO screen',re:/rpo|screen|bubble|smoke|tunnel|now/i,n:Math.max(14,Math.round(target*.12))}
     ];
   }
   if(systemKey==='peyton_manning_moore'){
     return [
-      {label:'ace/posse zone',re:/outside zone|stretch|inside zone|zone|ace|posse/i,n:Math.max(12,Math.round(target*.12))},
-      {label:'timing pass',re:/levels|dag|smash|curl|hitch|quick|out|slant|drive|inc|tosser/i,n:Math.max(18,Math.round(target*.18))},
-      {label:'screen answers',re:/screen|tunnel|rb screen|bubble|smoke/i,n:Math.max(8,Math.round(target*.07))},
-      {label:'vertical checks',re:/vertical|verts|go|post|fade|seam/i,n:Math.max(6,Math.round(target*.06))}
+      {label:'stretch/check run',re:/outside zone|stretch|inside zone|draw|zone|ace|posse/i,n:Math.max(12,Math.round(target*.11))},
+      {label:'precision timing pass',re:/levels|seam read|dag|smash|curl|hitch|quick|out|slant|drive|inc|tosser|all curl/i,n:Math.max(24,Math.round(target*.22))},
+      {label:'screen/hot answers',re:/screen|tunnel|rb screen|bubble|smoke|hot/i,n:Math.max(8,Math.round(target*.07))},
+      {label:'vertical leverage checks',re:/vertical|verts|go|post|fade|seam|divide/i,n:Math.max(8,Math.round(target*.07))}
     ];
   }
   if(systemKey==='harbaugh_power_west_coast'){
@@ -3276,7 +3455,7 @@ function renderSystemOptions(){
   sel.innerHTML='';
   const add=(value,label,parent=sel)=>{const o=el('option');o.value=value;o.textContent=label;parent.appendChild(o);};
   add('none','Custom sliders only — no system profile');
-  ['shanahan_wide_zone','paul_johnson_flexbone','art_briles_spread','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
+  ['shanahan_wide_zone','rvo_reliable_violent','paul_johnson_flexbone','art_briles_spread','mike_leach_air_raid','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
   const customKeys=Object.keys(_customOffenseSystems||{});
   if(customKeys.length){const og=el('optgroup');og.label='Imported profiles';customKeys.forEach(k=>add(k,_customOffenseSystems[k].label||k,og));sel.appendChild(og);}
   const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
@@ -3369,7 +3548,7 @@ function systemSummaryForSave(key){
   const sys=activeOffenseSystem(key); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return null;
   return {label:sys.label,source:sys.source||'',summary:sys.summary||'',strength:philosophy.systemStrength,formMixPreset:sys.formMixPreset||null,baseConcepts:(sys.baseConcepts||[]).slice(0,16),preferredPersonnel:(sys.preferredPersonnel||[]).slice(0,10),coreFormations:(sys.coreFormations||[]).slice(0,14),sequencingRules:(sys.sequencingRules||[]).slice(0,10),selfScoutGuardrails:(sys.selfScoutGuardrails||[]).slice(0,10)};
 }
-const AGGR_SHOT_CONCEPTS=["Verticals / Four Verticals","Flood","Post","Dagger","Smash","Go Routes","Bench / Corner Strike","Sail"];
+const AGGR_SHOT_CONCEPTS=["Verticals / Four Verticals","Flood","Post","Bang Post","Dagger","Smash","Go Routes","Bench / Corner Strike","Sail","Y Cross","Y Corner","H Wheel","Seam Read"];
 
 // full-DB plays grouped by formation (for padding audibles when a formation is thin in the book)
 const FORMATION_PLAYS={};
@@ -3971,7 +4150,7 @@ function sanitizePlayForCall(pl,i){
     const fam0=raw.family||raw.family_guess||raw.type||raw.fam||'';
     const family=normalizeFamily(fam0,play);
     const concept0=cleanCell(raw.concept||raw.parentConcept||raw.parent_concept||'');
-    const concept=(concept0&&CONCEPTS.includes(concept0))?concept0:inferConcept(play,family);
+    const concept=(concept0&&(CONCEPTS.includes(concept0)||CORE_CONCEPT_TARGETS.includes(concept0)))?concept0:inferConcept(play,family);
     const pers=String(raw.pers||raw.personnel||inferPers(formation)||'11');
     let motion=(raw.motion!=null)?Number(raw.motion):inferMotion(formation,play);
     if(!Number.isFinite(motion)) motion=0;
@@ -4157,7 +4336,7 @@ function safeSuggestPlay(down,dist,zone,yards){
    · 4th & short = power / conversion call  */
 
 // All concepts that are play-action by nature (regardless of family tag in DB)
-const PA_CONCEPTS=new Set(["Boot / Play Action","Fake Jet"]);
+const PA_CONCEPTS=new Set(["Boot / Play Action","Fake Jet","Veer Pass"]);
 
 function ddFit(pl,down,dist,yards){
   down=Number(down)||2;
@@ -4491,7 +4670,7 @@ function loadPlaybookBackup(file){
 /* ── Manual add play ────────────────────────────────────────────────── */
 function initAddPlayForm(){
   // Concept select
-  const cs=$('#ap-concept');if(cs&&cs.options.length<=1){CONCEPTS.forEach(c=>{const o=el('option');o.value=c;o.textContent=c;cs.appendChild(o);});}
+  const cs=$('#ap-concept');if(cs&&cs.options.length<=1){CORE_CONCEPT_TARGETS.forEach(c=>{const o=el('option');o.value=c;o.textContent=c;cs.appendChild(o);});}
   // Personnel select
   const ps=$('#ap-pers');if(ps&&ps.options.length<=1){ALL_PERS.forEach(v=>{const o=el('option');o.value=v;o.textContent=v+' — '+PERS_LABEL[v].split(' — ')[1];ps.appendChild(o);});ps.value='11';}
   // Formation datalist — unique formations from DB + book
@@ -6442,6 +6621,14 @@ function normalizeFamily(family, play){
 function inferConcept(play, family){
   const p=cleanCell(play).toLowerCase();
   const fam=normalizeFamily(family, play);
+  if(/y\s*stick|618/.test(p)) return 'Y Stick';
+  if(/y\s*corner|y\s*corner|617|corner\s*stick/.test(p)) return 'Y Corner';
+  if(/y\s*cross|95/.test(p)) return 'Y Cross';
+  if(/h\s*wheel|h-wheel|93/.test(p)) return 'H Wheel';
+  if(/seam\s*read|seam\s*alert|read\s*seam/.test(p)) return 'Seam Read';
+  if(/bang\s*post|glance\s*post/.test(p)) return 'Bang Post';
+  if(/glance/.test(p)) return 'Glance';
+  if(/hitch/.test(p)) return 'Hitch';
   if(/veer pass|rocket pass|tr cntr pass|option pass/.test(p)) return 'Veer Pass';
   if(/zone dive/.test(p)) return 'Zone Dive';
   if(/\bdart\b/.test(p)) return 'Dart';
@@ -6461,7 +6648,7 @@ function inferConcept(play, family){
   if(/\b(mesh)\b/.test(p)) return 'Mesh';
   if(/\bdrive\b/.test(p)) return 'Drive';
   if(/\bshallow\b/.test(p)) return 'Shallow';
-  if(/\by\s*cross\b|\bcross\b/.test(p)) return p.includes('y cross')?'Y Cross':'Shallow';
+  if(/\bcross\b|crosser/.test(p)) return 'Shallow';
   if(/\bdagger\b/.test(p)) return 'Dagger';
   if(/\bsail\b/.test(p)) return 'Sail';
   if(/\bflood\b/.test(p)) return 'Flood';
