@@ -1,16 +1,20 @@
-# Call Sheet — Coach Brain v14.6
+# Call Sheet — Coach Brain v14.7
 
-GitHub Pages package.
+GitHub Pages ready build.
 
-## What changed in v14.6
+## v14.7 changes
 
-- Visible legacy Family buckets were replaced by Play Intent categories.
-- Data → Play Corrections now edits Core Concept + Play Intent + Personnel.
-- In-game play cards now show Play Intent instead of the old run/pass/play_action/option_rpo family tag.
-- True option plays such as Inside Veer, Midline, Triple Option, Rocket Toss, Counter Option, and Veer Pass are treated as Option Run, not RPO Access.
-- Playbook distribution, Build List, CSV export, opening script, two-minute script, and live suggestions now use Play Intent labels.
-- Legacy family data is retained only internally for backward compatibility with older saves/imports.
+- Retired the old broad Identity selector from the Philosophy page.
+- Offensive System Template is now the primary scheme selection.
+- System Discipline now blends from default/manual sliders toward the selected system preset.
+- Formation style sliders are now hard rails:
+  - A 0% formation family is excluded from generated playbooks.
+  - Live suggestions also heavily suppress 0% formation families.
+- Paul Johnson can now be run two ways:
+  - Flexbone-heavy when Flexbone is selected.
+  - Non-Flexbone option adaptation when Flexbone is set to 0%.
+- Removed additional legacy identity/family influence from generation scoring.
 
-## Use
+## Deploy
 
-Upload this folder to GitHub Pages. The app is self-contained in `index.html` and saves locally in the browser.
+Upload this folder to a GitHub repository and enable GitHub Pages from the repository settings.
