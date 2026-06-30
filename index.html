@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v14.5</title>
+<title>Call Sheet — Coach Brain v14.9</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -363,6 +363,25 @@
   .intent-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:9.5px;font-weight:800;background:#dfeeff;color:#2f5891;margin-left:4px}
   .intent-sel{width:100%;min-width:120px;padding:4px 5px;font-size:11.5px;font-family:inherit;border:1px solid #bfcbd8;border-radius:2px;background:#f8fbff}
 
+  /* ---------- v14.9 setup flow facelift ---------- */
+  .setup-flow{display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px}
+  .step-card{border:1px solid #ddd9cd;background:#fbfaf5;border-radius:7px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .step-head{display:flex;gap:11px;align-items:flex-start;margin-bottom:10px}
+  .step-num{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:50%;background:var(--field);color:var(--chalk);font-family:monospace;font-weight:900;font-size:15px;border:2px solid var(--gold)}
+  .step-head h3{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--field)}
+  .step-head p{margin:2px 0 0;color:#70766e;font-size:12px;line-height:1.35}
+  .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .mode-card{border:1.5px solid #d5d2c8;background:#fff;border-radius:6px;padding:12px;text-align:left;font-family:inherit;cursor:pointer;transition:.12s;color:var(--ink)}
+  .mode-card:hover{border-color:var(--field);background:#f3f8f4}
+  .mode-card.on{border-color:var(--field);background:#eaf5ef;box-shadow:0 0 0 2px rgba(11,61,32,.12)}
+  .mode-title{display:block;font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--field)}
+  .mode-copy{display:block;font-size:11.5px;line-height:1.35;color:#666d64;margin-top:3px;text-transform:none;letter-spacing:0;font-weight:600}
+  #template-step.custom-mode{opacity:.75}
+  .workflow-box{border-left:4px solid var(--gold);background:#fff8e8;border-radius:4px;padding:12px;font-size:12.5px;color:#5a4b25;line-height:1.45}
+  .slider-rule-box{background:#f3f8f4;border:1px solid #cfe4d6;border-radius:6px;padding:12px;font-size:12.5px;color:#4d5f52;line-height:1.45}
+  .slider-rule-box b,.workflow-box b{color:var(--field)}
+  @media(max-width:760px){.mode-grid{grid-template-columns:1fr}.step-card{padding:12px}}
+
 </style>
 </head>
 <body>
@@ -390,14 +409,26 @@
   <!-- ============ PHILOSOPHY ============ -->
   <section class="panel active" id="panel-philosophy">
     <div class="card">
-      <h2>Offensive Philosophy</h2>
-      <p class="desc">Choose an offensive system template, then tune the actual personnel, formations, concepts, and run/pass band. Identity presets have been retired — the system profile and sliders now drive the book.</p>
+      <h2>Playbook Builder</h2>
+      <p class="desc">Start with a source-backed offensive system template or choose Custom. Then set the book size and tune the real controls: personnel, formations, run/pass band, motion, and core concepts.</p>
 
-      <div class="grid2">
-        <div class="callout" id="system-first-note" style="margin:0">
-          <b>System-first build:</b> select an offensive system template. The old broad identity preset no longer drives generation.
+      <div class="setup-flow">
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-num">1</span>
+            <div><h3>Choose your starting point</h3><p>Templates build a system from a coach profile. Custom ignores templates and uses only your sliders.</p></div>
+          </div>
+          <div class="mode-grid">
+            <button class="mode-card" id="btn-mode-template" type="button"><span class="mode-title">Use template</span><span class="mode-copy">Best for Shanahan, RVO, Paul Johnson, Briles, Leach, Manning/Moore, Harbaugh, or Erhardt-Perkins.</span></button>
+            <button class="mode-card" id="btn-mode-custom" type="button"><span class="mode-title">Go custom</span><span class="mode-copy">No coach profile. Build from your personnel, formation, concept, run/pass, and motion sliders.</span></button>
+          </div>
         </div>
-        <div>
+
+        <div class="step-card" id="template-step">
+          <div class="step-head">
+            <span class="step-num">2</span>
+            <div><h3>Pick offensive system</h3><p>System template is now the top-level identity. The old broad identity selector and tempo/aggression control are retired.</p></div>
+          </div>
           <label class="fld">Offensive system template</label>
           <select id="ph-system">
             <option value="none">Custom sliders only — no system profile</option>
@@ -416,16 +447,33 @@
               <option value="spread_tempo_inside_zone">Spread tempo IZ/RPO — starter template</option>
             </optgroup>
           </select>
-          <div class="hint">Source-backed profiles are the main scheme rails. System discipline blends the sliders from broad/default settings toward the selected system preset.</div>
+          <div class="hint">Changing the template updates the system plan. Click Apply system preset to snap the sliders to that profile, or adjust sliders manually.</div>
         </div>
-        <div>
-          <label class="fld">Tempo &amp; aggression</label>
-          <select id="ph-aggr">
-            <option value="measured">Measured — ball control</option>
-            <option value="normal" selected>Normal</option>
-            <option value="aggressive">Aggressive — explosives &amp; shots</option>
-          </select>
-          <div class="hint">Aggression adds verticals, flood, post, dagger, smash.</div>
+
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-num">3</span>
+            <div><h3>Set book size and discipline</h3><p>Discipline controls how hard the chosen profile pulls the sliders toward its preset. Custom mode sets discipline to zero.</p></div>
+          </div>
+          <div class="grid2">
+            <div>
+              <label class="fld">Playbook size</label>
+              <select id="ph-size">
+                <option value="60">Tight — ~60</option>
+                <option value="100" selected>Standard — ~100</option>
+                <option value="150">Wide — ~150</option>
+                <option value="220">Deep — ~220</option>
+                <option value="300">Large — ~300</option>
+                <option value="400">Max — ~400</option>
+              </select>
+              <div class="hint">How many plays to carry into the active book. 5 plays per selected formation is the floor, not the target.</div>
+            </div>
+            <div>
+              <label class="fld">System discipline</label>
+              <input type="range" id="ph-system-strength" min="0" max="100" value="75">
+              <div class="hint">Current: <span id="ph-system-strength-val" style="font-weight:700;color:var(--field)">75%</span></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -447,35 +495,25 @@
             <button class="btn ghost sm" id="btn-pers-preset" style="font-size:10px">↺ Reset personnel preset</button>
           </div>
         </div>
-        <div>
-          <label class="fld">Playbook size (target plays)</label>
-          <select id="ph-size">
-            <option value="60">Tight — ~60</option>
-            <option value="100" selected>Standard — ~100</option>
-            <option value="150">Wide — ~150</option>
-            <option value="220">Deep — ~220</option>
-            <option value="300">Large — ~300</option>
-            <option value="400">Max — ~400</option>
-          </select>
-          <div class="hint">How many plays to carry into the active book. 5 plays per selected formation is the floor, not the target.</div>
+        <div class="workflow-box">
+          <b>Flow:</b> choose template/custom → set size/discipline → tune personnel and formations → set run/pass and concepts → generate.
+          <br><br><b>Custom mode:</b> system scoring is off. Formation and concept sliders become the main controls.
         </div>
       </div>
 
       <div class="grid2" style="margin-top:16px">
         <div>
-          <label class="fld">System discipline</label>
-          <p class="hint" style="margin:0 0 8px">How hard the selected offensive system should drive playbook generation and in-game suggestions. This live-blends the personnel, formation-style, run/pass, motion, and core-concept sliders.</p>
-          <input type="range" id="ph-system-strength" min="0" max="100" value="75">
-          <div class="hint">Current: <span id="ph-system-strength-val" style="font-weight:700;color:var(--field)">75%</span></div>
-        </div>
-        <div>
           <label class="fld">Formation style emphasis</label>
-          <p class="hint" style="margin:0 0 8px">Tilt the book toward Gun/shotgun, Singleback, Pistol, I-Form, Flexbone, Empty, or other alignment families.</p>
+          <p class="hint" style="margin:0 0 8px">These are hard rails. If a family is set to 0%, that formation family is removed from generation and live suggestions.</p>
           <div id="ph-form-sliders"></div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
             <div class="hint">Total: <span id="ph-form-total" style="font-weight:700;color:var(--field)">100%</span></div>
             <button class="btn ghost sm" id="btn-form-preset" style="font-size:10px">↺ Reset formation preset</button>
           </div>
+        </div>
+        <div class="slider-rule-box">
+          <b>Formation identity matters.</b><br>
+          The app now weights formation family as heavily as concept. Set Flexbone to 0% and a Paul Johnson book will try to find option football outside Flexbone instead of forcing Flexbone back into the book.
         </div>
       </div>
 
@@ -2242,7 +2280,7 @@ function formationStyleGenMult(pl){
   if(total>0 && raw<=0) return 0.0001; // zero means do not build this alignment family
   const share=formTypeShare(type);
   // Strong rail: sliders are a primary selector, not a cosmetic nudge.
-  return Math.max(0.08,Math.min(8.5,0.08+share*18.0));
+  return Math.max(0.01,Math.min(30.0,0.01+share*48.0));
 }
 function formationStyleGameMult(pl){
   if(!pl)return 1;
@@ -2252,8 +2290,8 @@ function formationStyleGameMult(pl){
   if(total>0 && raw<=0) return 0.0001; // zero removes the alignment from live suggestions too
   const share=formTypeShare(type);
   const strength=offenseSystemStrength01();
-  const cap=2.10 + strength*1.40;
-  return Math.max(0.18,Math.min(cap,0.18+share*(8.0+strength*6.0)));
+  const cap=3.60 + strength*3.40;
+  return Math.max(0.05,Math.min(cap,0.05+share*(16.0+strength*20.0)));
 }
 function safeFormationStyleGameMult(pl){return safeMult('formation style game mult',()=>formationStyleGameMult(pl),1);}
 
@@ -2569,14 +2607,6 @@ const FORM_TYPE_LABEL={
   flexbone:'Flexbone', wingbone:'Wingbone / wishbone', empty:'Empty / 5WR', under_center:'Under-center other', other:'Other'
 };
 const DEFAULT_FORM_MIX={shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,wingbone:0,empty:8,under_center:4,other:2};
-const IDENTITY_FORM_MIX={
-  balanced:{shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,wingbone:0,empty:8,under_center:4,other:2},
-  run:{shotgun:30,singleback:20,pistol:8,i_form:18,flexbone:8,wingbone:4,empty:2,under_center:6,other:4},
-  pass:{shotgun:58,singleback:8,pistol:8,i_form:2,flexbone:0,wingbone:0,empty:20,under_center:2,other:2},
-  spread:{shotgun:66,singleback:4,pistol:10,i_form:0,flexbone:0,wingbone:0,empty:16,under_center:0,other:4},
-  pro:{shotgun:28,singleback:26,pistol:6,i_form:22,flexbone:1,wingbone:1,empty:4,under_center:10,other:2}
-};
-const IDENTITY_MOTION_PRESET={balanced:35,run:28,pass:30,spread:45,pro:42};
 function inferFormationType(form){
   const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
   if(/empty|5\s*wr|five\s*wide/.test(f))return 'empty';
@@ -2590,15 +2620,8 @@ function inferFormationType(form){
   if(/under|offset i/.test(f))return 'under_center';
   return 'other';
 }
-// Identity-based pers mix presets
-const IDENTITY_PERS_MIX={
-  balanced: {'11':60,'12':25,'20':5,'21':10,'10':0,'13':0,'22':0,'23':0},
-  run:      {'11':30,'12':20,'20':10,'21':20,'22':15,'23':5,'10':0,'13':0},
-  pass:     {'11':55,'12':10,'10':25,'20':5,'21':5,'13':0,'22':0,'23':0},
-  spread:   {'11':50,'12':10,'10':35,'20':5,'21':0,'13':0,'22':0,'23':0},
-  pro:      {'11':25,'12':35,'20':5,'21':20,'22':10,'23':5,'10':0,'13':0}
-};
-function defaultPhilosophy(){return{identity:'balanced',system:'none',systemStrength:75,aggr:'normal',persMix:{...DEFAULT_PERS_MIX},formMix:{...DEFAULT_FORM_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
+// Legacy broad identity presets retired in v14.9. Templates + sliders now drive all generation.
+function defaultPhilosophy(){return{system:'none',systemStrength:0,persMix:{...DEFAULT_PERS_MIX},formMix:{...DEFAULT_FORM_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
 
 /* ============================================================
    STATE + PERSISTENCE
@@ -2611,8 +2634,7 @@ let ingame=loadJSON(LS.ig)||null;          // {concepts,log,reads}
 let scout=loadJSON(LS.scout)||defaultScout();
 ensurePhilosophyShape();
 
-// run/pass band defaults per identity (run% min,max)
-const IDENTITY_RP={balanced:[45,58],run:[52,68],pass:[28,42],spread:[38,52],pro:[46,60]};
+// v14.9: run/pass defaults come from system presets or direct slider values.
 function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',defStyle:'',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,scriptState:null,twoMin:null};}
 function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){return d;}}
@@ -2953,7 +2975,7 @@ const BUILT_IN_OFFENSE_SYSTEMS={
   }
 };
 
-// v14.8 — source-backed profile refresh + new templates from latest uploaded PDFs.
+// v14.9 — user-friendly system/custom build flow; tempo/aggression retired; formation sliders hardened.
 // These profiles use the app's current structure: system rails + formation sliders + core concept targets + play intent.
 BUILT_IN_OFFENSE_SYSTEMS.rvo_reliable_violent={
   label:'RVO / Reliable Violent Offense', shortLabel:'RVO', source:'RVO Reliable Violent Offense Profile PDF', sourceBacked:true,
@@ -3460,6 +3482,7 @@ function renderSystemOptions(){
   if(customKeys.length){const og=el('optgroup');og.label='Imported profiles';customKeys.forEach(k=>add(k,_customOffenseSystems[k].label||k,og));sel.appendChild(og);}
   const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
   sel.value=allOffenseSystems()[cur]?cur:'none';
+  updateBuildModeUI();
 }
 function blendPctMaps(base,preset,keys,strength){
   const out={};
@@ -3602,9 +3625,10 @@ function seededShuffle(arr,seed){ // deterministic so same settings => same book
   return a;
 }
 function hashPhil(p,m){
-  const pmSum=Object.entries(p.persMix||{}).reduce((s,[k,v])=>s+k.charCodeAt(0)*v,0);
+  const pmSum=Object.entries(p.persMix||{}).reduce((s,[k,v])=>s+k.charCodeAt(0)*Number(v||0),0);
   const fmSum=Object.entries(p.formMix||{}).reduce((s,[k,v])=>s+k.length*Number(v||0),0);
-  return (((p.system||'none').length*29+p.aggr.length*17+(p.size||0)+m*7+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+fmSum*19+(p.systemStrength||0)*23))>>>0;
+  const ctSum=Object.entries(p.conceptTargets||{}).reduce((s,[k,v])=>s+hashStr(k)*Number(v||0),0);
+  return (((p.system||'none').length*29+(p.size||0)+m*7+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+fmSum*19+(p.systemStrength||0)*23+ctSum))>>>0;
 }
 
 function generatePlaybook(){
@@ -3639,10 +3663,7 @@ function generatePlaybook(){
     if(pl.motion===2)      s*=(1 + mn*mn*2.2);        // quadratic: low slider barely boosts, high slider strongly favors
     else if(pl.motion===1) s*=(1 + mn*0.5);
     else                   s*=(1 - mn*0.45);
-    // aggression: shot concepts
-    if(p.aggr==='aggressive'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=1.7;
-    if(p.aggr==='measured'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=0.6;
-    if(p.aggr==='measured'&&(pl.family==='run'||pl.concept==='Quick Game')) s*=1.2;
+    // v14.9: tempo/aggression control retired. Shots and tempo are controlled by system profile, run/pass band, concepts, and play intent.
     // Core concept targets and system profiles now replace legacy family emphasis.
     s*=conceptTargetGenMult(pl.concept);
     s*=offenseSystemGenMult(pl);
@@ -3793,7 +3814,7 @@ function generatePlaybook(){
   const finalBook=seededShuffle(book,seed);  // size already enforced by trim pass above
 
   playbook={
-    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
+    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion})),
     audibles:buildAudibles(finalBook)
   };
@@ -4394,14 +4415,51 @@ function intentOrFamPill(pl){return playIntentPill(pl);}
 let toastTimer;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
 
+
+function updateBuildModeUI(){
+  const sysKey=(philosophy&&philosophy.system)||'none';
+  const usingTemplate=sysKey&&sysKey!=='none';
+  const t=$('#btn-mode-template'), c=$('#btn-mode-custom'), step=$('#template-step'), strength=$('#ph-system-strength');
+  if(t)t.classList.toggle('on',!!usingTemplate);
+  if(c)c.classList.toggle('on',!usingTemplate);
+  if(step)step.classList.toggle('custom-mode',!usingTemplate);
+  if(strength){ strength.disabled=!usingTemplate; strength.title=usingTemplate?'Blend this system preset into the sliders.':'Custom mode: system discipline is off.'; }
+}
+function selectBuildMode(mode){
+  ensurePhilosophyShape();
+  if(mode==='custom'){
+    philosophy.system='none';
+    philosophy.systemStrength=0;
+    if($('#ph-system'))$('#ph-system').value='none';
+    if($('#ph-system-strength'))$('#ph-system-strength').value=0;
+    updateSystemStrengthLabel();
+    renderOffenseSystemPlan();
+    updateBuildModeUI();
+    save(LS.ph,philosophy);
+    toast('Custom build selected — templates are off');
+    return;
+  }
+  if(!philosophy.system||philosophy.system==='none')philosophy.system='shanahan_wide_zone';
+  if(!Number(philosophy.systemStrength))philosophy.systemStrength=85;
+  renderSystemOptions();
+  if($('#ph-system'))$('#ph-system').value=philosophy.system;
+  if($('#ph-system-strength'))$('#ph-system-strength').value=philosophy.systemStrength;
+  applyOffenseSystemDisciplineBlend({render:true});
+  updateSystemStrengthLabel();
+  renderOffenseSystemPlan();
+  updateBuildModeUI();
+  save(LS.ph,philosophy);
+  toast('Template build selected: '+labelSystem(philosophy.system));
+}
+
 /* ---- Philosophy form ---- */
 function initPhilosophyForm(){
-  const identEl=$('#ph-identity'); if(identEl) identEl.value=philosophy.identity||'balanced';
+  // Broad identity selector retired in v14.9.
   renderSystemOptions();
   if($('#ph-system')) $('#ph-system').value=allOffenseSystems()[philosophy.system||'none']?(philosophy.system||'none'):'none';
   renderOffenseSystemPlan();
-  $('#ph-aggr').value=philosophy.aggr;
-  $('#ph-size').value=String(philosophy.size);
+  updateBuildModeUI();
+  if($('#ph-size')) $('#ph-size').value=String(philosophy.size);
   updateSystemStrengthLabel();
   renderPersMixSliders();
   renderFormMixSliders();
@@ -7044,7 +7102,7 @@ function setActivePlaybookFromRows(rows,name,mode){
   if(!pool.length){toast('No valid plays in source');return null;}
   const final=pool.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team'}));
   playbook={
-    meta:{generated:Date.now(),identity:'team_source',aggr:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:final.length,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:mode||'exact',sourceName:name||'Team source'},
+    meta:{generated:Date.now(),identity:'team_source',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:final.length,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:mode||'exact',sourceName:name||'Team source'},
     plays:final,
     audibles:buildAudiblesScoped(final,pool)
   };
@@ -7062,9 +7120,7 @@ function scorePoolPlay(pl,mix,pmNorm,p,seed){
   if(pl.motion===2) s*=(1+mn*mn*2.2);
   else if(pl.motion===1) s*=(1+mn*0.5);
   else s*=(1-mn*0.45);
-  if(p.aggr==='aggressive'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=1.7;
-  if(p.aggr==='measured'&&AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=0.6;
-  if(p.aggr==='measured'&&(pl.family==='run'||pl.concept==='Quick Game')) s*=1.2;
+  // v14.9: tempo/aggression control retired.
   s*=conceptTargetGenMult(pl.concept);
   s*=offenseSystemGenMult(pl);
   s*=safeOffenseSystemFormationRailGenMult(pl);
@@ -7143,14 +7199,14 @@ function generatePlaybookFromRows(rows,name){
   }
   for(const {pl} of scored){if(book.length>=target)break;tryAdd(pl);}
   const finalBook=seededShuffle(book.slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team_generated'}));
-  playbook={meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
+  playbook={meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
   save(LS.pb,playbook); invalidateCallableCache(); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
   toast('Generated '+finalBook.length+'-play Coach Brain book from '+(name||'team source'));
   return playbook;
 }
 function startBlankCustomPlaybook(){
   if(playbook&&playbook.plays&&playbook.plays.length&&!confirm('Start a blank custom playbook? Your current saved base playbook will be replaced. Download a backup first if needed.'))return;
-  playbook={meta:{generated:Date.now(),identity:'custom',aggr:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
+  playbook={meta:{generated:Date.now(),identity:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
   save(LS.pb,playbook); invalidateCallableCache(); ingame=null; localStorage.removeItem(LS.ig); renderPlaybook(); initAddPlayForm(); toast('Blank custom playbook started — add plays below');
 }
 function renderPlaybookSourcePanel(){
@@ -7614,14 +7670,14 @@ $('#btn-csv-db-reset').addEventListener('click',()=>{
 $$('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 
 // philosophy inputs
-const legacyIdentityEl=$('#ph-identity');
-if(legacyIdentityEl){legacyIdentityEl.addEventListener('change',e=>{philosophy.identity=e.target.value;save(LS.ph,philosophy);});}
-$('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none';applyOffenseSystemDisciplineBlend({render:true});save(LS.ph,philosophy);toast('Offensive system set: '+labelSystem(philosophy.system));});
+// v14.9: broad Identity selector removed. System template or Custom mode is the top-level build path.
+$('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none'; if(philosophy.system==='none'){philosophy.systemStrength=0; if($('#ph-system-strength'))$('#ph-system-strength').value=0; updateSystemStrengthLabel();} else { if(!Number(philosophy.systemStrength))philosophy.systemStrength=85; applyOffenseSystemDisciplineBlend({render:true}); } updateBuildModeUI(); renderOffenseSystemPlan(); save(LS.ph,philosophy);toast(philosophy.system==='none'?'Custom sliders only':'Offensive system set: '+labelSystem(philosophy.system));});
 $('#btn-system-preset').addEventListener('click',()=>applyOffenseSystemPreset());
 $('#btn-system-export').addEventListener('click',()=>exportSelectedSystemProfile());
 $('#btn-system-import').addEventListener('click',()=>$('#sys-import-file').click());
 $('#sys-import-file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f)importSystemProfileFile(f);e.target.value='';});
-$('#ph-aggr').addEventListener('change',e=>{philosophy.aggr=e.target.value;save(LS.ph,philosophy);});
+const modeTemplateBtn=$('#btn-mode-template'); if(modeTemplateBtn)modeTemplateBtn.addEventListener('click',()=>selectBuildMode('template'));
+const modeCustomBtn=$('#btn-mode-custom'); if(modeCustomBtn)modeCustomBtn.addEventListener('click',()=>selectBuildMode('custom'));
 $('#ph-size').addEventListener('change',e=>{philosophy.size=Number(e.target.value);save(LS.ph,philosophy);});
 $('#ph-system-strength').addEventListener('input',e=>{philosophy.systemStrength=Number(e.target.value)||0;applyOffenseSystemDisciplineBlend({render:true});save(LS.ph,philosophy);});
 $('#btn-form-preset').addEventListener('click',()=>{

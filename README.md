@@ -1,14 +1,22 @@
-# Call Sheet — Coach Brain v14.8
+# Call Sheet — Coach Brain v14.9
 
-Standalone GitHub Pages package.
+GitHub Pages-ready package.
 
-## What's new in v14.8
-- Adds source-backed RVO / Reliable Violent Offense preset.
-- Adds source-backed Mike Leach / Air Raid preset.
-- Refreshes Kyle Shanahan, Art Briles, and Peyton Manning / Tom Moore profiles from the latest uploaded app-ready PDFs.
-- Adds/expands core concepts needed by those profiles: Y Stick, Y Corner, Y Cross, Shallow, H Wheel, Seam Read, Bang Post, Glance, Hitch, and more.
-- Adds new system seed plans and formation rails for RVO and Air Raid.
-- Keeps v14.7 behavior where the old Identity selector no longer drives generation; offensive system templates, formation sliders, personnel sliders, core concept targets, run/pass band, and motion are the controlling inputs.
+## v14.9 changes
+
+- Reworked the Philosophy page into a clearer Playbook Builder flow:
+  1. choose Template or Custom
+  2. pick an offensive system template
+  3. set playbook size and system discipline
+  4. tune personnel, formation style, run/pass band, motion, and core concepts
+- Retired the old broad Identity control.
+- Retired the Tempo & Aggression control from generation scoring.
+- Hardened formation style sliders:
+  - 0% removes that formation family from generation and live suggestions.
+  - Formation family carries much heavier weight in playbook generation and in-game calls.
+- Custom mode sets system discipline to 0 and uses sliders only.
+- Keeps source-backed offensive profiles and localStorage-based persistence.
 
 ## Deploy
-Upload all files in this folder to the root of a GitHub Pages repo.
+
+Upload this folder to a GitHub Pages repository. Keep `index.html`, `.nojekyll`, `global_unique_plays.csv`, and `global_unique_plays.json` together.
