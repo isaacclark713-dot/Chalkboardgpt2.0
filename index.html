@@ -395,6 +395,23 @@
   @media(max-width:760px){.mode-grid{grid-template-columns:1fr}.step-card{padding:12px}}
 
 
+
+  /* ---------- OC upgrades: diagnosis + game management ---------- */
+  .gm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:10px}
+  @media(max-width:900px){.gm-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:520px){.gm-grid{grid-template-columns:1fr}}
+  .gm-cell label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#4a5048;margin-bottom:3px}
+  .gm-cell select,.gm-cell input[type=number]{width:100%;padding:7px 8px;font-size:12px;border:1px solid #cfcdc2;border-radius:3px;background:#fbfbf8}
+  .gm-check{display:flex;gap:8px;align-items:center;margin-top:9px;font-size:12px;color:#4a5048;font-weight:700}
+  .gm-readout{margin-top:10px;border-left:3px solid var(--gold);background:#fff8e8;padding:8px 10px;border-radius:0 3px 3px 0;font-size:12px;line-height:1.4;color:#5a4b25}
+  .gm-readout b{color:var(--field)}
+  .coach-adjust{border-left:4px solid var(--cool);background:#f3f8f4}
+  .coach-adjust .adj-title{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--cool-d)}
+  .coach-adjust .adj-main{font-size:13px;line-height:1.45;margin-top:5px;color:#34433a}
+  .coach-adjust .adj-list{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+  .coach-adjust .adj-pill{display:inline-block;border:1px solid #cfe4d6;border-radius:12px;background:#fff;padding:3px 8px;font-size:10.5px;font-weight:800;color:var(--field)}
+  .coach-adjust .adj-warn{margin-top:7px;font-size:11px;color:#8a650c;background:#fff8e8;border-left:3px solid var(--gold);padding:6px 8px;border-radius:0 3px 3px 0}
+
   /* ---------- v15.4 Generate loading / auto Build List jump ---------- */
   .gen-loading{
     position:fixed;
@@ -1019,6 +1036,55 @@
         <h2 style="font-size:14px">Active reads</h2>
         <p class="desc" style="margin-bottom:10px">From your scout + script. These bias every suggestion. Edit on the Scout tab as the game evolves.</p>
         <div class="reads-summary" id="ig-reads-summary"></div>
+      </div>
+    </div>
+
+
+    <div class="grid2" style="margin-top:16px">
+      <div class="card" id="ig-game-card" style="margin-bottom:0">
+        <h2 style="font-size:14px">Game management brain</h2>
+        <p class="desc" style="margin-bottom:10px">Live score/clock context. This now changes the call score, suppresses bad clock calls, and changes 3rd-down thinking in four-down mode.</p>
+        <div class="gm-grid">
+          <div class="gm-cell">
+            <label>Quarter</label>
+            <select id="ig-quarter"><option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="4">4th</option></select>
+          </div>
+          <div class="gm-cell">
+            <label>Clock</label>
+            <select id="ig-clock"><option value="720">12:00+</option><option value="480">8:00</option><option value="360">6:00</option><option value="240">4:00</option><option value="120">2:00</option><option value="90">1:30</option><option value="60">1:00</option><option value="30">:30</option></select>
+          </div>
+          <div class="gm-cell">
+            <label>Score margin</label>
+            <select id="ig-score-diff"><option value="-14">Down 14+</option><option value="-10">Down 9–13</option><option value="-7">Down 1 score</option><option value="-3">Down FG</option><option value="0" selected>Tied</option><option value="3">Up FG</option><option value="7">Up 1 score</option><option value="10">Up 9–13</option><option value="14">Up 14+</option></select>
+          </div>
+          <div class="gm-cell">
+            <label>Drive goal</label>
+            <select id="ig-drive-goal"><option value="normal">Normal</option><option value="get_first_down">Get 1st down</option><option value="get_points">Get points</option><option value="touchdown_only">TD only</option><option value="protect_ball">Protect ball</option><option value="bleed_clock">Bleed clock</option><option value="explosive_needed">Explosive needed</option><option value="four_down">Four-down plan</option></select>
+          </div>
+          <div class="gm-cell">
+            <label>Our timeouts</label>
+            <select id="ig-timeouts-us"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option></select>
+          </div>
+          <div class="gm-cell">
+            <label>Their timeouts</label>
+            <select id="ig-timeouts-them"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option></select>
+          </div>
+          <div class="gm-cell">
+            <label>Risk posture</label>
+            <select id="ig-risk-mode"><option value="balanced">Balanced</option><option value="safe">Safe</option><option value="aggressive">Aggressive</option></select>
+          </div>
+          <div class="gm-cell">
+            <label>Ball spot</label>
+            <select id="ig-yardline"><option value="10">Backed up</option><option value="25" selected>Own 25</option><option value="50">Midfield</option><option value="65">Plus territory</option><option value="80">Red zone</option><option value="95">Goal line</option></select>
+          </div>
+        </div>
+        <label class="gm-check"><input type="checkbox" id="ig-four-down"> Four-down territory / two calls to get it</label>
+        <div class="gm-readout" id="ig-game-readout"><b>Mode:</b> Normal. Suggestions use standard down/distance rules.</div>
+      </div>
+      <div class="card coach-adjust" id="ig-adjust-card" style="display:none;margin-bottom:0">
+        <div class="adj-title">Coach Brain Adjustment</div>
+        <h2 style="margin:3px 0 0;font-size:14px">What did the last snap teach us?</h2>
+        <div id="ig-adjust-body" class="adj-main">Log a play with diagnosis and the app will explain what to protect, cut, and promote.</div>
       </div>
     </div>
 
@@ -1682,6 +1748,114 @@ const DIAG_OPTIONS={
 };
 const DIAG_OPTION_MAP={};
 Object.values(DIAG_OPTIONS).flat().forEach(o=>{ if(o.v) DIAG_OPTION_MAP[o.v]=o; });
+
+/* OC upgrade: diagnosis is no longer just Good/Bad. It now labels whether
+   the result was a bad call, good call, execution issue, or defensive adjustment.
+   That lets the app protect a sound concept while still promoting the right answers. */
+const CAUSE_TYPES={
+  STRUCTURE_BAD_CALL:'structure_bad_call',
+  STRUCTURE_GOOD_CALL:'structure_good_call',
+  EXECUTION:'execution',
+  DEFENSE_ADJUSTED:'defense_adjusted',
+  PLAYER_MATCHUP:'player_matchup',
+  RANDOM:'random'
+};
+const DIAG_META={
+  run_light_box:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Run numbers were favorable. If it failed, look first at execution before cutting the call.',avoid:[]},
+  run_loaded_box:{causeType:CAUSE_TYPES.STRUCTURE_BAD_CALL,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Option / RPO','Quick Game','Screen','Boot / Play Action','Glance','Bubble'],meaning:'Box was loaded. Do not blindly run into +1 numbers without access, motion, or a constraint.',avoid:['straight inside run without access','same picture repeat']},
+  run_lb_overflow:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Counter','Boot / Play Action','Screen','Fake Jet'],meaning:'Linebackers fast-flowed. Keep the run series alive, but punish flow with counter, boot, or misdirection.',avoid:['same-direction run repeat']},
+  run_edge_crash:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Boot / Play Action','Option / RPO','Jet Sweep','Screen'],meaning:'Edge squeezed/crashed. Keep the series, but make the edge wrong with boot/read/perimeter answers.',avoid:['naked repeat into crashing edge without an answer']},
+  run_edge_widen:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Inside Zone','Power / Power O','Counter','Dive'],meaning:'Edge widened/feathered. Attack inside or downhill instead of chasing the sideline.',avoid:['wide run into wide force']},
+  run_no_push:{causeType:CAUSE_TYPES.PLAYER_MATCHUP,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Perimeter Run','Quick Game','Screen','Boot / Play Action'],meaning:'Line of scrimmage was not moving. Treat it as matchup/fit information, not automatically a dead series.',avoid:['calling the same interior run into the same front']},
+  run_missed_block:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Execution issue. Protect the concept; do not overreact to the result.',avoid:[]},
+
+  cov_man:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Mesh','Shallow','Slants','Wheel'],meaning:'Man coverage confirmed. Man-beaters, rubs, crossers, and leverage throws should rise.',avoid:[]},
+  cov_zone:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Stick','Spacing','Flood','Y Cross','Dagger'],meaning:'Zone/match confirmed. Zone beaters and spacing concepts should rise.',avoid:[]},
+  cov_match:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Stick','Spacing','Flood','Y Cross','Dagger'],meaning:'Zone-match/carry behavior showed up. Work high-lows, spacing, and route distribution.',avoid:['forcing the first covered read']},
+  cov_cover0:{causeType:CAUSE_TYPES.STRUCTURE_BAD_CALL,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Quick Game','Screen','Slants','Mesh'],meaning:'Cover 0 / pressure. Long-developing calls need hot answers or must be suppressed.',avoid:['slow-developing shot without max protection or hot']},
+  cov_soft:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Quick Game','Curls / Curl Flats','Stick','Hitch'],meaning:'Soft coverage gives access. Take free yards until they tighten.',avoid:[]},
+  cov_bracket:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Spacing','Flood','Dagger','Screen'],meaning:'Primary was bracketed/robbed. Move the read, formation, or attack underneath/away.',avoid:['forcing the bracketed primary']},
+  cov_drop:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Drop/throw execution issue. Protect the concept.',avoid:[]},
+
+  screen_wide_open:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Screen','Draw','Quick Game'],meaning:'Screen/space answer was available. Pressure and space are being punished.',avoid:[]},
+  screen_all_over:{causeType:CAUSE_TYPES.STRUCTURE_BAD_CALL,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Draw','Quick Game','Verticals / Four Verticals','Go Routes'],meaning:'Defense covered the screen. Stop over-calling it from that picture.',avoid:['same screen look']},
+  screen_dl_retrace:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Draw','Quick Game','Post','Go Routes'],meaning:'DL retraced/sniffed screen. Use draw, quick game, or hit behind aggressive eyes.',avoid:['repeat screen into retrace']},
+  screen_bad_timing:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Screen timing/execution issue. Do not cut the concept yet.',avoid:[]},
+  screen_blocker_missed:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Perimeter execution issue. Keep the concept available.',avoid:[]},
+
+  draw_drop_good:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Draw','Screen','Quick Game'],meaning:'Coverage/rush created draw space. Draw remains live.',avoid:[]},
+  draw_box_not_vacated:{causeType:CAUSE_TYPES.STRUCTURE_BAD_CALL,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Quick Game','Screen','Boot / Play Action'],meaning:'Box did not vacate. Draw is not the right answer to this look.',avoid:['draw into heavy box']},
+  draw_spy_contain:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Quick Game','Screen','Flood'],meaning:'Spy/contain sat on draw. Attack coverage spacing or throw outside.',avoid:['repeat draw into spy']},
+  draw_dl_retrace:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Screen','Quick Game','Boot / Play Action'],meaning:'DL retraced/squeezed. Move to screen/quick/PA answers.',avoid:['repeat slow-developing draw']},
+  draw_missed_block:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Draw execution issue. Do not over-cut the concept.',avoid:[]},
+
+  rpo_apex_widen:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Inside Zone','Power / Power O','Counter'],meaning:'Apex widened with access. Hand it off or hit inside/gap answers.',avoid:[]},
+  rpo_apex_squeeze:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Quick Game','Screen','Slants','Option / RPO'],meaning:'Apex squeezed the run. Throw access or perimeter answer.',avoid:['handoff into squeezed apex without constraint']},
+  rpo_glance_open:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Glance','Slants','Option / RPO'],meaning:'Access window was open. RPO/glance answer is live.',avoid:[]},
+  rpo_window_closed:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Inside Zone','Power / Power O','Quick Game','Flood'],meaning:'Window was capped. Keep the family, but do not force the capped access throw.',avoid:['forced glance into capped window']},
+  rpo_qb_wrong:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'QB read issue. Protect the play family.',avoid:[]},
+
+  pa_lbs_bite:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Boot / Play Action','Y Cross','Flood','Post'],meaning:'Run action is affecting second level. PA family is live.',avoid:[]},
+  pa_no_bite:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Quick Game','Inside Zone','Power / Power O','Screen'],meaning:'Defense did not honor the fake. Reduce PA from that look and get back to efficient answers.',avoid:['slow PA into disciplined eyes']},
+  pa_edge_contain:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Inside Zone','Power / Power O','Quick Game','Screen'],meaning:'Edge contained boot/naked. Attack inside or use quick game.',avoid:['boot into sitting edge']},
+  pa_crosser_open:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Y Cross','Flood','Dagger','Boot / Play Action'],meaning:'PA crosser/leak is live. Keep stressing second level.',avoid:[]},
+  pa_pressure:{causeType:CAUSE_TYPES.STRUCTURE_BAD_CALL,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Quick Game','Screen','Slants','Mesh'],meaning:'Pressure beat PA timing/protection. Move to hot, quick, or screen answers.',avoid:['long PA vs pressure']},
+
+  quick_access:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Quick Game','Stick','Spacing','Hitch'],meaning:'Access was there. Keep taking free grass.',avoid:[]},
+  quick_squat:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Go Routes','Post','Sluggo','Verticals / Four Verticals','Double Move'],meaning:'DB squatted the quick throw. Set up a shot/double move or move the target.',avoid:['same quick route into squat corner']},
+  quick_tight_man:{causeType:CAUSE_TYPES.STRUCTURE_BAD_CALL,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Mesh','Shallow','Slants','Wheel'],meaning:'Tight man removed easy access. Call rub/crosser/man-beater answers.',avoid:['static access throw vs tight man']},
+  quick_bad_throw_drop:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Quick-game execution issue. Protect the concept.',avoid:[]},
+
+  shot_single_high_open:{causeType:CAUSE_TYPES.STRUCTURE_GOOD_CALL,punish:{exactPlay:false,concept:false,series:false},boostAnswers:['Post','Go Routes','Verticals / Four Verticals','Dagger'],meaning:'Single-high shot window exists. Selective shots are live.',avoid:[]},
+  shot_two_high_capped:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Inside Zone','Draw','Smash','Quick Game','Flood'],meaning:'Two-high capped the shot. Run, draw, smash, or work underneath.',avoid:['forcing capped verticals']},
+  shot_no_time:{causeType:CAUSE_TYPES.STRUCTURE_BAD_CALL,punish:{exactPlay:true,concept:true,series:false},boostAnswers:['Quick Game','Screen','Slants','Mesh'],meaning:'Protection did not hold for the shot. Suppress long-developing calls until pressure is handled.',avoid:['shot without protection answer']},
+  shot_wr_won_miss:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'WR won and execution missed. Protect the shot concept.',avoid:[]},
+
+  gen_good_call:{causeType:CAUSE_TYPES.DEFENSE_ADJUSTED,punish:{exactPlay:true,concept:false,series:false},boostAnswers:['Quick Game','Screen','Boot / Play Action'],meaning:'Defense had a good call. Find the complementary answer instead of deleting the series.',avoid:['blind repeat']},
+  gen_execution:{causeType:CAUSE_TYPES.EXECUTION,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'Execution issue. Protect the concept.',avoid:[]},
+  gen_no_info:{causeType:CAUSE_TYPES.RANDOM,punish:{exactPlay:false,concept:false,series:false},boostAnswers:[],meaning:'No clear tell. Preserve the call and keep probing.',avoid:[]}
+};
+const REASON_META={
+  run_missed_block:DIAG_META.run_missed_block,
+  pass_drop:DIAG_META.cov_drop,
+  pass_bad_throw:DIAG_META.quick_bad_throw_drop,
+  pass_qb_read:DIAG_META.rpo_qb_wrong,
+  run_loaded_box:DIAG_META.run_loaded_box,
+  run_lb_fast_flow:DIAG_META.run_lb_overflow,
+  run_edge_squeeze:DIAG_META.run_edge_crash,
+  run_edge_widen:DIAG_META.run_edge_widen,
+  'Pressure / blitz':DIAG_META.pa_pressure,
+  'Coverage (man)':DIAG_META.cov_man,
+  'Coverage (zone match)':DIAG_META.cov_zone,
+  'Box count / run fit':DIAG_META.run_loaded_box,
+  Execution:DIAG_META.gen_execution,
+  defense_good_call:DIAG_META.gen_good_call
+};
+function diagnosisMetaForCode(code){return DIAG_META[code]||REASON_META[code]||null;}
+function combineDiagnosisMeta(picked,reason,outcome){
+  const metas=(picked||[]).map(code=>diagnosisMetaForCode(code)).filter(Boolean);
+  if(reason){const rm=diagnosisMetaForCode(reason); if(rm)metas.push(rm);}
+  let causeType='';
+  if(metas.some(m=>m.causeType===CAUSE_TYPES.EXECUTION)) causeType=CAUSE_TYPES.EXECUTION;
+  else if(metas.some(m=>m.causeType===CAUSE_TYPES.STRUCTURE_BAD_CALL)) causeType=CAUSE_TYPES.STRUCTURE_BAD_CALL;
+  else if(metas.some(m=>m.causeType===CAUSE_TYPES.DEFENSE_ADJUSTED)) causeType=CAUSE_TYPES.DEFENSE_ADJUSTED;
+  else if(metas.some(m=>m.causeType===CAUSE_TYPES.PLAYER_MATCHUP)) causeType=CAUSE_TYPES.PLAYER_MATCHUP;
+  else if(metas.some(m=>m.causeType===CAUSE_TYPES.STRUCTURE_GOOD_CALL)) causeType=CAUSE_TYPES.STRUCTURE_GOOD_CALL;
+  else causeType=outcome==='failure'?CAUSE_TYPES.STRUCTURE_BAD_CALL:CAUSE_TYPES.RANDOM;
+  const boosts=[...new Set(metas.flatMap(m=>m.boostAnswers||[]).filter(Boolean))];
+  const avoid=[...new Set(metas.flatMap(m=>m.avoid||[]).filter(Boolean))];
+  const meanings=[...new Set(metas.map(m=>m.meaning).filter(Boolean))];
+  const punish=metas.reduce((acc,m)=>{const p=m.punish||{}; Object.keys(p).forEach(k=>{acc[k]=acc[k]||!!p[k];}); return acc;},{exactPlay:false,concept:false,series:false,formation:false});
+  return {causeType,boostAnswers:boosts,avoid,meaning:meanings[0]||'',punish};
+}
+function callQualityFromCause(outcome,causeType){
+  if(causeType===CAUSE_TYPES.EXECUTION) return outcome==='failure'?'good_call_bad_execution':'execution_note';
+  if(causeType===CAUSE_TYPES.STRUCTURE_BAD_CALL) return 'bad_call';
+  if(causeType===CAUSE_TYPES.STRUCTURE_GOOD_CALL) return outcome==='success'?'good_call':'sound_call';
+  if(causeType===CAUSE_TYPES.DEFENSE_ADJUSTED) return 'defense_answered';
+  if(causeType===CAUSE_TYPES.PLAYER_MATCHUP) return 'matchup_problem';
+  return 'unknown';
+}
 function conceptNameLower(pl){return ((pl&&pl.concept)||'')+' '+((pl&&pl.play)||'')+' '+((pl&&pl.formation)||'');}
 function intentSafe(pl){try{return getIntentTags(pl)||{};}catch(e){return {};}}
 function isPassish(pl){
@@ -1761,9 +1935,12 @@ function buildPlayDiagnosis(pl,outcome,values){
     else if(outcome==='failure') reason=isRunFamily(pl.family)?'Box count / run fit':'Coverage (zone match)';
   }
   if(!label) label=outcome==='neutral'?neutralReasonText(reason):(outcome==='failure'?reason:'');
+  const pickedCodes=picked.map(o=>o.v);
+  const meta=combineDiagnosisMeta(pickedCodes,reason,outcome);
+  if(meta.causeType===CAUSE_TYPES.EXECUTION) execution=true;
   const uniq=[...new Set(reactions.filter(Boolean))];
   return {
-    picked:picked.map(o=>o.v),
+    picked:pickedCodes,
     labels:label,
     reason,
     reaction:uniq[0]||'',
@@ -1771,7 +1948,13 @@ function buildPlayDiagnosis(pl,outcome,values){
     executionIssue:execution,
     conceptInfo:conceptInfo||(!execution&&picked.length>0),
     notes,
-    readUpdates
+    readUpdates,
+    causeType:meta.causeType,
+    callQuality:callQualityFromCause(outcome,meta.causeType),
+    punish:meta.punish,
+    boostAnswers:meta.boostAnswers,
+    avoid:meta.avoid,
+    meaning:meta.meaning
   };
 }
 function applyDiagnosticReads(diag){
@@ -2090,6 +2273,62 @@ function promoteCoachBrainAnswers(concept,reaction,amount=0.12){
     out.push(a);
   }
   return out;
+}
+function normalizeAnswerConceptName(a){
+  const map={'Bubble':'Bubble Access','Now':'Now Screen','Perimeter Run':'Sweep','Double Move':'Glance-and-Go','Sluggo':'Glance-and-Go','PA Boot':'Boot / Play Action','Play Action':'Boot / Play Action','Hitch':'Hitch Access'};
+  return map[a]||a;
+}
+function promoteNamedAnswerConcepts(names,amount=0.12){
+  const out=[];
+  (names||[]).forEach(a=>{
+    a=normalizeAnswerConceptName(a);
+    if(!a)return;
+    if(!ingame.concepts[a]) ingame.concepts[a]={w:W_BASE,base:W_BASE,calls:0,success:0,neutral:0,failure:0,reasons:{}};
+    const c=ingame.concepts[a];
+    c.w=Math.min(W_MAX,c.w+amount);
+    out.push(a);
+  });
+  return [...new Set(out)];
+}
+function ensureDefenseMemory(){
+  if(!ingame)return null;
+  if(!ingame.defenseMemory) ingame.defenseMemory={};
+  return ingame.defenseMemory;
+}
+function updateDefenseMemory(reactions,diagnosis){
+  const mem=ensureDefenseMemory(); if(!mem)return;
+  (reactions||[]).filter(Boolean).forEach(r=>{mem[r]=(mem[r]||0)+1;});
+  if(diagnosis&&diagnosis.causeType) mem['cause_'+diagnosis.causeType]=(mem['cause_'+diagnosis.causeType]||0)+1;
+}
+function defenseMemoryMult(pl){
+  if(!ingame||!ingame.defenseMemory)return 1;
+  const mem=ingame.defenseMemory;
+  let m=1;
+  Object.entries(mem).forEach(([r,n])=>{
+    if(!n||String(r).startsWith('cause_'))return;
+    const answers=answerConcepts(pl.concept,r);
+    // If this play's concept is a known answer to a repeated defensive tell, lift it.
+    Object.entries(COACH_BRAIN).forEach(([base,b])=>{
+      const ans=(b.answers&&b.answers[r])||[];
+      if(ans.includes(pl.concept)) m+=Math.min(0.30,0.05*n);
+    });
+  });
+  return Math.max(0.7,Math.min(1.55,m));
+}
+function coachAdjustmentFromEvent(event){
+  if(!event)return null;
+  const d=event.diagnostics||{};
+  const answers=[...new Set([...(d.boostAnswers||[]),...(event.answerConcepts||[])].filter(Boolean))];
+  const avoid=(d.avoid||[]).filter(Boolean);
+  const quality=d.callQuality||event.callQuality||'unknown';
+  const label=d.labels||event.reason||event.neutralReason||'';
+  let headline='Keep probing.';
+  if(quality==='bad_call') headline='Bad structure for that call — cut the exact look and call the answer.';
+  else if(quality==='good_call_bad_execution') headline='Good call, bad execution — protect the concept and do not overreact.';
+  else if(quality==='defense_answered') headline='Defense adjusted — keep the series, but call the constraint.';
+  else if(quality==='matchup_problem') headline='Matchup/fit problem — reduce the exact look and change the stress.';
+  else if(quality==='good_call'||quality==='sound_call') headline='Sound call structure — keep it available.';
+  return {headline,label,meaning:d.meaning||'',answers,avoid,quality,causeType:d.causeType||''};
 }
 
 
@@ -4993,7 +5232,7 @@ function seedIngameFromBook(){
     base=Math.max(W_MIN,Math.min(W_MAX,base));
     concepts[n]={w:base,base:base,baseRaw:base,calls:0,success:0,neutral:0,failure:0,reasons:{}};
   }
-  ingame={concepts,log:[],reads:emptyReads(),sequence:{calls:[],tells:{},pendingAnswers:[],shownPictures:{},shownConceptPictures:{},updated:Date.now()}};
+  ingame={concepts,log:[],reads:emptyReads(),sequence:{calls:[],tells:{},pendingAnswers:[],shownPictures:{},shownConceptPictures:{},updated:Date.now()},gameState:defaultGameState(),defenseMemory:{},lastAdjustment:null};
   applyScoutToReads();   // pre-fill tentative reads from scouting report
   applyScoutWeightBase(); // make pregame scout visible in the starting concept board
   save(LS.ig,ingame);
@@ -5031,8 +5270,10 @@ function logResult(concept,outcome,reason,reaction,play,diagnosis){
   const effectiveReaction=allReactions[0] || (outcome==='neutral'?neutralReaction(rawReason,''):'');
   let answerList=[];
   let note='';
+  if(!diagnosis.causeType){const meta=combineDiagnosisMeta(diagnosis.picked||[],rawReason,outcome);Object.assign(diagnosis,{causeType:meta.causeType,callQuality:callQualityFromCause(outcome,meta.causeType),punish:diagnosis.punish||meta.punish,boostAnswers:diagnosis.boostAnswers||meta.boostAnswers,avoid:diagnosis.avoid||meta.avoid,meaning:diagnosis.meaning||meta.meaning});}
 
   applyDiagnosticReads(diagnosis);
+  updateDefenseMemory(allReactions,diagnosis);
 
   if(outcome==='success'){
     // boost working concept, capped over its base. Diagnostics still update the reads.
@@ -5071,25 +5312,42 @@ function logResult(concept,outcome,reason,reaction,play,diagnosis){
     }
     if(diagnosis.notes&&diagnosis.notes.length) note+=' '+diagnosis.notes.slice(0,2).join(' ');
   } else { // failure
-    c.w=Math.max(W_MIN,c.w-0.12);
-    if(rawReason){
-      c.reasons[rawReason]=(c.reasons[rawReason]||0)+1;
-      if(c.reasons[rawReason]>=FAIL_REPEAT){
-        // repeated same-reason failure: cut hard + promote built-in answers
-        c.w=Math.max(W_MIN,c.w-FAIL_CUT);
-        const promoted=promoteAnswers(concept,rawReason);
-        const diag=FAIL_DIAGNOSIS[rawReason]?' — '+FAIL_DIAGNOSIS[rawReason]:'';
-        note=`${concept} keeps failing vs ${diagnosis.labels||rawReason}${diag}. Cut to ${c.w.toFixed(2)}. Promoted: ${promoted.join(', ')||'—'}`;
-      } else {
-        note=`${concept} failure logged (${diagnosis.labels||rawReason})`;
-      }
+    const cause=diagnosis.causeType||CAUSE_TYPES.STRUCTURE_BAD_CALL;
+    const quality=diagnosis.callQuality||callQualityFromCause(outcome,cause);
+    const label=diagnosis.labels||rawReason||'negative play';
+    if(rawReason) c.reasons[rawReason]=(c.reasons[rawReason]||0)+1;
+
+    if(cause===CAUSE_TYPES.EXECUTION){
+      c.w=c.w+(c.base-c.w)*0.06;
+      note=`${concept} failure protected — ${label}. Diagnosis says execution, not bad call structure.`;
+    } else if(cause===CAUSE_TYPES.DEFENSE_ADJUSTED){
+      c.w=Math.max(W_MIN,c.w-0.06);
+      const promoted=promoteNamedAnswerConcepts(diagnosis.boostAnswers||[],0.12);
+      note=`${concept} was answered by the defense — ${label}. Keep the series, call the constraint.${promoted.length?' Promoted: '+promoted.join(', ')+'.':''}`;
+    } else if(cause===CAUSE_TYPES.STRUCTURE_GOOD_CALL){
+      c.w=c.w+(c.base-c.w)*0.04;
+      note=`${concept} stayed protected — ${label}. Structure was sound; check execution/matchup before cutting it.`;
+    } else if(cause===CAUSE_TYPES.PLAYER_MATCHUP){
+      c.w=Math.max(W_MIN,c.w-0.08);
+      const promoted=promoteNamedAnswerConcepts(diagnosis.boostAnswers||[],0.10);
+      note=`${concept} logged as matchup/fit issue — ${label}. Reduce exact look, not the whole offense.${promoted.length?' Promoted: '+promoted.join(', ')+'.':''}`;
     } else {
-      note=`${concept} failure logged`;
+      c.w=Math.max(W_MIN,c.w-0.12);
+      if(rawReason&&c.reasons[rawReason]>=FAIL_REPEAT){
+        c.w=Math.max(W_MIN,c.w-FAIL_CUT);
+        const promoted=[...new Set([...promoteAnswers(concept,rawReason),...promoteNamedAnswerConcepts(diagnosis.boostAnswers||[],0.14)])];
+        const diag=FAIL_DIAGNOSIS[rawReason]?' — '+FAIL_DIAGNOSIS[rawReason]:'';
+        note=`${concept} keeps failing vs ${label}${diag}. Cut to ${c.w.toFixed(2)}. Promoted: ${promoted.join(', ')||'—'}`;
+      } else {
+        const promoted=promoteNamedAnswerConcepts(diagnosis.boostAnswers||[],0.10);
+        note=`${concept} bad-call failure logged (${label}).${promoted.length?' Promoted: '+promoted.join(', ')+'.':''}`;
+      }
     }
+
     const reactionsForAnswers=allReactions.length?allReactions:(effectiveReaction?[effectiveReaction]:[]);
-    if(reactionsForAnswers.length){
-      answerList=[...new Set(reactionsForAnswers.flatMap(r=>answerConcepts(concept,r)))];
-      reactionsForAnswers.forEach(r=>promoteCoachBrainAnswers(concept,r,0.10));
+    if(reactionsForAnswers.length && cause!==CAUSE_TYPES.EXECUTION){
+      answerList=[...new Set([...(answerList||[]),...reactionsForAnswers.flatMap(r=>answerConcepts(concept,r))])];
+      reactionsForAnswers.forEach(r=>promoteCoachBrainAnswers(concept,r,cause===CAUSE_TYPES.STRUCTURE_BAD_CALL?0.14:0.10));
     }
     if(diagnosis.notes&&diagnosis.notes.length) note+=' '+diagnosis.notes.slice(0,2).join(' ');
   }
@@ -5112,6 +5370,8 @@ function logResult(concept,outcome,reason,reaction,play,diagnosis){
       reaction:effectiveReaction||'',
       reactions:allReactions,
       diagnostics:diagnosis,
+      callQuality:diagnosis.callQuality||'',
+      causeType:diagnosis.causeType||'',
       answerConcepts:answerList,
       formation:play.formation||'',
       play:play.play||''
@@ -5121,7 +5381,9 @@ function logResult(concept,outcome,reason,reaction,play,diagnosis){
   const brainNote=coachBrainLogNote(concept,effectiveReaction);
   if(brainNote && outcome!=='neutral') note=note?note+' '+brainNote:brainNote;
 
-  ingame.log.unshift({t:Date.now(),concept,outcome,reason:outcome==='neutral'?'':rawReason,neutralReason:outcome==='neutral'?rawReason:'',reaction:effectiveReaction||'',reactions:allReactions,diagnostics:diagnosis,series:brain?brain.series:''});
+  const event={t:Date.now(),concept,outcome,reason:outcome==='neutral'?'':rawReason,neutralReason:outcome==='neutral'?rawReason:'',reaction:effectiveReaction||'',reactions:allReactions,diagnostics:diagnosis,series:brain?brain.series:'',callQuality:diagnosis.callQuality||'',causeType:diagnosis.causeType||'',answerConcepts:answerList,formation:play?(play.formation||''):'',play:play?(play.play||''):''};
+  ingame.log.unshift(event);
+  ingame.lastAdjustment=coachAdjustmentFromEvent(event);
   ingame.log=ingame.log.slice(0,60);
   save(LS.ig,ingame);
   return note;
@@ -5237,6 +5499,147 @@ function runPassNudgesFor(zone){
   return {band,share,runNudge,passNudge,overrideBalance};
 }
 
+/* OC upgrade: clock/score/drive management layer. */
+function defaultGameState(){return {quarter:1,clockSec:720,scoreDiff:0,timeoutsUs:3,timeoutsThem:3,yardLine:25,driveGoal:'normal',fourDownTerritory:false,riskMode:'balanced'};}
+function ensureGameState(){
+  if(!ingame) return defaultGameState();
+  ingame.gameState=Object.assign(defaultGameState(),ingame.gameState||{});
+  return ingame.gameState;
+}
+function deriveGameMode(gs){
+  gs=Object.assign(defaultGameState(),gs||{});
+  const q=Number(gs.quarter)||1, clock=Number(gs.clockSec)||720, diff=Number(gs.scoreDiff)||0;
+  const late=q===4&&clock<=360;
+  const twoMin=(q===2||q===4)&&clock<=120;
+  if(gs.driveGoal==='bleed_clock')return 'bleed_clock';
+  if(gs.driveGoal==='protect_ball')return 'protect_ball';
+  if(gs.driveGoal==='explosive_needed')return 'explosive_needed';
+  if(gs.driveGoal==='touchdown_only')return 'touchdown_only';
+  if(late&&diff<=-9)return 'desperation';
+  if(late&&diff<0)return 'catch_up';
+  if(late&&diff>0&&diff<=8)return 'bleed_clock';
+  if(late&&diff>=9)return 'salt_game';
+  if(twoMin&&diff<0)return 'two_min_score';
+  if(twoMin&&diff>=0)return 'two_min_control';
+  return 'normal';
+}
+function isClockFriendlyPass(pl){
+  const c=String(pl.concept||'');
+  const key=playIntentKey(pl);
+  return key==='quick_game'||key==='screen'||['Quick Game','Stick','Spot','Spacing','Slants','Mesh','Shallow','Curls / Curl Flats','All Curl','Hitch'].includes(c);
+}
+function clockHardNo(pl,down,dist,gs){
+  gs=Object.assign(defaultGameState(),gs||{});
+  const mode=deriveGameMode(gs), key=playIntentKey(pl);
+  const shot=AGGR_SHOT_CONCEPTS.includes(pl.concept)||key==='shot';
+  const pa=pl.family==='play_action'||(typeof PA_CONCEPTS!=='undefined'&&PA_CONCEPTS.has(pl.concept))||key==='play_action'||key==='boot_keeper';
+  const run=isStraightRunCall(pl);
+  const longDeveloping=(intentSafe(pl).routeTiming==='long_developing')||shot||pa;
+  if((mode==='bleed_clock'||mode==='salt_game'||mode==='protect_ball')&&shot&&gs.riskMode!=='aggressive')return 'Shot suppressed while protecting ball/lead.';
+  if((mode==='catch_up'||mode==='desperation'||mode==='two_min_score'||mode==='touchdown_only')&&gs.timeoutsUs===0&&run&&dist!=='short')return 'Normal run suppressed while chasing points with no timeouts.';
+  if((mode==='catch_up'||mode==='desperation'||mode==='two_min_score')&&pa&&Number(gs.clockSec)<90)return 'Slow play-action suppressed under 90 seconds while chasing.';
+  if(mode==='desperation'&&run&&pl.concept!=='Draw')return 'Normal run suppressed in desperation mode.';
+  if((down==='3'||down==='4')&&dist==='long'&&run&&!['draw','screen'].includes(key))return 'Straight run suppressed on long conversion down.';
+  if(gs.riskMode==='safe'&&longDeveloping&&down!=='1')return 'Safe posture suppresses long-developing call on money down.';
+  return '';
+}
+function clockScoreFit(pl,down,dist,yards,gs){
+  gs=Object.assign(defaultGameState(),gs||{});
+  const mode=deriveGameMode(gs), key=playIntentKey(pl);
+  const run=isStraightRunCall(pl), draw=key==='draw', screen=key==='screen', quick=isClockFriendlyPass(pl);
+  const shot=AGGR_SHOT_CONCEPTS.includes(pl.concept)||key==='shot';
+  const pa=pl.family==='play_action'||(typeof PA_CONCEPTS!=='undefined'&&PA_CONCEPTS.has(pl.concept))||key==='play_action'||key==='boot_keeper';
+  let m=1;
+  if(mode==='bleed_clock'||mode==='salt_game'||mode==='protect_ball'){
+    if(run)m*=mode==='salt_game'?1.55:1.32;
+    if(quick)m*=1.08;
+    if(screen)m*=0.82;
+    if(pa)m*=0.78;
+    if(shot)m*=0.48;
+  }
+  if(mode==='catch_up'||mode==='two_min_score'){
+    if(quick)m*=1.24;
+    if(screen)m*=1.15;
+    if(shot)m*=1.12;
+    if(pa&&Number(gs.clockSec)<180)m*=0.78;
+    if(run&&!draw&&dist!=='short')m*=0.62;
+  }
+  if(mode==='desperation'||mode==='touchdown_only'||mode==='explosive_needed'){
+    if(shot)m*=1.38;
+    if(quick)m*=1.12;
+    if(run&&!draw)m*=0.35;
+    if(screen&&dist==='long')m*=0.90;
+  }
+  if(gs.riskMode==='safe'){
+    if(run)m*=1.12;
+    if(shot)m*=0.62;
+    if(screen)m*=0.92;
+  } else if(gs.riskMode==='aggressive'){
+    if(shot)m*=1.22;
+    if(pa)m*=1.08;
+  }
+  return Math.max(0.20,Math.min(1.90,m));
+}
+function driveGoalFit(pl,down,dist,gs){
+  gs=Object.assign(defaultGameState(),gs||{});
+  const goal=gs.driveGoal||'normal', key=playIntentKey(pl), c=pl.concept;
+  const run=isStraightRunCall(pl), shot=AGGR_SHOT_CONCEPTS.includes(c)||key==='shot', quick=isClockFriendlyPass(pl);
+  let m=1;
+  if(goal==='protect_ball'){
+    if(shot)m*=0.55; if(run)m*=1.20; if(quick)m*=1.10; if(key==='screen')m*=0.86;
+  }
+  if(goal==='explosive_needed'||goal==='touchdown_only'){
+    if(shot)m*=1.45; if(['Y Cross','Sail','Flood','Wheel','Post','Dagger'].includes(c))m*=1.22; if(run&&!['Draw'].includes(c))m*=0.65;
+  }
+  if(goal==='get_first_down'){
+    if(quick||['Mesh','Shallow','Drive','Levels'].includes(c))m*=1.25; if(shot&&dist!=='long')m*=0.66;
+  }
+  if(goal==='get_points'){
+    if(shot)m*=1.14; if(quick)m*=1.10; if(run&&down==='1')m*=0.92;
+  }
+  if(goal==='four_down'){
+    if(down==='3'&&(dist==='med'||dist==='long')){
+      if(quick||key==='screen'||key==='draw')m*=1.22;
+      if(shot)m*=0.74;
+    }
+  }
+  return Math.max(0.35,Math.min(1.75,m));
+}
+function shouldThinkFourDown(gs,down,dist){
+  gs=Object.assign(defaultGameState(),gs||{});
+  if(gs.fourDownTerritory||gs.driveGoal==='four_down')return true;
+  if(Number(gs.quarter)===4&&Number(gs.scoreDiff)<0&&Number(gs.yardLine)>=45)return true;
+  if(Number(gs.quarter)===4&&Number(gs.scoreDiff)<=-9)return true;
+  return false;
+}
+function fourDownFit(pl,down,dist,gs){
+  if(String(down)!=='3'||!shouldThinkFourDown(gs,down,dist))return 1;
+  const key=playIntentKey(pl), c=pl.concept;
+  if(dist==='med'||dist==='long'){
+    if(isClockFriendlyPass(pl)||['Mesh','Shallow','Draw','Screen'].includes(c)||key==='draw'||key==='screen')return 1.24;
+    if(AGGR_SHOT_CONCEPTS.includes(c)||key==='shot')return 0.72;
+  }
+  return 1;
+}
+function explainGameMode(gs){
+  gs=Object.assign(defaultGameState(),gs||{});
+  const mode=deriveGameMode(gs);
+  const labels={normal:'Normal',two_min_score:'Two-minute score',two_min_control:'Two-minute control',catch_up:'Catch-up',desperation:'Desperation',bleed_clock:'Bleed clock',salt_game:'Salt game',protect_ball:'Protect ball',explosive_needed:'Explosive needed',touchdown_only:'Touchdown only'};
+  const txt={
+    normal:'Suggestions use standard down/distance plus scout/diagnosis reads.',
+    two_min_score:'Boosts quick completions, sideline/space answers, and selective shots; suppresses slow run-game calls.',
+    two_min_control:'Protects possession while keeping efficient completions and clock-aware runs available.',
+    catch_up:'Favors quick completions, space throws, and selective explosives; normal runs drop if clock is low.',
+    desperation:'Explosives and fast completions rise; normal runs and slow play-action are heavily suppressed.',
+    bleed_clock:'Favors low-risk runs, efficient quick game, and clock-friendly answers; shots are suppressed.',
+    salt_game:'Strongly favors possession/runs and suppresses risky passes.',
+    protect_ball:'Low-risk calls rise; shots and volatile screens drop.',
+    explosive_needed:'Shot and intermediate explosives rise; low-ceiling runs drop.',
+    touchdown_only:'End-zone/explosive answers rise; possession-only calls drop.'
+  }[mode]||'';
+  return {mode,label:labels[mode]||mode,text:txt};
+}
+
 function playIQFit(pl,down,dist,zone,yards){
   const t=intentSafe(pl)||{};
   let m=1;
@@ -5305,6 +5708,11 @@ function safeCoachBrainMult(pl){return safeMult('coachBrainMult',()=>coachBrainM
 function safeSequenceFit(pl){return safeMult('sequenceFit',()=>sequenceFit(pl),1);}
 function safeRecognitionFit(pl){return safeMult('recognitionFit',()=>recognitionFit(pl),1);}
 function safePlayIQFit(pl,down,dist,zone,yards){return safeMult('playIQFit',()=>playIQFit(pl,down,dist,zone,yards),1);}
+function safeDefenseMemoryMult(pl){return safeMult('defenseMemoryMult',()=>defenseMemoryMult(pl),1);}
+function safeClockScoreFit(pl,down,dist,yards,gs){return safeMult('clockScoreFit',()=>clockScoreFit(pl,down,dist,yards,gs),1);}
+function safeDriveGoalFit(pl,down,dist,gs){return safeMult('driveGoalFit',()=>driveGoalFit(pl,down,dist,gs),1);}
+function safeFourDownFit(pl,down,dist,gs){return safeMult('fourDownFit',()=>fourDownFit(pl,down,dist,gs),1);}
+function safeClockHardNo(pl,down,dist,gs){try{return clockHardNo(pl,down,dist,gs)||'';}catch(e){console.warn('Soft scoring skipped: clockHardNo',e);return '';}}
 
 function sanitizePlayForCall(pl,i){
   // v12.2: make the caller tolerant of older/custom/team playbooks that may
@@ -5379,6 +5787,9 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   if(!ingame) seedIngameFromBook();
   const info=(ctx&&ctx.nudges)?ctx.nudges:runPassNudgesFor(zone);
   const band=info.band;
+  const gs=ensureGameState();
+  const noCall=safeClockHardNo(pl,down,dist,gs);
+  if(noCall){pl._noCallReason=noCall;return 0;}
   const c=ingame.concepts[pl.concept]||{w:W_BASE};
   let s=c.w;
   s*=ddFit(pl,down,dist,yards);
@@ -5398,6 +5809,10 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=safeSequenceFit(pl);
   s*=safeRecognitionFit(pl);
   s*=safePlayIQFit(pl,down,dist,zone,yards);
+  s*=safeDefenseMemoryMult(pl);
+  s*=safeClockScoreFit(pl,down,dist,yards,gs);
+  s*=safeDriveGoalFit(pl,down,dist,gs);
+  s*=safeFourDownFit(pl,down,dist,gs);
   s*=playIntentSituationFit(pl,down,dist,yards);
   if(s<=0)return 0;
   if(!info.overrideBalance){
@@ -8745,6 +9160,42 @@ function renderIngameStats(){
   const sr=totalCalls?Math.round((succ+neut*0.5)/totalCalls*100):0;
   [['Calls',totalCalls],['Success',succ],['Neutral',neut],['Failure',fail],['Rate',sr+'%']].forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));stats.appendChild(c);});
 }
+function renderGameManagement(){
+  if(!ingame&&playbook) seedIngameFromBook();
+  const gs=ensureGameState();
+  const setVal=(id,val)=>{const e=$('#'+id); if(e)e.value=String(val);};
+  setVal('ig-quarter',gs.quarter); setVal('ig-clock',gs.clockSec); setVal('ig-score-diff',gs.scoreDiff); setVal('ig-drive-goal',gs.driveGoal);
+  setVal('ig-timeouts-us',gs.timeoutsUs); setVal('ig-timeouts-them',gs.timeoutsThem); setVal('ig-risk-mode',gs.riskMode); setVal('ig-yardline',gs.yardLine);
+  const fd=$('#ig-four-down'); if(fd)fd.checked=!!gs.fourDownTerritory;
+  const ex=explainGameMode(gs);
+  const ro=$('#ig-game-readout');
+  if(ro){
+    const fdTxt=shouldThinkFourDown(gs,_igDown,_igDist)?' Four-down planning is active: 3rd down may target manageable 4th down.':'';
+    ro.innerHTML=`<b>Mode:</b> ${ex.label}. ${ex.text}${fdTxt}`;
+  }
+}
+function renderCoachAdjustment(){
+  const card=$('#ig-adjust-card'), body=$('#ig-adjust-body'); if(!card||!body)return;
+  const adj=ingame&&ingame.lastAdjustment;
+  if(!adj){card.style.display='none';return;}
+  card.style.display='block';
+  body.innerHTML='';
+  body.appendChild(el('div',null,adj.headline));
+  if(adj.label)body.appendChild(el('div','hint','Diagnosis: '+adj.label));
+  if(adj.meaning)body.appendChild(el('div',null,adj.meaning));
+  if(adj.answers&&adj.answers.length){
+    const wr=el('div','adj-list');
+    adj.answers.slice(0,8).forEach(a=>wr.appendChild(el('span','adj-pill',a)));
+    body.appendChild(wr);
+  }
+  if(adj.avoid&&adj.avoid.length){body.appendChild(el('div','adj-warn','Avoid: '+adj.avoid.slice(0,3).join(' · ')));}
+  const mem=ingame.defenseMemory||{};
+  const tells=Object.entries(mem).filter(([k])=>!k.startsWith('cause_')).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if(tells.length){
+    const t=el('div','hint','Live defensive tells: '+tells.map(([k,v])=>`${reactionText(k)} ×${v}`).join(' · '));
+    t.style.marginTop='7px'; body.appendChild(t);
+  }
+}
 function renderIngame(){
   if(!ingame){ if(playbook) seedIngameFromBook(); }
   const stats=$('#ig-stats'); stats.innerHTML='';
@@ -8754,6 +9205,8 @@ function renderIngame(){
   renderRunPassMeter();
   renderReadsSummary('#ig-reads-summary');
   renderSequencePanel();
+  renderGameManagement();
+  renderCoachAdjustment();
 }
 function renderBoard(){
   const board=$('#ig-board'); board.innerHTML='';
@@ -8849,6 +9302,8 @@ function renderSuggestion(plays){
     if(staleNote) body.appendChild(el('div','stale-note',staleNote));
     const sysNote=offenseSystemNoteFor(pl);
     if(sysNote) body.appendChild(el('div','stale-note',sysNote));
+    const gm=explainGameMode(ensureGameState());
+    if(gm.mode!=='normal') body.appendChild(el('div','stale-note','Game management: '+gm.label+' — '+gm.text));
 
     // ── Audibles for this formation ──
     const auds=audiblesForFormation(pl.formation);
@@ -8887,7 +9342,7 @@ function renderSuggestion(plays){
       lg.textContent=(selectedOutcome==='success'?'✓ Success':selectedOutcome==='neutral'?'~ Neutral':'✕ Negative')+(sum?' — '+sum:'')+(quick?' · quick log':'');
       rw.appendChild(lg);
       if(note){const adj=el('div','pc-adj',note);rw.appendChild(adj);}
-      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();renderIngameStats();
+      renderBoard();renderRunPassMeter();renderReadsSummary('#ig-reads-summary');renderSequencePanel();renderIngameStats();renderGameManagement();renderCoachAdjustment();
       toast(pl.concept+' logged');
     }
 
@@ -9375,17 +9830,36 @@ function setIgSituation(down,yards){
 }
 $$('#ig-territory .terr-btn').forEach(b=>b.addEventListener('click',()=>{
   $$('#ig-territory .terr-btn').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); _igZone=b.dataset.zone;
+  b.classList.add('on'); _igZone=b.dataset.zone; renderGameManagement();
 }));
 $$('#ig-dd-grid .dd-btn').forEach(b=>b.addEventListener('click',()=>{
-  _igDown=b.dataset.down; _igDist=b.dataset.dist; _igYards=yardsForBucket(_igDown,_igDist); updateIgExactControls(true);
+  _igDown=b.dataset.down; _igDist=b.dataset.dist; _igYards=yardsForBucket(_igDown,_igDist); updateIgExactControls(true); renderGameManagement();
 }));
 if($('#ig-down-exact')) $('#ig-down-exact').addEventListener('change',e=>setIgSituation(e.target.value,_igYards));
 if($('#ig-yards-exact')) $('#ig-yards-exact').addEventListener('input',e=>setIgSituation(_igDown,e.target.value));
 updateIgExactControls();
+function updateGameStateFromControls(){
+  if(!ingame&&playbook)seedIngameFromBook();
+  if(!ingame)return;
+  const gs=ensureGameState();
+  const val=id=>{const e=$('#'+id); return e?e.value:null;};
+  gs.quarter=Number(val('ig-quarter')||gs.quarter)||1;
+  gs.clockSec=Number(val('ig-clock')||gs.clockSec)||720;
+  gs.scoreDiff=Number(val('ig-score-diff')||gs.scoreDiff)||0;
+  gs.driveGoal=val('ig-drive-goal')||gs.driveGoal||'normal';
+  gs.timeoutsUs=Number(val('ig-timeouts-us')||gs.timeoutsUs)||0;
+  gs.timeoutsThem=Number(val('ig-timeouts-them')||gs.timeoutsThem)||0;
+  gs.riskMode=val('ig-risk-mode')||gs.riskMode||'balanced';
+  gs.yardLine=Number(val('ig-yardline')||gs.yardLine)||25;
+  const fd=$('#ig-four-down'); gs.fourDownTerritory=fd?!!fd.checked:!!gs.fourDownTerritory;
+  save(LS.ig,ingame);
+  renderGameManagement();
+}
+['ig-quarter','ig-clock','ig-score-diff','ig-drive-goal','ig-timeouts-us','ig-timeouts-them','ig-risk-mode','ig-yardline','ig-four-down'].forEach(id=>{const e=$('#'+id); if(e)e.addEventListener('change',updateGameStateFromControls);});
 $('#btn-ig-reset').addEventListener('click',()=>{if(!playbook){toast('No playbook');return;}seedIngameFromBook();clearRecentSuggestions();$('#ig-plays').innerHTML='';renderIngame();toast('In-game tracking reset to base');});
 $('#btn-suggest').addEventListener('click',()=>{
   try{
+    updateGameStateFromControls();
     const plays=safeSuggestPlay(_igDown,_igDist,_igZone,_igYards);
     renderSuggestion(plays);
     if(!plays||!plays.length)toast('No playable calls found — generate or import an active base playbook');
@@ -9435,7 +9909,7 @@ $('#btn-new-game').addEventListener('click',()=>{
   if(!confirm('Reset everything for a new game?\n\nThis clears: scouting report, opening script, in-game tracking, and all established reads.\nYour saved playbook and philosophy are NOT affected.'))return;
   scout=defaultScout(); save(LS.scout,scout);
   // rebuild ingame from book (fresh weights) with empty reads
-  if(playbook){ seedIngameFromBook(); ingame.reads=emptyReads(); ingame.log=[]; save(LS.ig,ingame); }
+  if(playbook){ seedIngameFromBook(); ingame.reads=emptyReads(); ingame.log=[]; ingame.gameState=defaultGameState(); ingame.defenseMemory={}; ingame.lastAdjustment=null; save(LS.ig,ingame); }
   else { ingame=null; localStorage.removeItem(LS.ig); }
   clearRecentSuggestions();
   renderScout(); renderReadsSummary('#ig-reads-summary'); renderRunPassMeter(); renderIngame();
