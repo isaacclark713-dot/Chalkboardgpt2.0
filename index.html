@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v14.2</title>
+<title>Call Sheet — Coach Brain v14.3</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -1145,7 +1145,7 @@ window.__DB={"forms":["Gun Ace","Gun Ace Offset","Gun Ace Slot Offset","Gun Dbls
    ============================================================ */
 const DB = window.__DB;
 /* persIdx from DB: 0=10 1=11 2=12 3=21, then 4=13 5=20 6=22 7=23.
-   v14.2 embeds the full offensive side of the game database, so built-in plays can now carry 20/22/23-style groupings. */
+   v14.3 embeds the full offensive side of the game database, so built-in plays can now carry 20/22/23-style groupings. */
 const PERS = ['10','11','12','21','13','20','22','23'];   // DB decode — first four preserve legacy order; new full-game DB can use all groups
 // All valid personnel groupings (for UI selectors and generation)
 const ALL_PERS = ['10','11','12','13','20','21','22','23'];
@@ -2094,11 +2094,13 @@ const SITUATIONS = {
 };
 
 const MOTION_LABELS=[[0,"Static"],[20,"Light motion"],[40,"Moderate motion"],[65,"Heavy motion"],[85,"Max disguise"]];
-const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Boot / Play Action","Option / RPO","Quick Game","Stick","Mesh","Flood","Smash","Screen","Verticals / Four Verticals","Jet Sweep"];
+const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Trap","Dive","Draw","Sweep","Jet Sweep","Rocket Toss","Triple Option","Inside Veer","Midline","Counter Option","Veer Pass","Option / RPO","Boot / Play Action","Quick Game","Stick","Mesh","Flood","Smash","Screen","Verticals / Four Verticals","Go Routes","Post","Slants","Choice"];
 const CONCEPT_TARGET_GUIDE={
   "Inside Zone":"base run guide 15–30%","Outside Zone / Stretch":"base run guide 12–25%","Power / Power O":"base run guide 12–25%","Counter":"constraint guide 6–15%","Duo":"base run guide 10–22%",
+  "Trap":"constraint/quick hitter 3–10%","Dive":"short-yard / B-back guide 6–18%","Draw":"pass-game constraint 3–8%","Sweep":"perimeter guide 4–12%","Jet Sweep":"motion stress 4–10%","Rocket Toss":"option perimeter guide 6–14%",
+  "Triple Option":"option base guide 15–30%","Inside Veer":"option base guide 10–20%","Midline":"option base guide 10–20%","Counter Option":"option constraint 5–12%","Veer Pass":"option PA shot 4–10%",
   "Boot / Play Action":"married PA guide 6–14%","Option / RPO":"access guide 8–20%","Quick Game":"rhythm guide 8–18%","Stick":"conversion guide 5–12%","Mesh":"man answer guide 5–12%",
-  "Flood":"zone/boot answer 4–10%","Smash":"coverage answer 4–10%","Screen":"pressure answer 5–12%","Verticals / Four Verticals":"shot guide 3–8%","Jet Sweep":"motion stress 4–10%"
+  "Flood":"zone/boot answer 4–10%","Smash":"coverage answer 4–10%","Screen":"pressure answer 5–12%","Verticals / Four Verticals":"shot guide 3–8%","Go Routes":"vertical isolation 3–8%","Post":"single-high shot 3–8%","Slants":"quick/RPO access 4–10%","Choice":"option-route / isolation 5–14%"
 };
 function ensurePhilosophyShape(){
   if(!philosophy.persMix) philosophy.persMix={...DEFAULT_PERS_MIX};
@@ -2143,8 +2145,11 @@ function formationStyleGameMult(pl){
   if(!pl)return 1;
   const type=inferFormationType(pl.formation);
   const share=formTypeShare(type);
-  // In-game stays less deterministic than generation but still honors the chosen alignment family.
-  return Math.max(0.82,Math.min(1.32,0.82+share*2.25));
+  const strength=offenseSystemStrength01();
+  // In-game now treats formation as part of identity. The user's alignment sliders matter more at high discipline.
+  const cap=1.28 + strength*0.34;
+  const floor=Math.max(0.58,0.86-strength*0.20);
+  return Math.max(floor,Math.min(cap,0.72+share*(2.15+strength*1.25)));
 }
 function safeFormationStyleGameMult(pl){return safeMult('formation style game mult',()=>formationStyleGameMult(pl),1);}
 
@@ -2467,6 +2472,7 @@ const IDENTITY_FORM_MIX={
   spread:{shotgun:66,singleback:4,pistol:10,i_form:0,flexbone:0,empty:16,under_center:0,other:4},
   pro:{shotgun:28,singleback:26,pistol:6,i_form:22,flexbone:2,empty:4,under_center:10,other:2}
 };
+const IDENTITY_MOTION_PRESET={balanced:35,run:28,pass:30,spread:45,pro:42};
 function inferFormationType(form){
   const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
   if(/empty|5\s*wr|five\s*wide/.test(f))return 'empty';
@@ -2760,8 +2766,8 @@ Object.assign(BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone,{
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.paul_johnson_flexbone,{
   systemStrengthPreset:92,
-  formMixPreset:{shotgun:6,singleback:2,pistol:4,i_form:4,flexbone:74,empty:0,under_center:8,other:2},
-  formTypeBoosts:{flexbone:1.55,under_center:1.08,shotgun:.78,singleback:.72,pistol:.78,empty:.62,i_form:.88,other:.82},
+  formMixPreset:{shotgun:3,singleback:0,pistol:8,i_form:1,flexbone:84,empty:0,under_center:1,other:3},
+  formTypeBoosts:{flexbone:2.25,pistol:1.08,shotgun:.62,singleback:.45,i_form:.46,empty:.35,under_center:.42,other:.55},
   genCap:2.75, gameCap:1.48
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread,{
@@ -2882,6 +2888,45 @@ function offenseSystemGameMult(pl){
   return scaleOffenseSystemMult(offenseSystemRawMult(pl),'game',sys);
 }
 function safeOffenseSystemGameMult(pl){return safeMult('offense system game mult',()=>offenseSystemGameMult(pl),1);}
+function offenseSystemFormationRailGameMult(pl){
+  if(!pl)return 1;
+  const sysKey=(philosophy&&philosophy.system)||'none';
+  if(!sysKey||sysKey==='none')return 1;
+  const strength=offenseSystemStrength01();
+  if(strength<=0.05)return 1;
+  const match=systemRailFormationMatch(pl.formation,sysKey);
+  const ftype=inferFormationType(pl.formation);
+  const sys=activeOffenseSystem(sysKey)||{};
+  // Paul Johnson is the cleanest example: formation IS the offense. Flexbone/Wingbone/Wishbone/Split-T must be a real in-game rail.
+  if(sysKey==='paul_johnson_flexbone'){
+    if(match) return 1 + strength*0.95;        // 90% discipline ≈ 1.86x for true option surfaces
+    return Math.max(0.42,1 - strength*0.58);  // non-option surfaces become changeups, not normal calls
+  }
+  // Source-backed systems still care about formation identity, but not as brutally as Flexbone.
+  if(match) return 1 + strength*0.50;
+  // If the selected system has a near-zero alignment bucket, cool those formations at high discipline.
+  if(sys.formMixPreset && Number(sys.formMixPreset[ftype]||0)<=3 && strength>=0.70) return Math.max(0.68,1-strength*0.30);
+  return 1;
+}
+function safeOffenseSystemFormationRailGameMult(pl){return safeMult('offense system formation rail',()=>offenseSystemFormationRailGameMult(pl),1);}
+function offenseSystemFormationRailGenMult(pl){
+  if(!pl)return 1;
+  const sysKey=(philosophy&&philosophy.system)||'none';
+  if(!sysKey||sysKey==='none')return 1;
+  const strength=offenseSystemStrength01();
+  if(strength<=0.05)return 1;
+  const match=systemRailFormationMatch(pl.formation,sysKey);
+  const sys=activeOffenseSystem(sysKey)||{};
+  const ftype=inferFormationType(pl.formation);
+  if(sysKey==='paul_johnson_flexbone'){
+    if(match)return 1 + strength*1.55;
+    return Math.max(0.24,1 - strength*0.78);
+  }
+  if(match)return 1 + strength*0.72;
+  if(sys.formMixPreset && Number(sys.formMixPreset[ftype]||0)<=3 && strength>=0.70)return Math.max(0.52,1-strength*0.45);
+  return 1;
+}
+function safeOffenseSystemFormationRailGenMult(pl){return safeMult('offense system formation gen rail',()=>offenseSystemFormationRailGenMult(pl),1);}
 function offenseSystemConceptSeedMult(concept,family){
   const fake={formation:'',play:concept,concept:concept,family:family||conceptFamilyForName(concept),pers:'',motion:0};
   const g=offenseSystemGenMult(fake);
@@ -2969,7 +3014,12 @@ function addSystemRailSeeds(scoredList,target,tryAdd){
   const plans=systemRailSeedPlans(sysKey,target);
   for(const plan of plans){
     let n=0;
-    const pool=scoredList.filter(x=>plan.re.test(((x.pl&&x.pl.formation)||'')+' '+((x.pl&&x.pl.play)||'')+' '+((x.pl&&x.pl.concept)||''))).sort((a,b)=>b.s-a.s);
+    let pool=scoredList.filter(x=>plan.re.test(((x.pl&&x.pl.formation)||'')+' '+((x.pl&&x.pl.play)||'')+' '+((x.pl&&x.pl.concept)||'')));
+    if(sysKey==='paul_johnson_flexbone'){
+      const railPool=pool.filter(x=>systemRailFormationMatch(x.pl&&x.pl.formation,sysKey));
+      if(railPool.length) pool=railPool;
+    }
+    pool=pool.sort((a,b)=>b.s-a.s);
     for(const {pl} of pool){
       if(n>=plan.n)break;
       if(tryAdd(pl)){n++;added++;}
@@ -3001,16 +3051,60 @@ function renderSystemOptions(){
   const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','erhardt_perkins','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
   sel.value=allOffenseSystems()[cur]?cur:'none';
 }
+function blendPctMaps(base,preset,keys,strength){
+  const out={};
+  keys.forEach(k=>{out[k]=Math.max(0,Math.round(Number((base&&base[k])||0)*(1-strength)+Number((preset&&preset[k])||0)*strength));});
+  // keep pct maps usable by nudging rounding to 100 when possible
+  const total=keys.reduce((s,k)=>s+out[k],0);
+  if(total>0&&total!==100){
+    const best=keys.slice().sort((a,b)=>out[b]-out[a])[0];
+    out[best]=Math.max(0,out[best]+(100-total));
+  }
+  return out;
+}
+function applyOffenseSystemDisciplineBlend(opts={}){
+  const sys=activeOffenseSystem();
+  if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return;
+  ensurePhilosophyShape();
+  const strength=offenseSystemStrength01();
+  const identity=sys.identityPreset||philosophy.identity||'balanced';
+  const basePers=IDENTITY_PERS_MIX[identity]||DEFAULT_PERS_MIX;
+  const baseForm=IDENTITY_FORM_MIX[identity]||DEFAULT_FORM_MIX;
+  if(sys.persMixPreset) philosophy.persMix=blendPctMaps(basePers,sys.persMixPreset,ALL_PERS,strength);
+  if(sys.formMixPreset) philosophy.formMix=blendPctMaps(baseForm,sys.formMixPreset,ALL_FORM_TYPES,strength);
+  if(sys.rpBand){
+    const base=IDENTITY_RP[identity]||IDENTITY_RP.balanced;
+    philosophy.rpMin=Math.round(base[0]*(1-strength)+Number(sys.rpBand[0])*strength);
+    philosophy.rpMax=Math.round(base[1]*(1-strength)+Number(sys.rpBand[1])*strength);
+  }
+  if(sys.conceptTargetsPreset){
+    const out={};
+    Object.entries(sys.conceptTargetsPreset).forEach(([k,v])=>{
+      const val=Math.round(Number(v||0)*strength);
+      if(val>0)out[k]=val;
+    });
+    philosophy.conceptTargets=out;
+  }
+  if(sys.motionPreset!=null){
+    const baseMotion=Number((IDENTITY_MOTION_PRESET&&IDENTITY_MOTION_PRESET[identity])||motion||35);
+    motion=Math.round(baseMotion*(1-strength)+Number(sys.motionPreset)*strength);
+    save(LS.motion,String(motion));
+  }
+  if(opts.render){
+    if($('#ph-identity')) $('#ph-identity').value=philosophy.identity;
+    renderPersMixSliders(); renderFormMixSliders(); renderConceptTargets();
+    if($('#rp-min'))$('#rp-min').value=philosophy.rpMin; if($('#rp-max'))$('#rp-max').value=philosophy.rpMax; updateRpReadout();
+    if($('#motion-slider'))$('#motion-slider').value=motion; updateMotionLabel();
+    renderOffenseSystemPlan(); updateSystemStrengthLabel();
+  }
+  save(LS.ph,philosophy);
+}
 function applyOffenseSystemPreset(){
   const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none){toast('Choose a system profile first');return;}
   if(sys.identityPreset){philosophy.identity=sys.identityPreset; const elid=$('#ph-identity'); if(elid)elid.value=philosophy.identity;}
-  if(sys.persMixPreset) philosophy.persMix={...DEFAULT_PERS_MIX,...sys.persMixPreset};
-  if(sys.formMixPreset) philosophy.formMix={...DEFAULT_FORM_MIX,...sys.formMixPreset};
-  if(sys.rpBand){philosophy.rpMin=sys.rpBand[0]; philosophy.rpMax=sys.rpBand[1];}
-  if(sys.conceptTargetsPreset) philosophy.conceptTargets={...sys.conceptTargetsPreset};
-  if(sys.motionPreset!=null){motion=Number(sys.motionPreset); save(LS.motion,String(motion));}
   if(sys.systemStrengthPreset!=null) philosophy.systemStrength=Number(sys.systemStrengthPreset)||85;
   else philosophy.systemStrength=Math.max(Number(philosophy.systemStrength||0),82);
+  applyOffenseSystemDisciplineBlend({render:false});
   if(sys.sizeHint&&(!philosophy.size||philosophy.size<220)) philosophy.size=Math.min(400,Number(sys.sizeHint)||philosophy.size);
   save(LS.ph,philosophy); initPhilosophyForm(); toast('Applied '+sys.label+' preset');
 }
@@ -3146,6 +3240,7 @@ function generatePlaybook(){
     if(p.emphasis.includes(pl.concept)) s*=2.2;
     s*=conceptTargetGenMult(pl.concept);
     s*=offenseSystemGenMult(pl);
+    s*=safeOffenseSystemFormationRailGenMult(pl);
     s*=formationStyleGenMult(pl);
     // de-emphasize unmapped "Other / Unknown" so named concepts lead
     if(pl.concept==='Other / Unknown') s*=0.45;
@@ -3718,6 +3813,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=safeScoutConceptMult(pl.concept,pl.family);
   s*=safeDefenseStyleMult(pl);
   s*=safeOffenseSystemGameMult(pl);
+  s*=safeOffenseSystemFormationRailGameMult(pl);
   s*=safeFormationStyleGameMult(pl);
   s*=safeConceptTargetGameMult(pl);
   s*=safeCoachBrainMult(pl);
@@ -6422,6 +6518,7 @@ function scorePoolPlay(pl,mix,pmNorm,p,seed){
   if(p.emphasis.includes(pl.concept)) s*=2.2;
   s*=conceptTargetGenMult(pl.concept);
   s*=offenseSystemGenMult(pl);
+  s*=safeOffenseSystemFormationRailGenMult(pl);
   s*=formationStyleGenMult(pl);
   if(pl.concept==='Other / Unknown') s*=0.45;
   s*=0.85+(((pl.id||0)*2654435761>>>0)%100)/100*0.3;
@@ -6974,14 +7071,14 @@ $('#ph-identity').addEventListener('change',e=>{
   renderFormMixSliders();
   save(LS.ph,philosophy);
 });
-$('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none';save(LS.ph,philosophy);renderOffenseSystemPlan();toast('Offensive system set: '+labelSystem(philosophy.system));});
+$('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none';applyOffenseSystemDisciplineBlend({render:true});save(LS.ph,philosophy);toast('Offensive system set: '+labelSystem(philosophy.system));});
 $('#btn-system-preset').addEventListener('click',()=>applyOffenseSystemPreset());
 $('#btn-system-export').addEventListener('click',()=>exportSelectedSystemProfile());
 $('#btn-system-import').addEventListener('click',()=>$('#sys-import-file').click());
 $('#sys-import-file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(f)importSystemProfileFile(f);e.target.value='';});
 $('#ph-aggr').addEventListener('change',e=>{philosophy.aggr=e.target.value;save(LS.ph,philosophy);});
 $('#ph-size').addEventListener('change',e=>{philosophy.size=Number(e.target.value);save(LS.ph,philosophy);});
-$('#ph-system-strength').addEventListener('input',e=>{philosophy.systemStrength=Number(e.target.value)||0;updateSystemStrengthLabel();save(LS.ph,philosophy);renderOffenseSystemPlan();});
+$('#ph-system-strength').addEventListener('input',e=>{philosophy.systemStrength=Number(e.target.value)||0;applyOffenseSystemDisciplineBlend({render:true});save(LS.ph,philosophy);});
 $('#btn-form-preset').addEventListener('click',()=>{
   const sys=activeOffenseSystem();
   philosophy.formMix={...((sys&&sys.formMixPreset)||(IDENTITY_FORM_MIX[philosophy.identity]||DEFAULT_FORM_MIX))};
