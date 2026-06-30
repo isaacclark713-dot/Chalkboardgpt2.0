@@ -1,12 +1,13 @@
-# Call Sheet — Coach Brain v14.18
+# Call Sheet — Coach Brain v14.19
 
-GitHub Pages ready package.
+Single-page football playbook builder and in-game play caller.
 
-## v14.18 changes
+## v14.19 changes
 
-- Removed the Hugh Wyatt Double Wing built-in offensive template.
-- Added Kenny Wheaton / Midline Veer Flexbone as a source-backed offensive template.
-- Added Wheaton-specific system rails, formation/personnel presets, concept targets, seed plans, in-game boosts, opening-script questions, sequencing rules, and self-scout guardrails.
-- Saved users with the old Hugh Wyatt template selected are migrated to the Kenny Wheaton Midline Veer template.
+- Core Concept Targets are now tag-driven rather than exact-name-only.
+- Each play gets computed scoring tags from core concept, play intent, formation structure, personnel, run scheme, pass structure, route family, series, and stress tags.
+- Generation, in-game play suggestions, and initial concept weights now use those tags.
+- This keeps Power / Power O, Power Read, Power Pass, RPO Access, Option Run, Boot / Keeper, and Dropback concepts from being lumped together incorrectly.
+- Generated playbooks now save compact `targetTags` for auditing/debugging.
 
-Upload the contents of this folder to a GitHub Pages repository root. The app entry point is `index.html`.
+Upload the contents of this folder to GitHub Pages. `index.html` is the app entrypoint.

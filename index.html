@@ -2343,14 +2343,160 @@ function ensurePhilosophyShape(){
 
 function conceptTargetPct(concept){ensurePhilosophyShape(); return Number(philosophy.conceptTargets[concept]||0);}
 function activeConceptTargets(){ensurePhilosophyShape(); return Object.entries(philosophy.conceptTargets).filter(([,v])=>Number(v)>0);}
-function conceptTargetGenMult(concept){
-  const t=conceptTargetPct(concept), active=activeConceptTargets().length;
-  if(t>0) return Math.min(4.2,1+t/8);      // 16% target ≈ 3x in book selection
+
+// v14.19 — Core Concept Targets are now tag-driven, not just exact concept-name driven.
+// Each play has a computed tag set from its Core Concept, Play Intent, formation structure,
+// personnel, and detailed intent tags. A target boosts a play only when the target's
+// aliases match those play tags. This keeps, for example, Gun Power Read separate from
+// UC Power, Option Run separate from RPO Access, and PA/Waggle/Power Pass tied together.
+function normScoringTag(v){
+  return String(v||'').toLowerCase().trim()
+    .replace(/&/g,' and ')
+    .replace(/\+/g,' plus ')
+    .replace(/[^a-z0-9]+/g,'_')
+    .replace(/^_+|_+$/g,'');
+}
+function tagAdd(set,prefix,val){const n=normScoringTag(val); if(n)set.add(prefix?n.includes(prefix+'_')?n:prefix+'_'+n:n);}
+const CONCEPT_TARGET_ALIASES={
+  'Inside Zone':['core_inside_zone','scheme_inside_zone','series_inside_zone_series','intent_base_run'],
+  'Outside Zone / Stretch':['core_outside_zone_stretch','scheme_wide_zone','series_wide_zone_series','intent_base_run'],
+  'Power / Power O':['core_power_power_o','scheme_power','series_power_series','intent_base_run'],
+  'Super Power':['core_super_power','intent_downhill_run','structure_double_wing'],
+  'Wedge':['core_wedge','intent_downhill_run','structure_double_wing'],
+  'Counter':['core_counter','scheme_counter','series_counter_series','intent_run_constraint'],
+  'Counter XX':['core_counter_xx','intent_run_constraint','structure_double_wing'],
+  '6-G / G':['core_6_g_g','intent_run_constraint','structure_double_wing'],
+  'Buck Sweep':['core_buck_sweep','intent_perimeter_run','scheme_sweep_toss'],
+  'Duo':['core_duo','scheme_duo','series_duo_downhill_series','intent_downhill_run'],
+  'Trap':['core_trap','scheme_trap_wham','series_trap_wham_series','intent_run_constraint'],
+  'Dive':['core_dive','scheme_iso_dive','intent_downhill_run'],
+  'Zone Dive':['core_zone_dive','intent_option_run','scheme_option_read'],
+  'Draw':['core_draw','intent_draw','scheme_draw','pass_draw','series_draw_series'],
+  'Sweep':['core_sweep','scheme_sweep_toss','intent_perimeter_run'],
+  'Jet Sweep':['core_jet_sweep','scheme_sweep_toss','series_jet_series','intent_perimeter_run'],
+  'Rocket Toss':['core_rocket_toss','scheme_option_read','series_option_series','intent_option_run'],
+  'Zone Triple':['core_zone_triple','scheme_option_read','series_option_series','intent_option_run'],
+  'Outside Veer':['core_outside_veer','scheme_option_read','series_option_series','intent_option_run'],
+  'Arc Read':['core_arc_read','scheme_option_read','series_option_series','intent_option_run'],
+  'Triple Option':['core_triple_option','scheme_option_read','series_option_series','intent_option_run','structure_flexbone'],
+  'Inside Veer':['core_inside_veer','scheme_option_read','series_option_series','intent_option_run'],
+  'Midline':['core_midline','scheme_option_read','series_option_series','intent_option_run'],
+  'Counter Option':['core_counter_option','scheme_option_read','series_option_series','intent_option_run'],
+  'Veer Pass':['core_veer_pass','intent_play_action','series_play_action_boot_series','structure_flexbone'],
+  'Read Option':['core_read_option','scheme_option_read','series_option_series','intent_option_run'],
+  'Speed Option':['core_speed_option','scheme_option_read','series_option_series','intent_option_run'],
+  'Load Option':['core_load_option','scheme_option_read','series_option_series','intent_option_run'],
+  'Power Read':['core_power_read','scheme_option_read','series_option_series','intent_option_run'],
+  'QB Power Read':['core_qb_power_read','scheme_option_read','series_option_series','intent_option_run'],
+  'QB Counter':['core_qb_counter','intent_run_constraint','scheme_counter'],
+  'Dart':['core_dart','intent_downhill_run','scheme_iso_dive'],
+  'Dive / Give':['core_dive_give','intent_option_run','scheme_option_read'],
+  'Bubble Access':['core_bubble_access','intent_rpo_access','pass_rpo_access','series_rpo_access_series'],
+  'Hitch Access':['core_hitch_access','intent_rpo_access','pass_rpo_access','series_rpo_access_series'],
+  'Pop Pass':['core_pop_pass','intent_rpo_access','pass_rpo_access'],
+  'Option / RPO':['core_option_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series'],
+  'Glance':['core_glance','intent_rpo_access','route_slant','pass_rpo_access'],
+  'TE Pop':['core_te_pop','intent_play_action','pass_play_action'],
+  'Power Pass':['core_power_pass','intent_play_action','pass_play_action','structure_double_wing'],
+  'Wing Leak':['core_wing_leak','intent_play_action','pass_play_action','structure_double_wing'],
+  'Waggle':['core_waggle','intent_play_action','pass_boot','series_play_action_boot_series'],
+  'Boot / Play Action':['core_boot_play_action','intent_play_action','intent_boot_keeper','pass_boot','pass_play_action','series_play_action_boot_series'],
+  'Quick Game':['core_quick_game','intent_quick_game','pass_quick_game','series_quick_game_series'],
+  'Stick':['core_stick','intent_quick_game','route_stick_spacing'],
+  'Y Stick':['core_y_stick','intent_quick_game','route_stick_spacing'],
+  'Y Corner':['core_y_corner','intent_dropback_pass','route_smash_corner'],
+  'Y Cross':['core_y_cross','intent_dropback_pass','route_flood_sail'],
+  'Mesh':['core_mesh','intent_dropback_pass','route_mesh_shallow'],
+  'Shallow':['core_shallow','intent_quick_game','route_mesh_shallow'],
+  'H Wheel':['core_h_wheel','intent_dropback_pass','route_verts_seams'],
+  'Flood':['core_flood','intent_dropback_pass','route_flood_sail'],
+  'Sail':['core_sail','intent_dropback_pass','route_flood_sail'],
+  'Smash':['core_smash','intent_dropback_pass','route_smash_corner'],
+  'Dag / Smash':['core_dag_smash','intent_dropback_pass','route_smash_corner'],
+  'Levels':['core_levels','intent_dropback_pass','route_dagger_dig'],
+  'Seam Read':['core_seam_read','intent_dropback_pass','route_verts_seams'],
+  'All Curl':['core_all_curl','intent_quick_game','route_quick'],
+  'Curls / Curl Flats':['core_curls_curl_flats','intent_quick_game','route_quick'],
+  'Spacing':['core_spacing','intent_quick_game','route_stick_spacing'],
+  'Hitch':['core_hitch','intent_quick_game','route_quick'],
+  'Screen':['core_screen','intent_screen','pass_screen','series_screen_series'],
+  'Verticals / Four Verticals':['core_verticals_four_verticals','intent_shot','pass_shot','route_verts_seams'],
+  'Go Routes':['core_go_routes','intent_shot','pass_shot','route_verts_seams'],
+  'Post':['core_post','intent_shot','pass_shot','route_verts_seams'],
+  'Bang Post':['core_bang_post','intent_shot','pass_shot','route_verts_seams'],
+  'Slants':['core_slants','intent_quick_game','route_slant'],
+  'Choice':['core_choice','intent_shot','intent_dropback_pass'],
+  'Ghost':['core_ghost','intent_dropback_pass','route_verts_seams'],
+  'Tosser':['core_tosser','intent_quick_game','route_slant'],
+  'INC':['core_inc','intent_dropback_pass','route_dagger_dig'],
+  'Drive':['core_drive','intent_dropback_pass','route_mesh_shallow']
+};
+function conceptTargetAliasTags(target){
+  const out=new Set(CONCEPT_TARGET_ALIASES[target]||[]);
+  tagAdd(out,'core',target);
+  return out;
+}
+function conceptTargetTagSet(pl){
+  const tags=new Set();
+  if(!pl)return tags;
+  tagAdd(tags,'core',pl.concept);
+  tagAdd(tags,'legacy_family',pl.family);
+  tagAdd(tags,'intent',playIntentKey(pl));
+  tagAdd(tags,'pers',pl.pers);
+  tagAdd(tags,'structure',inferFormationType(pl.formation));
+  tagAdd(tags,'surface',structureLabelForPlay(pl));
+  try{
+    const t=getIntentTags(pl)||{};
+    tagAdd(tags,'surface',t.surface);
+    tagAdd(tags,'spacing',t.spacing);
+    tagAdd(tags,'backfield',t.backfield);
+    tagAdd(tags,'motion',t.motionType);
+    tagAdd(tags,'motion_purpose',t.motionPurpose);
+    tagAdd(tags,'scheme',t.runScheme);
+    tagAdd(tags,'pass',t.passStructure);
+    tagAdd(tags,'screen',t.screenType);
+    tagAdd(tags,'action',t.actionFamily);
+    tagAdd(tags,'series',t.series);
+    tagAdd(tags,'role',t.role);
+    tagAdd(tags,'conflict',t.conflictDefender);
+    tagAdd(tags,'stress',t.primaryStress);
+    tagAdd(tags,'route',t.routeFamily);
+    tagAdd(tags,'read',t.readType);
+    tagAdd(tags,'coverage',t.beatsCoverage);
+    tagAdd(tags,'protection',t.requiresProtection);
+  }catch(e){}
+  return tags;
+}
+function conceptTargetTagList(pl){return [...conceptTargetTagSet(pl)].sort();}
+function conceptTargetMatchScore(target,pl){
+  if(!pl)return 0;
+  if(String(pl.concept||'')===String(target||''))return 1;
+  const playTags=conceptTargetTagSet(pl);
+  let best=0;
+  conceptTargetAliasTags(target).forEach(a=>{
+    if(playTags.has(a)){
+      if(a.startsWith('core_')) best=Math.max(best,1);
+      else if(a.startsWith('intent_')) best=Math.max(best,0.78);
+      else if(a.startsWith('scheme_')||a.startsWith('pass_')||a.startsWith('route_')||a.startsWith('series_')) best=Math.max(best,0.62);
+      else best=Math.max(best,0.48);
+    }
+  });
+  return best;
+}
+function conceptTargetWeightedPct(plOrConcept){
+  const active=activeConceptTargets();
+  if(!active.length)return 0;
+  if(typeof plOrConcept==='string'){return Number(philosophy.conceptTargets[plOrConcept]||0);}
+  return active.reduce((sum,[target,val])=>sum+Number(val||0)*conceptTargetMatchScore(target,plOrConcept),0);
+}
+function conceptTargetGenMult(plOrConcept){
+  const weighted=conceptTargetWeightedPct(plOrConcept), active=activeConceptTargets().length;
+  if(weighted>0) return Math.min(4.2,1+weighted/8);      // 16% direct target ≈ 3x in book selection
   return active?0.86:1;
 }
-function conceptTargetSeedMult(concept){
-  const t=conceptTargetPct(concept), active=activeConceptTargets().length;
-  if(t>0) return Math.min(2.15,0.95+t/13); // 16% target ≈ 2.18, capped
+function conceptTargetSeedMult(plOrConcept){
+  const weighted=conceptTargetWeightedPct(plOrConcept), active=activeConceptTargets().length;
+  if(weighted>0) return Math.min(2.15,0.95+weighted/13); // 16% direct target ≈ 2.18, capped
   return active?0.9:1;
 }
 function normalisePctMap(map,keys){
@@ -2444,12 +2590,12 @@ function personnelStyleGameMult(pl){
 function safePersonnelStyleGameMult(pl){return safeMult('personnel style game mult',()=>personnelStyleGameMult(pl),1);}
 
 function conceptTargetGameMult(pl){
-  const t=conceptTargetPct(pl.concept), active=activeConceptTargets().length;
-  if(!ingame||!ingame.log||!ingame.log.length){ return t>0?1.12:(active?0.95:1); }
+  const weighted=conceptTargetWeightedPct(pl), active=activeConceptTargets().length;
+  if(!ingame||!ingame.log||!ingame.log.length){ return weighted>0?1.12:(active?0.95:1); }
   const total=ingame.log.length;
   const calls=(ingame.concepts[pl.concept]&&ingame.concepts[pl.concept].calls)||0;
-  const cur=calls/Math.max(1,total), target=t/100;
-  if(t>0){
+  const cur=calls/Math.max(1,total), target=weighted/100;
+  if(weighted>0){
     if(cur < target*0.55) return 1.35;
     if(cur < target*0.85) return 1.18;
     if(cur > target*1.40) return 0.70;
@@ -3359,7 +3505,7 @@ Object.assign(BUILT_IN_OFFENSE_SYSTEMS.debesse_spread_option,{systemStrengthPres
 
 
 
-// v14.18 source-backed additions: Malzahn HUNH Wing-T Spread Option and Kenny Wheaton Midline Veer Flexbone.
+// v14.19 source-backed additions: Malzahn HUNH Wing-T Spread Option and Kenny Wheaton Midline Veer Flexbone.
 BUILT_IN_OFFENSE_SYSTEMS.gus_malzahn_hunh={
   label:'Gus Malzahn / HUNH Wing-T Spread Option', shortLabel:'Malzahn HUNH', source:'Gus Malzahn offense profile PDF', sourceBacked:true,
   summary:'Run-first hurry-up spread option built on Wing-T sequencing, shotgun run game, power read, buck sweep, counter, QB run, RPO access, screens, motion, and play-action explosives.',
@@ -3986,7 +4132,7 @@ function generatePlaybook(){
     else                   s*=(1 - mn*0.45);
     // v14.9: tempo/aggression control retired. Shots and tempo are controlled by system profile, run/pass band, concepts, and play intent.
     // Core concept targets and system profiles now replace legacy family emphasis.
-    s*=conceptTargetGenMult(pl.concept);
+    s*=conceptTargetGenMult(pl);
     s*=offenseSystemGenMult(pl);
     s*=safeOffenseSystemFormationRailGenMult(pl);
     s*=formationStyleGenMult(pl);
@@ -4140,7 +4286,7 @@ function generatePlaybook(){
 
   playbook={
     meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
-    plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion})),
+    plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,targetTags:conceptTargetTagList(pl).slice(0,28)})),
     audibles:buildAudibles(finalBook)
   };
   save(LS.pb,playbook); invalidateCallableCache();
@@ -4167,7 +4313,8 @@ function seedIngameFromBook(){
   for(const n of names){
     // Start from playbook share, but do not let raw frequency dominate the play caller.
     let base=W_BASE*(0.85+0.3*((counts[n]||1)/maxc));
-    base*=conceptTargetSeedMult(n);
+    const samplePlay=(playbook&&playbook.plays?playbook.plays:[]).find(p=>p.concept===n);
+    base*=conceptTargetSeedMult(samplePlay||n);
     base*=offenseSystemConceptSeedMult(n);
     base=Math.max(W_MIN,Math.min(W_MAX,base));
     concepts[n]={w:base,base:base,baseRaw:base,calls:0,success:0,neutral:0,failure:0,reasons:{}};
@@ -5035,8 +5182,8 @@ function updateConceptTargetTotal(){
   const el_=$('#ph-concept-target-total'); if(!el_)return;
   const entries=activeConceptTargets();
   const total=entries.reduce((s,[,v])=>s+Number(v||0),0);
-  if(!entries.length){el_.textContent='No concept targets set — the app will use the selected offensive system, personnel, formation sliders, and scout weighting.';return;}
-  el_.textContent=`Active concept targets: ${entries.length} · requested total ${total}%. These guide the caller but do not have to equal 100%.`;
+  if(!entries.length){el_.textContent='No concept targets set — the app will use the selected offensive system, personnel, formation sliders, play intent tags, and scout weighting.';return;}
+  el_.textContent=`Active concept targets: ${entries.length} · requested total ${total}%. These are matched against play scoring tags: core concept, play intent, formation structure, personnel, series, run scheme, pass structure, route family, and stress tags. They do not have to equal 100%.`;
   el_.style.color=total>85?'var(--gold-d)':'#8a908a';
 }
 
@@ -7734,7 +7881,7 @@ function buildAudiblesScoped(book,pool){
 function setActivePlaybookFromRows(rows,name,mode){
   const pool=sourceRowsToPlays(rows);
   if(!pool.length){toast('No valid plays in source');return null;}
-  const final=pool.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team'}));
+  const final=pool.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),targetTags:conceptTargetTagList(pl).slice(0,28),_source:'team'}));
   playbook={
     meta:{generated:Date.now(),identity:'team_source',personnelGate:philosophy.personnelGate||'strict',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:final.length,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:mode||'exact',sourceName:name||'Team source'},
     plays:final,
@@ -7755,7 +7902,7 @@ function scorePoolPlay(pl,mix,pmNorm,p,seed){
   else if(pl.motion===1) s*=(1+mn*0.5);
   else s*=(1-mn*0.45);
   // v14.9: tempo/aggression control retired.
-  s*=conceptTargetGenMult(pl.concept);
+  s*=conceptTargetGenMult(pl);
   s*=offenseSystemGenMult(pl);
   s*=safeOffenseSystemFormationRailGenMult(pl);
   s*=formationStyleGenMult(pl);
