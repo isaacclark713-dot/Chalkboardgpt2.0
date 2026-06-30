@@ -1,22 +1,31 @@
-# Call Sheet — Coach Brain v14.4
+# Call Sheet — Coach Brain v14.5
 
-Single-file football call sheet / playbook generator.
+Single-file football play-calling and playbook generation app.
 
-## v14.4 changes
+## v14.5 changes
 
-- Separates **Flexbone** and **Wingbone / Wishbone** as different formation-style sliders.
-- Paul Johnson preset now treats **true Flexbone** as the hard scheme rail; Wingbone/Wishbone are adjacent changeups, not the same identity.
-- In-game recommendations now weight formation identity more aggressively at high System Discipline.
-- Legacy concept-family buckets are merged into the richer **Core Concept** system.
-- Built-in database plays are reclassified into the fuller core-concept list before playbook generation and in-game scoring.
-- Imported CSV/JSON rows are also reclassified into core concepts.
-- Core option concepts include Triple Option, Inside Veer, Midline, Counter Option, Rocket Toss, Veer Pass, and Choice.
+- Adds three source-backed offensive presets:
+  - Peyton Manning / Tom Moore No-Huddle Precision
+  - Jim Harbaugh / Power West Coast Multiple
+  - Erhardt-Perkins / Concept Offense
+- Upgrades Erhardt-Perkins from starter template to source-backed system profile.
+- Adds new core concept targets/classifications for Manning and E-P profiles:
+  - Levels
+  - Dag / Smash
+  - All Curl
+  - Curls / Curl Flats
+  - Ghost
+  - Tosser
+  - INC
+  - Drive
+  - Dart
+  - Power Read
+  - Zone Dive
+- Adds system rails and seed plans for Peyton Manning, Jim Harbaugh, and Erhardt-Perkins.
+- Keeps existing v14.4 fixes: separated Flexbone vs Wingbone/Wishbone and core-concept reclassification.
 
-## Deploy on GitHub Pages
+## Files
 
-1. Upload this folder to a GitHub repository.
-2. Make sure `index.html` is at the repo root or in the Pages source folder.
-3. Enable GitHub Pages.
-4. Open the published site in a browser.
-
-The app runs entirely in the browser and stores saved playbooks in local storage.
+- `index.html` — app
+- `global_unique_plays.csv` — optional source data
+- `global_unique_plays.json` — full game play database source

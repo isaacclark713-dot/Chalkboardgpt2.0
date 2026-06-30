@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v14.4</title>
+<title>Call Sheet — Coach Brain v14.5</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -412,10 +412,12 @@
             <option value="shanahan_wide_zone">Kyle Shanahan — wide zone / keeper</option>
             <option value="paul_johnson_flexbone">Paul Johnson — flexbone option</option>
             <option value="art_briles_spread">Art Briles — veer-and-shoot spread</option>
+            <option value="peyton_manning_moore">Peyton Manning / Tom Moore — no-huddle precision</option>
+            <option value="harbaugh_power_west_coast">Jim Harbaugh — power West Coast multiple</option>
+            <option value="erhardt_perkins">Erhardt-Perkins — concept offense</option>
             <optgroup label="Starter templates">
               <option value="wide_zone_boot">Wide zone / boot family — starter template</option>
               <option value="modern_west_coast">Modern West Coast — starter template</option>
-              <option value="erhardt_perkins">Erhardt-Perkins — starter template</option>
               <option value="spread_power_rpo">Spread power/RPO — starter template</option>
               <option value="spread_tempo_inside_zone">Spread tempo IZ/RPO — starter template</option>
             </optgroup>
@@ -1177,6 +1179,16 @@ function classifyCoreConcept(play,family,legacyConcept,formation){
   if(/flexbone/.test(f) && /rocket/.test(p)) return 'Rocket Toss';
   if(/flexbone/.test(f) && /counter/.test(p) && /option/.test(p)) return 'Counter Option';
   if(/choice/i.test(play||'')) return 'Choice';
+  if(/levels?/i.test(play||'')) return 'Levels';
+  if(/all\s*curl|all curls/i.test(play||'')) return 'All Curl';
+  if(/\bdag\b/i.test(play||'')) return 'Dag / Smash';
+  if(/ghost/i.test(play||'')) return 'Ghost';
+  if(/tosser/i.test(play||'')) return 'Tosser';
+  if(/\binc\b|in\s*\/\s*curl/i.test(play||'')) return 'INC';
+  if(/\bdrive\b/i.test(play||'')) return 'Drive';
+  if(/dart/i.test(play||'')) return 'Dart';
+  if(/power read|inverted veer|bash/i.test(play||'')) return 'Power Read';
+  if(/zone dive/i.test(play||'')) return 'Zone Dive';
   if(legacy && legacy!=='Other / Unknown') return legacy;
   return inferred || 'Other / Unknown';
 }
@@ -1268,6 +1280,7 @@ const CONCEPT_BEATS={
   "Sail":"vs zone / boundary","Y Cross":"vs zone","Dagger":"vs 2-high / match","Post":"vs single-high","Go Routes":"vs press man",
   "Verticals / Four Verticals":"vs 2-high / soft","Bench / Corner Strike":"vs Cover 2","Wheel":"vs man / motion",
   "Screen":"vs blitz / rush","Boot / Play Action":"after run / aggressive LBs","Fake Jet":"off jet tendency","Jet Touch Pass":"vs slow force",
+  "Levels":"hi-low timing window","All Curl":"vs soft/off zone","Dag / Smash":"high-low corner/flat","Ghost":"vertical + out/flat concept","Tosser":"double slants / quick man answer","INC":"in + curl concept","Drive":"shallow-to-dig timing","Zone Dive":"quick interior option dive","Dart":"spread iso / tackle pull","Power Read":"conflict run read",
   "Other / Unknown":"changeup"
 };
 
@@ -2126,7 +2139,7 @@ const SITUATIONS = {
 };
 
 const MOTION_LABELS=[[0,"Static"],[20,"Light motion"],[40,"Moderate motion"],[65,"Heavy motion"],[85,"Max disguise"]];
-const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Trap","Dive","Draw","Sweep","Jet Sweep","Rocket Toss","Triple Option","Inside Veer","Midline","Counter Option","Veer Pass","Option / RPO","Boot / Play Action","Quick Game","Stick","Mesh","Flood","Smash","Screen","Verticals / Four Verticals","Go Routes","Post","Slants","Choice"];
+const CORE_CONCEPT_TARGETS=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Duo","Trap","Dive","Zone Dive","Draw","Sweep","Jet Sweep","Rocket Toss","Triple Option","Inside Veer","Midline","Counter Option","Veer Pass","Option / RPO","Power Read","Dart","Boot / Play Action","Quick Game","Stick","Mesh","Flood","Smash","Dag / Smash","Levels","All Curl","Curls / Curl Flats","Screen","Verticals / Four Verticals","Go Routes","Post","Slants","Choice","Ghost","Tosser","INC","Drive"];
 const CONCEPT_TARGET_GUIDE={
   "Inside Zone":"base run guide 15–30%","Outside Zone / Stretch":"base run guide 12–25%","Power / Power O":"base run guide 12–25%","Counter":"constraint guide 6–15%","Duo":"base run guide 10–22%",
   "Trap":"constraint/quick hitter 3–10%","Dive":"short-yard / B-back guide 6–18%","Draw":"pass-game constraint 3–8%","Sweep":"perimeter guide 4–12%","Jet Sweep":"motion stress 4–10%","Rocket Toss":"option perimeter guide 6–14%",
@@ -2766,6 +2779,69 @@ const BUILT_IN_OFFENSE_SYSTEMS={
     ],
     tagPenalties:[{tag:'heavy_personnel',label:'heavy personnel only as change-up',m:.88},{tag:'static_condensed',label:'condensed/static surface not core',m:.92},{tag:'slow_no_hot',label:'slow pass without hot vs pressure',m:.88}], genCap:1.90, gameCap:1.22
   },
+
+  peyton_manning_moore:{
+    label:'Peyton Manning / Tom Moore No-Huddle Precision', shortLabel:'Manning-Moore', source:'Peyton Manning Offense Executive Summary PDF', sourceBacked:true,
+    summary:'Small-menu, high-execution no-huddle offense built around Peyton controlling the line, 11/12 personnel, Ace/Posse/Gun Doubles structures, outside zone, timing concepts, screens, and quick answers to defensive tells.',
+    philosophy:'Win with execution, tempo, pre-snap diagnosis, and a limited set of repeatedly mastered concepts. The defense may know the menu, but the quarterback checks to the right answer.',
+    runIdentity:'Outside zone/stretch is the base run, with inside zone, trap/draw, and occasional gap answers as constraints when defenses overplay the perimeter.',
+    passIdentity:'Precision dropback/timing game: Levels, Dag/Smash, All Curl, Curls, quick outs, verticals, deep crossers, screens, and play-action boots from the same Ace/Posse pictures.',
+    coreFormations:['Ace Doubles','Gun Doubles','Posse Ace / 3x1','Posse Gun','Singleback Ace / Big','Trips / Jet package'],
+    preferredPersonnel:['11','12','10','21'],
+    motionShift:'Low-to-moderate motion. The real stress is no-huddle tempo, formation simplicity, and Manning using cadence/checks to force the defense to declare.',
+    baseConcepts:['Outside Zone / Stretch','Inside Zone','Levels','Dag / Smash','Smash','All Curl','Curls / Curl Flats','Quick Game','Verticals / Four Verticals'],
+    constraintConcepts:['Screen','Draw','Trap','Inside Zone','Boot / Play Action','Slants','Quick Game'],
+    shotConcepts:['Verticals / Four Verticals','Post','Go Routes','Deep Crossover','Dagger','Bench / Corner Strike'],
+    screensRpos:['Tunnel screen','RB screen / flare','WR screen','Bubble/quick out constraint'],
+    playActionFamily:['Play-action boot','PA crossers','PA fade/corner','Outside-zone fake into levels/crossers'],
+    bestAudibles:['Two-high / light box → outside zone','Loaded box → quick game or screen','Blitz → tunnel/RB screen or quick slant','Soft zone → all curl / curls','Single-high → verticals, post, dag/smash'],
+    scriptQuestions:['Can we run outside zone from 11/12 against nickel?','Does tempo force them to stay in one personnel?','What is the shell after the cadence/check?','Are they blitzing or sitting in coverage?','Do curl/levels windows open underneath?'],
+    defensesStressed:['static zone teams','nickel defenses that cannot fit the run','blitz teams vulnerable to screens','single-high teams vulnerable to smash/vertical answers','defenses that cannot disguise after no-huddle'],
+    defensesStruggles:['elite four-man rush with coverage','press-man teams with answers to timing','disguised late rotations that survive tempo','coverage teams that tackle screens well'],
+    sequencingRules:['Use tempo/no-huddle to trap defensive personnel and simplify calls.','Probe with outside zone and quick timing concepts early.','If they sit two-high, run the ball from 11/12.','If they load the box or blitz, throw screens/quick game.','If they squat on underneath timing, take verticals or deep crossers.'],
+    selfScoutGuardrails:['Do not over-call the same quick concept from the same formation.','Pair every outside zone tendency with PA/screen/curl answers.','Do not let no-huddle become predictable run/pass by formation.','If the user jumps curl windows, move to double moves, verticals, or run.'],
+    identityPreset:'pass', rpBand:[34,48], motionPreset:22, sizeHint:220,
+    persMixPreset:{'11':48,'12':34,'10':8,'21':6,'13':1,'20':1,'22':1,'23':1},
+    conceptTargetsPreset:{'Outside Zone / Stretch':12,'Inside Zone':8,'Levels':10,'Dag / Smash':8,'Smash':7,'All Curl':7,'Curls / Curl Flats':7,'Quick Game':8,'Screen':6,'Verticals / Four Verticals':5,'Slants':4},
+    conceptBoosts:{'Outside Zone / Stretch':1.22,'Inside Zone':1.12,'Levels':1.28,'Dag / Smash':1.25,'Smash':1.22,'All Curl':1.20,'Curls / Curl Flats':1.18,'Quick Game':1.18,'Screen':1.16,'Slants':1.10,'Verticals / Four Verticals':1.12,'Post':1.08,'Go Routes':1.08,'Boot / Play Action':1.10,'Draw':1.08,'Trap':1.06},
+    familyBoosts:{pass:1.14,run:1.08,screen:1.10,play_action:1.06},
+    surfaceBoosts:{singleback:1.18,ace:1.18,trips:1.08,spread:1.06,bunch:1.04,tight:1.06,condensed:1.04},
+    motionBoosts:{motion:0.98,shift:1.02,formation_disguise:1.08},
+    persBoosts:{'11':1.22,'12':1.18,'10':1.06,'21':1.04},
+    tagBoosts:[{tag:'manning_timing',label:'tempo/timing pass menu',m:1.18},{tag:'manning_ace_posse',label:'Ace/Posse identity',m:1.18},{tag:'screen_constraint',label:'screen answer to pressure',m:1.08},{tag:'wide_zone',label:'outside zone base',m:1.10}],
+    tagPenalties:[{tag:'option_heavy',label:'option-heavy drift',m:.62},{tag:'flexbone_core',label:'flexbone surface drift',m:.52}], genCap:2.35, gameCap:1.36
+  },
+  harbaugh_power_west_coast:{
+    label:'Jim Harbaugh / Power West Coast Multiple', shortLabel:'Harbaugh', source:'Harbaugh PDF', sourceBacked:true,
+    summary:'Multiple pro-style West Coast offense with a physical run-game tilt: 21/12/22 personnel, I-Form/Singleback/Gun/Pistol mixtures, power/zone/counter, play-action, quick timing, and motion to create leverage.',
+    philosophy:'Start with the run game, stay multiple with personnel and formations, use short high-percentage throws and play-action to punish heavy boxes.',
+    runIdentity:'Diverse run menu: outside zone/stretch, inside zone, power, counter, trap, toss/sweep, fullback/TE surfaces, and occasional QB/read option depending on era/QB.',
+    passIdentity:'West Coast timing: slants, outs, stick, mesh/crossers, TE seams, floods and play-action boots/shots off the run game.',
+    coreFormations:['I-Form / Strong-I','Singleback 12/21/22','Gun tight / Gun heavy','Pistol with QB run threat','12/21 multiple TE surfaces','Bunch/TE motion'],
+    preferredPersonnel:['21','12','22','11','13'],
+    motionShift:'Moderate-to-heavy motion and shifts, especially backs/TEs, to change strength, test man/zone, create extra gaps, and set up play-action.',
+    baseConcepts:['Power / Power O','Inside Zone','Outside Zone / Stretch','Counter','Trap','Boot / Play Action','Slants','Stick','Mesh','Flood'],
+    constraintConcepts:['Counter','Trap','Screen','Draw','Boot / Play Action','Quick Game','Slants'],
+    shotConcepts:['Post','Go Routes','Verticals / Four Verticals','TE seam','Flood','Dagger'],
+    screensRpos:['RB screen','Bubble/WR screen','Swing/flat check','Limited RPO in later Michigan style'],
+    playActionFamily:['PA boot','Belly/waggle','Power/iso fake','TE seam off run','Flood off zone/power'],
+    bestAudibles:['Loaded box → quick slant/flat or screen','Safety down → PA shot/seam','Edge overpursuit → counter/boot','Soft box → run power/zone','Press man → rub/crosser/shot'],
+    scriptQuestions:['Can we move them with power/zone?','Who fits the extra TE/FB gap?','Do they overplay motion or TE shifts?','Can play-action pull second-level defenders?','Can they cover TEs and backs in space?'],
+    defensesStressed:['man/blitz teams','teams with small edges','heavy boxes vulnerable to PA','undisciplined linebackers','defenses lacking TE matchup answers'],
+    defensesStruggles:['stacked boxes with strong edge contain','elite four-man rush','fast defenses that tackle screens and fit counters','teams that force long-yardage dropback'],
+    sequencingRules:['Establish a physical run early, then use PA/boot and quick throws.','If they overfit power, call counter/boot.','If they sit light, stay with run and TE surfaces.','Use motion to add/delete gaps before taking shots.','Do not abandon the run unless game state demands it.'],
+    selfScoutGuardrails:['Do not become only run from heavy personnel.','Do not call PA without earning or showing run stress.','Avoid predictable short-yardage power only; mix boot/counter/quick.','Use formation multiplicity without losing the core identity.'],
+    identityPreset:'run', rpBand:[52,66], motionPreset:48, sizeHint:300,
+    persMixPreset:{'11':22,'12':28,'21':24,'22':14,'13':4,'10':2,'20':4,'23':2},
+    conceptTargetsPreset:{'Power / Power O':13,'Inside Zone':11,'Outside Zone / Stretch':10,'Counter':9,'Trap':5,'Boot / Play Action':9,'Slants':6,'Stick':5,'Mesh':5,'Flood':5,'Screen':4},
+    conceptBoosts:{'Power / Power O':1.26,'Inside Zone':1.18,'Outside Zone / Stretch':1.16,'Counter':1.18,'Trap':1.12,'Boot / Play Action':1.18,'Slants':1.10,'Stick':1.08,'Mesh':1.08,'Flood':1.10,'Screen':1.08,'Post':1.08,'Verticals / Four Verticals':1.06},
+    familyBoosts:{run:1.18,play_action:1.14,pass:1.04,screen:1.05},
+    surfaceBoosts:{i_form:1.22,singleback:1.18,wing:1.12,y_off:1.10,tight:1.12,bunch:1.08,pistol:1.08,condensed:1.08},
+    motionBoosts:{shift:1.10,trade:1.08,motion:1.08,across:1.06,add_gap:1.12,formation_disguise:1.08},
+    persBoosts:{'21':1.20,'12':1.18,'22':1.14,'11':1.06,'13':1.06},
+    tagBoosts:[{tag:'heavy_personnel',label:'12/21/22 physical surface',m:1.14},{tag:'play_action_cross',label:'PA/boot off run',m:1.10},{tag:'motion_shift',label:'motion/shift gap stress',m:1.08},{tag:'counter_constraint',label:'counter to overplay',m:1.08}],
+    tagPenalties:[{tag:'static_spread_dropback',label:'static spread dropback drift',m:.80},{tag:'flexbone_core',label:'flexbone drift',m:.58}], genCap:2.45, gameCap:1.38
+  },
   wide_zone_boot:{
     label:'Wide zone / boot family', shortLabel:'WZ starter', source:'Starter template',
     summary:'Starter framework for a wide zone and boot family. Use the Shanahan profile for the source-backed version.',
@@ -2778,8 +2854,35 @@ const BUILT_IN_OFFENSE_SYSTEMS={
     conceptBoosts:{'Quick Game':1.22,'Stick':1.22,'Spacing':1.16,'Curls / Curl Flats':1.18,'Slants':1.13,'Mesh':1.10,'Boot / Play Action':1.08,'Screen':1.08},familyBoosts:{pass:1.12,screen:1.08,play_action:1.05},surfaceBoosts:{spread:1.05,trips:1.05,bunch:1.06,condensed:1.05},motionBoosts:{across:1.06,orbit:1.04,shift_trade:1.05,shift:1.05},persBoosts:{'11':1.12,'12':1.06,'10':1.04},tagBoosts:[],tagPenalties:[],genCap:1.50,gameCap:1.13
   },
   erhardt_perkins:{
-    label:'Erhardt-Perkins', shortLabel:'E-P starter', source:'Starter template',summary:'Concept-based pro-style starter framework with sturdy run game, formation multiplicity, and play-action.',philosophy:'Same concepts from many looks.',runIdentity:'IZ, Duo, Power.',passIdentity:'Y Cross, Dagger, Mesh, Verticals.',coreFormations:['Condensed','Wing','Y-off','Bunch'],preferredPersonnel:['12','21','11'],motionShift:'Shift/trade/across motion.',baseConcepts:['Inside Zone','Duo','Power / Power O','Y Cross','Dagger','Mesh'],constraintConcepts:['Boot','Counter'],shotConcepts:['Dagger','Verticals / Four Verticals'],screensRpos:['Screen'],playActionFamily:['Boot','Y Cross'],bestAudibles:[],scriptQuestions:['Can we run our core from multiple looks?'],defensesStressed:[],defensesStruggles:[],sequencingRules:[],selfScoutGuardrails:[],
-    conceptBoosts:{'Inside Zone':1.12,'Duo':1.18,'Power / Power O':1.14,'Boot / Play Action':1.15,'Y Cross':1.10,'Dagger':1.10,'Mesh':1.08,'Verticals / Four Verticals':1.08},familyBoosts:{run:1.10,play_action:1.12,pass:1.04},surfaceBoosts:{condensed:1.10,wing:1.10,y_off:1.08,bunch:1.06},motionBoosts:{shift_trade:1.08,shift:1.08,trade:1.08,across:1.06},persBoosts:{'12':1.12,'21':1.12,'11':1.06},tagBoosts:[],tagPenalties:[],genCap:1.52,gameCap:1.14
+    label:'Erhardt-Perkins / Concept Offense', shortLabel:'E-P', source:'Erhardt–Perkins Offense Executive Summary PDF', sourceBacked:true,
+    summary:'Concept-based offense, not one fixed formation family. It uses short two-word concept calls, formation multiplicity, versatile personnel, inside run/ball-control roots, no-huddle compatibility, and quick/intermediate concept passing.',
+    philosophy:'Pass to score, run to win. Run the same concepts from many personnel/formations, make the defense identify players and concepts after motion, and let the QB adjust half-field concepts at the line.',
+    runIdentity:'Inside power/zone, Ace/I-Form/12-personnel runs, two-TE and two-back surfaces, ball-control downhill runs, traps/counters as needed, and run-to-pass synergy off play-action.',
+    passIdentity:'Concept passing: Ghost, Tosser, INC, Smash, Mesh, Levels/Flood, Drive, slants, outs, curls, flats, and short-to-intermediate timing throws with vertical shots as situational answers.',
+    coreFormations:['Ace / Singleback 2x2','I-Formation / Big I','Gun 3x1 / 2x2','Bunch / Trips','Empty with RB/TE detached','12/21/Jumbo packages'],
+    preferredPersonnel:['12','11','21','10','13'],
+    motionShift:'High multiplicity. RBs, TEs, and WRs can move without changing the concept. Motion diagnoses coverage, creates mismatches, and lets the same play present as multiple looks.',
+    baseConcepts:['Inside Zone','Power / Power O','Duo','Ghost','Tosser','INC','Smash','Mesh','Levels','Curls / Curl Flats','Quick Game'],
+    constraintConcepts:['Screen','Draw','Trap','Boot / Play Action','Slants','Quick Game','RB flat / swing'],
+    shotConcepts:['Ghost','Verticals / Four Verticals','Go Routes','Post','Dagger','Bench / Corner Strike'],
+    screensRpos:['RB screen','TE screen','WR screen','quick flat/swing constraints','limited RPO depending on era'],
+    playActionFamily:['Inside blast fake','Ace/I-Form PA','TE seam off run','PA levels/flood','PA shot to Ghost/Fade'],
+    bestAudibles:['Heavy box → Ghost/Tosser/quick concept','Soft box → inside zone/power','Man → Mesh/Tosser/rubs','Zone → INC/Flood/Smash','Pressure → screen/quick slant/flat'],
+    scriptQuestions:['Can the same concept win from multiple formations?','Who covers detached RB/TE?','Does motion reveal man or zone?','Can they defend inside run without adding a safety?','Do they handle no-huddle concept calls cleanly?'],
+    defensesStressed:['teams that substitute slowly','man teams vulnerable to versatile personnel','zone teams that leave curl/flat windows','heavy boxes vulnerable to concept passing','LBs forced to cover TEs/RBs'],
+    defensesStruggles:['elite pressure if QB cannot make checks','tight man coverage with pass rush','teams that match personnel without revealing coverage','coverage units that tackle quick game'],
+    sequencingRules:['Use the same core concept from multiple looks before changing the concept.','If they match personnel poorly, move the mismatch and run the concept again.','If they sit light, run inside/power.','If they load the box, throw Ghost/Tosser/INC or screen.','Use no-huddle and short calls to stop defensive substitution.'],
+    selfScoutGuardrails:['Do not let multiplicity become randomness; keep concept families intact.','Do not overuse empty as only pass.','Do not let 12 personnel become only run.','If quick concepts get jumped, answer with double moves/verticals or run.'],
+    identityPreset:'balanced', rpBand:[42,56], motionPreset:42, sizeHint:300,
+    persMixPreset:{'11':28,'12':30,'21':16,'10':10,'13':6,'20':3,'22':5,'23':2},
+    conceptTargetsPreset:{'Inside Zone':10,'Power / Power O':9,'Duo':6,'Ghost':7,'Tosser':7,'INC':7,'Smash':6,'Mesh':6,'Levels':6,'Curls / Curl Flats':6,'Quick Game':6,'Screen':5,'Boot / Play Action':4},
+    conceptBoosts:{'Inside Zone':1.16,'Power / Power O':1.14,'Duo':1.12,'Ghost':1.24,'Tosser':1.22,'INC':1.22,'Smash':1.16,'Mesh':1.12,'Levels':1.16,'Flood':1.10,'Curls / Curl Flats':1.14,'Quick Game':1.12,'Slants':1.10,'Screen':1.10,'Boot / Play Action':1.08,'Verticals / Four Verticals':1.06,'Go Routes':1.06},
+    familyBoosts:{run:1.10,pass:1.12,play_action:1.08,screen:1.06},
+    surfaceBoosts:{singleback:1.14,i_form:1.12,spread:1.08,trips:1.08,bunch:1.10,empty:1.06,condensed:1.08,tight:1.10,y_off:1.08},
+    motionBoosts:{motion:1.10,shift:1.10,across:1.08,formation_disguise:1.12,shift_trade:1.08},
+    persBoosts:{'12':1.18,'11':1.14,'21':1.10,'10':1.06,'13':1.04},
+    tagBoosts:[{tag:'ep_concept_multiplicity',label:'concept multiplicity',m:1.16},{tag:'heavy_personnel',label:'12/21 personnel flexibility',m:1.08},{tag:'motion_shift',label:'motion/formation disguise',m:1.08},{tag:'screen_constraint',label:'screen/quick constraint',m:1.06}],
+    tagPenalties:[{tag:'flexbone_core',label:'flexbone option drift',m:.55},{tag:'option_heavy',label:'option-heavy drift',m:.72}], genCap:2.45, gameCap:1.36
   },
   spread_power_rpo:{
     label:'Spread power / RPO', shortLabel:'Spread Power starter', source:'Starter template',summary:'Starter spread gap/run-pass conflict profile.',philosophy:'Use gap runs, option, RPO, and perimeter conflict.',runIdentity:'Power, Counter, Trap, Jet.',passIdentity:'RPO, bubbles, slants, verticals.',coreFormations:['Spread','Trips','Empty','Unbalanced'],preferredPersonnel:['11','10','20'],motionShift:'Jet/orbit/across motion.',baseConcepts:['Power / Power O','Counter','Trap','Option / RPO','Screen','Slants'],constraintConcepts:['Bubble','Jet Sweep','Screen'],shotConcepts:['Verticals / Four Verticals'],screensRpos:['Bubble','Screen','RPO'],playActionFamily:['PA shot'],bestAudibles:[],scriptQuestions:['Can the apex be isolated?'],defensesStressed:[],defensesStruggles:[],sequencingRules:[],selfScoutGuardrails:[],
@@ -2791,6 +2894,18 @@ const BUILT_IN_OFFENSE_SYSTEMS={
   }
 };
 // v14.1 hard-scheme rails: profiles can now carry alignment-family presets and type boosts.
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.peyton_manning_moore,{
+  systemStrengthPreset:88,
+  formMixPreset:{shotgun:42,singleback:28,pistol:3,i_form:3,flexbone:0,wingbone:0,empty:8,under_center:10,other:6},
+  formTypeBoosts:{shotgun:1.18,singleback:1.18,empty:1.04,under_center:1.06,pistol:.88,i_form:.86,flexbone:.32,wingbone:.32,other:.86},
+  genCap:2.55, gameCap:1.42
+});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.harbaugh_power_west_coast,{
+  systemStrengthPreset:88,
+  formMixPreset:{shotgun:30,singleback:24,pistol:10,i_form:22,flexbone:0,wingbone:2,empty:4,under_center:6,other:2},
+  formTypeBoosts:{i_form:1.22,singleback:1.18,shotgun:1.10,pistol:1.08,under_center:1.08,empty:.82,flexbone:.35,wingbone:.74,other:.90},
+  genCap:2.55, gameCap:1.42
+});
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone,{
   systemStrengthPreset:88,
   formMixPreset:{shotgun:24,singleback:26,pistol:6,i_form:24,flexbone:0,wingbone:0,empty:3,under_center:15,other:2},
@@ -2820,9 +2935,10 @@ Object.assign(BUILT_IN_OFFENSE_SYSTEMS.modern_west_coast,{
   formTypeBoosts:{shotgun:1.12,empty:1.08,singleback:1.04,pistol:1.03,i_form:.96}
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.erhardt_perkins,{
-  systemStrengthPreset:82,
-  formMixPreset:{shotgun:30,singleback:22,pistol:6,i_form:18,flexbone:0,wingbone:0,empty:6,under_center:14,other:4},
-  formTypeBoosts:{singleback:1.12,i_form:1.12,under_center:1.08,shotgun:1.06,pistol:1.02,empty:.95}
+  systemStrengthPreset:88,
+  formMixPreset:{shotgun:32,singleback:24,pistol:5,i_form:16,flexbone:0,wingbone:0,empty:10,under_center:8,other:5},
+  formTypeBoosts:{singleback:1.14,i_form:1.12,shotgun:1.10,empty:1.08,under_center:1.06,pistol:1.02,flexbone:.34,wingbone:.38,other:.95},
+  genCap:2.55, gameCap:1.40
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.spread_power_rpo,{
   systemStrengthPreset:82,
@@ -2855,6 +2971,11 @@ function offSysTagMatch(pl,tag){
     case 'motion_shift': return (pl&&pl.motion>=1)||offSysHas(text,['motion','shift','trade','orbit','jet','fly','return']);
     case 'condensed_surface': return ['wing','y_off','condensed','bunch','stack','tight','nub','i_form'].includes(t.surface)||offSysHas(text,['wing','y off','y-off','bunch','stack','tight','nasty','condensed','i form','singleback','ace']);
     case 'heavy_personnel': return ['12','13','21','22','23'].includes(pers)||offSysHas(text,['heavy','jumbo','i form','ace','wing','tight','y off','fullback']);
+    case 'manning_timing': return ['Levels','Dag / Smash','Smash','All Curl','Curls / Curl Flats','Quick Game','Slants','Screen'].includes(c)||offSysHas(text,['levels','dag','smash','all curl','curl','hitch','quick out','tosser','inc']);
+    case 'manning_ace_posse': return offSysHas(text,['ace','posse','gun doubles','gun trips','singleback','doubles'])||['11','12'].includes(pers);
+    case 'ep_concept_multiplicity': return ['Ghost','Tosser','INC','Smash','Mesh','Levels','Drive','Curls / Curl Flats','Quick Game'].includes(c)||offSysHas(text,['ghost','tosser','inc','concept','amoeba','mesh','levels','drive']);
+    case 'option_heavy': return ['Triple Option','Inside Veer','Midline','Counter Option','Veer Pass','Option / RPO','Rocket Toss'].includes(c)||offSysHas(text,['veer','midline','triple option','counter option','rocket']);
+    case 'flexbone_core': return offSysHas(text,['flexbone']);
     case 'static_spread_dropback': return ['spread','trips','empty'].includes(t.surface)&&f==='pass'&&!(pl&&pl.motion)&&!offSysHas(text,['boot','pa','play action','rpo','screen']);
     case 'static_condensed': return ['condensed','tight','bunch'].includes(t.surface)&&!(pl&&pl.motion>=1);
     case 'slow_no_hot': return offSysHas(text,['deep','shot','dagger','post','verts','vertical'])&&!offSysHas(text,['hot','screen','quick','slant']);
@@ -2986,6 +3107,9 @@ function systemRailFormationMatch(form,systemKey){
   switch(systemKey||((philosophy&&philosophy.system)||'none')){
     case 'paul_johnson_flexbone': return /(^|\s)flexbone(\s|$)/.test(f);
     case 'art_briles_spread': return /\bgun\b|shotgun|spread|trips|doubles|empty|pistol/.test(f);
+    case 'peyton_manning_moore': return /ace|posse|singleback|gun\s+(doubles|trips|ace|big)|trips|doubles|jet/.test(f);
+    case 'harbaugh_power_west_coast': return /i\s*form|strong\s*i|weak\s*i|singleback|ace|deuce|pistol|\bgun\b|full\s*house|power\s*i|wing|tight|y\s*off/.test(f);
+    case 'erhardt_perkins': return /singleback|ace|i\s*form|strong\s*i|weak\s*i|\bgun\b|empty|trips|bunch|doubles|y\s*off|tight/.test(f);
     case 'shanahan_wide_zone': return /i\s*form|strong\s*i|singleback|wing|y\s*off|bunch|tight|ace|deuce|gun\s+wing/.test(f);
     default: return false;
   }
@@ -3005,7 +3129,7 @@ function applySystemFormationRails(formRanked, allForms, maxForms){
   const eligible=allForms.filter(f=>(FORMATION_PLAYS[f]||[]).length>=5);
   const rail=eligible.filter(f=>systemRailFormationMatch(f,sysKey)).sort((a,b)=>scoredForm(b)-scoredForm(a));
   if(!rail.length)return formRanked;
-  const desiredShare=sysKey==='paul_johnson_flexbone' ? (0.55+strength*0.38) : (0.35+strength*0.30);
+  const desiredShare=sysKey==='paul_johnson_flexbone' ? (0.55+strength*0.38) : (['peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].includes(sysKey) ? (0.42+strength*0.34) : (0.35+strength*0.30));
   const railNeed=Math.min(rail.length, Math.max(4, Math.round(maxForms*desiredShare)));
   const picked=new Set();
   const out=[];
@@ -3036,6 +3160,30 @@ function systemRailSeedPlans(systemKey,target){
       {label:'inside/dart',re:/inside zone|dart|power read|read option/i,n:Math.max(10,Math.round(target*.10))},
       {label:'choice vertical',re:/choice|vertical|verts|go|fade|post/i,n:Math.max(10,Math.round(target*.10))},
       {label:'rpo screen',re:/rpo|screen|bubble|smoke|tunnel/i,n:Math.max(8,Math.round(target*.08))}
+    ];
+  }
+  if(systemKey==='peyton_manning_moore'){
+    return [
+      {label:'ace/posse zone',re:/outside zone|stretch|inside zone|zone|ace|posse/i,n:Math.max(12,Math.round(target*.12))},
+      {label:'timing pass',re:/levels|dag|smash|curl|hitch|quick|out|slant|drive|inc|tosser/i,n:Math.max(18,Math.round(target*.18))},
+      {label:'screen answers',re:/screen|tunnel|rb screen|bubble|smoke/i,n:Math.max(8,Math.round(target*.07))},
+      {label:'vertical checks',re:/vertical|verts|go|post|fade|seam/i,n:Math.max(6,Math.round(target*.06))}
+    ];
+  }
+  if(systemKey==='harbaugh_power_west_coast'){
+    return [
+      {label:'physical run core',re:/power|counter|inside zone|outside zone|stretch|trap|duo|iso/i,n:Math.max(22,Math.round(target*.22))},
+      {label:'PA/boot',re:/boot|play action|pa |waggle|flood|seam/i,n:Math.max(10,Math.round(target*.10))},
+      {label:'quick WCO',re:/slant|stick|mesh|quick|out|cross|drive/i,n:Math.max(10,Math.round(target*.10))},
+      {label:'screens/checks',re:/screen|swing|flat|bubble/i,n:Math.max(6,Math.round(target*.05))}
+    ];
+  }
+  if(systemKey==='erhardt_perkins'){
+    return [
+      {label:'concept pass core',re:/ghost|tosser|inc|smash|mesh|levels|flood|drive|curl|slant|quick/i,n:Math.max(20,Math.round(target*.20))},
+      {label:'inside run core',re:/inside zone|power|duo|trap|dive|base/i,n:Math.max(16,Math.round(target*.14))},
+      {label:'multiplicity surfaces',re:/ace|singleback|i form|gun|empty|bunch|trips|doubles/i,n:Math.max(10,Math.round(target*.08))},
+      {label:'screen/PA answers',re:/screen|boot|play action|pa |flat|swing/i,n:Math.max(8,Math.round(target*.07))}
     ];
   }
   return [];
@@ -3079,10 +3227,10 @@ function renderSystemOptions(){
   sel.innerHTML='';
   const add=(value,label,parent=sel)=>{const o=el('option');o.value=value;o.textContent=label;parent.appendChild(o);};
   add('none','None — use broad identity only');
-  ['shanahan_wide_zone','paul_johnson_flexbone','art_briles_spread'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
+  ['shanahan_wide_zone','paul_johnson_flexbone','art_briles_spread','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
   const customKeys=Object.keys(_customOffenseSystems||{});
   if(customKeys.length){const og=el('optgroup');og.label='Imported profiles';customKeys.forEach(k=>add(k,_customOffenseSystems[k].label||k,og));sel.appendChild(og);}
-  const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','erhardt_perkins','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
+  const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
   sel.value=allOffenseSystems()[cur]?cur:'none';
 }
 function blendPctMaps(base,preset,keys,strength){
@@ -6114,14 +6262,24 @@ function inferConcept(play, family){
   const p=cleanCell(play).toLowerCase();
   const fam=normalizeFamily(family, play);
   if(/veer pass|rocket pass|tr cntr pass|option pass/.test(p)) return 'Veer Pass';
-  if(/inside veer|veer/.test(p) && !/pass/.test(p)) return 'Inside Veer';
+  if(/zone dive/.test(p)) return 'Zone Dive';
+  if(/\bdart\b/.test(p)) return 'Dart';
+  if(/power read|inverted veer|bash/.test(p)) return 'Power Read';
+  if(/\bghost\b/.test(p)) return 'Ghost';
+  if(/\btosser\b/.test(p)) return 'Tosser';
+  if(/\binc\b|\bin curl\b|in\s*\/\s*curl/.test(p)) return 'INC';
+  if(/\blevels?\b/.test(p)) return 'Levels';
+  if(/all\s*curl|all curls/.test(p)) return 'All Curl';
+  if(/\bdag\b/.test(p)) return 'Dag / Smash';
+  if(/inside veer|\bveer\b/.test(p) && !/pass/.test(p)) return 'Inside Veer';
   if(/midline|mid line/.test(p)) return 'Midline';
   if(/counter option|tr option cntr|option cntr/.test(p)) return 'Counter Option';
-  if(/triple option|tr option|triple/.test(p)) return 'Triple Option';
+  if(/triple option|tr option|\btriple\b/.test(p)) return 'Triple Option';
   if(/rocket|rocket toss|rocket sweep/.test(p)) return 'Rocket Toss';
   if(/choice/.test(p)) return 'Choice';
   if(/\b(mesh)\b/.test(p)) return 'Mesh';
-  if(/\b(shallow|drive)\b/.test(p)) return 'Shallow';
+  if(/\bdrive\b/.test(p)) return 'Drive';
+  if(/\bshallow\b/.test(p)) return 'Shallow';
   if(/\by\s*cross\b|\bcross\b/.test(p)) return p.includes('y cross')?'Y Cross':'Shallow';
   if(/\bdagger\b/.test(p)) return 'Dagger';
   if(/\bsail\b/.test(p)) return 'Sail';
