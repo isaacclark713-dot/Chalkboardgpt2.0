@@ -1,13 +1,14 @@
-# Call Sheet — Coach Brain v14.19
+# Call Sheet — Coach Brain v14.20
 
-Single-page football playbook builder and in-game play caller.
+GitHub Pages package for Call Sheet — Coach Brain.
 
-## v14.19 changes
+## v14.20 changes
 
-- Core Concept Targets are now tag-driven rather than exact-name-only.
-- Each play gets computed scoring tags from core concept, play intent, formation structure, personnel, run scheme, pass structure, route family, series, and stress tags.
-- Generation, in-game play suggestions, and initial concept weights now use those tags.
-- This keeps Power / Power O, Power Read, Power Pass, RPO Access, Option Run, Boot / Keeper, and Dropback concepts from being lumped together incorrectly.
-- Generated playbooks now save compact `targetTags` for auditing/debugging.
+- Adds source-backed **Wake Slow Mesh / Veer-and-Shoot RPO** offensive template.
+- Adds slow-mesh and veer-and-shoot concept targets: Slow Mesh RPO, Seam / Bender, Deep Choice, Slot Fade, Switch Verticals, Smash Fade, Glance-and-Go, Bash Read, and Now Screen.
+- Adds Wake-specific generation rails, formation/personnel presets, scoring tags, seed buckets, in-game boosts, opening-script logic, sequencing rules, and self-scout guardrails.
+- Keeps v14.19 tag-driven Core Concept Targets and strict personnel/formation gates.
 
-Upload the contents of this folder to GitHub Pages. `index.html` is the app entrypoint.
+## Deploy
+
+Upload the contents of this folder to the root of a GitHub Pages repository, or upload the zip and extract it so `index.html` is at the site root.
