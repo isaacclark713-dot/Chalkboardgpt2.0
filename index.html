@@ -4437,15 +4437,17 @@ function safeSuggestPlay(down,dist,zone,yards){
   }
 }
 
-/* down & distance + play-intent situation fit — v14.10
-   The live caller now scores the *purpose* of the play first, not just the
-   legacy family bucket. Two hard coaching rules are enforced here:
+/* down & distance + play-intent situation fit — v14.13
+   The live caller scores the *purpose* of the play first, not just the
+   legacy family bucket. Current hard coaching rules:
    · Play-action / boot / keeper is removed from the suggestion pool on:
        2nd & 5+, 3rd & 5+, 4th & 3+
    · Non-draw runs receive a major penalty on:
        2nd & 7+, 3rd & 5+, 4th & 3+
-   Draw remains a pass-down changeup; screens/RPO access are not treated as
-   straight runs for these penalties. */
+   · RPO Access receives a major penalty on:
+       3rd & 7+
+   Draw remains a pass-down changeup. True read/speed/load/veer options are
+   treated as runs, not RPO passes. */
 
 // All concepts that are play-action by nature (regardless of family tag in DB)
 const PA_CONCEPTS=new Set(["Boot / Play Action","Fake Jet","Veer Pass","PA Boot","Play Action","PA Cross"]);
@@ -4464,7 +4466,8 @@ function situationProfile(down,dist,yards){
     medium:y>=3&&y<=6,
     long:y>=7,
     paBan:(d===2&&y>=5)||(d===3&&y>=5)||(d===4&&y>=3),
-    runPenalty:(d===2&&y>=7)||(d===3&&y>=5)||(d===4&&y>=3)
+    runPenalty:(d===2&&y>=7)||(d===3&&y>=5)||(d===4&&y>=3),
+    rpoPenalty:(d===3&&y>=7)
   };
 }
 function isPlayActionCall(pl){
@@ -4484,6 +4487,15 @@ function isDrawCall(pl){
   const txt=((pl.play||'')+' '+c+' '+(t.runScheme||'')+' '+(t.passStructure||'')).toLowerCase();
   return key==='draw' || c==='draw' || /\bdraw\b/.test(txt) || t.passStructure==='draw' || t.runScheme==='draw';
 }
+function isRpoAccessCall(pl){
+  if(!pl) return false;
+  // True option runs (read/speed/load/veer/midline/triple/etc.) are not RPO access.
+  if(isOptionRunText(pl) || playIntentKey(pl)==='option_run') return false;
+  const key=playIntentKey(pl);
+  const t=intentSafe(pl)||{};
+  const txt=((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')+' '+(t.passStructure||'')+' '+(t.actionFamily||'')+' '+(t.primaryStress||'')).toLowerCase();
+  return key==='rpo_access' || t.playType==='rpo' || t.passStructure==='rpo_access' || /\brpo\b|alert|glance|peek|lookie|access|bubble|smoke|now screen|back[-\s]?out|gift/.test(txt);
+}
 function isStraightRunCall(pl){
   if(isDrawCall(pl)) return false;
   if(isOptionRunText(pl)) return true;
@@ -4502,6 +4514,7 @@ function playIntentSituationFit(pl,down,dist,yards){
   const key=playIntentKey(pl);
   if(sp.paBan && isPlayActionCall(pl)) return 0;
   if(sp.runPenalty && isStraightRunCall(pl)) return 0.08;
+  if(sp.rpoPenalty && isRpoAccessCall(pl)) return 0.35;
   if(sp.down===2 && sp.yards>=7 && key==='draw') return 1.18;
   if((sp.down===3||sp.down===4) && sp.yards>=5 && key==='draw') return 1.18;
   if(sp.down===3 && sp.yards>=5 && ['quick_game','dropback_pass','screen','shot'].includes(key)) return 1.18;
@@ -4518,7 +4531,7 @@ function ddFit(pl,down,dist,yards){
   const f=pl.family, c=pl.concept;
   const key=playIntentKey(pl);
   const isPa = isPlayActionCall(pl);
-  const run=isStraightRunCall(pl), scr=key==='screen'||f==='screen', pass=f==='pass'||['quick_game','dropback_pass','shot'].includes(key);
+  const run=isStraightRunCall(pl), rpo=isRpoAccessCall(pl), scr=key==='screen'||f==='screen', pass=f==='pass'||['quick_game','dropback_pass','shot'].includes(key);
   const power=["Power / Power O","Dive","Trap","Counter","Duo","Inside Zone"].includes(c)||key==='downhill_run';
   const quick=["Quick Game","Slants","Stick","Spot","Spacing","Mesh","Shallow","Y Stick"].includes(c)||key==='quick_game';
   const inter=["Stick","Mesh","Spot","Curls / Curl Flats","Option / RPO","Sail","Bench / Corner Strike","Levels","Dig","Drive","Y Cross"].includes(c)||key==='dropback_pass';
@@ -4527,6 +4540,8 @@ function ddFit(pl,down,dist,yards){
 
   // Hard rule: PA/boot/keeper should not surface in these distances.
   if(sp.paBan && isPa) return 0;
+  // RPO access is a cheap access answer, not a strong 3rd-and-long answer.
+  if(sp.rpoPenalty && rpo) return 0.35;
 
   // PA is only elevated when the defense must respect the immediate run threat.
   if(isPa){
