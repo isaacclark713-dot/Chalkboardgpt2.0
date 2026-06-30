@@ -500,8 +500,8 @@
         </div>
       </div>
 
-      <div style="margin-top:18px">
-        <label class="fld">Legacy concept families</label>
+      <div style="margin-top:18px;display:none">
+        <label class="fld">Core concept / intent targets</label>
         <div id="ph-families" class="grid3" style="gap:6px 18px"></div>
       </div>
 
@@ -580,7 +580,7 @@
       </div>
       <div class="tbl-wrap" style="margin-top:12px">
         <table id="pb-table">
-          <thead><tr><th></th><th>Formation</th><th>Pers</th><th>Play</th><th>Concept</th><th>Family</th><th>Mot</th></tr></thead>
+          <thead><tr><th></th><th>Formation</th><th>Pers</th><th>Play</th><th>Core Concept</th><th>Play Intent</th><th>Mot</th></tr></thead>
           <tbody id="pb-tbody"></tbody>
         </table>
       </div>
@@ -605,13 +605,21 @@
           <select id="ap-concept"></select>
         </div>
         <div>
-          <label>Family</label>
+          <label>Play Intent</label>
           <select id="ap-family">
-            <option value="run">Run</option>
-            <option value="pass">Pass</option>
-            <option value="play_action">Play action</option>
-            <option value="option_rpo">Option / RPO</option>
+            <option value="base_run">Base run</option>
+            <option value="downhill_run">Downhill / short-yardage</option>
+            <option value="perimeter_run">Perimeter run</option>
+            <option value="option_run">Option run</option>
+            <option value="run_constraint">Run constraint</option>
+            <option value="rpo_access">RPO access</option>
+            <option value="play_action">Play-action</option>
+            <option value="boot_keeper">Boot / keeper</option>
+            <option value="quick_game">Quick game</option>
+            <option value="dropback_pass">Dropback pass</option>
+            <option value="shot">Shot / vertical</option>
             <option value="screen">Screen</option>
+            <option value="draw">Draw</option>
           </select>
         </div>
         <div>
@@ -666,7 +674,7 @@
       <div class="tbl-wrap" style="max-height:600px">
         <table id="bl-table">
           <thead><tr>
-            <th>Formation</th><th>Pers</th><th>Play</th><th>Concept Family</th><th>Parent Concept</th><th>Situations</th>
+            <th>Formation</th><th>Pers</th><th>Play</th><th>Play Intent</th><th>Core Concept</th><th>Situations</th>
           </tr></thead>
           <tbody id="bl-tbody"></tbody>
         </table>
@@ -941,7 +949,7 @@
     <!-- ── Play Corrections ── -->
     <div class="card">
       <h2>Play Corrections</h2>
-      <p class="desc">Fix incorrect concept, family, or personnel on any play. Corrections are saved locally and applied to every generated book. Browse the full DB or your saved book, filter, and edit inline.</p>
+      <p class="desc">Fix incorrect core concept, play intent, or personnel on any play. Families are now hidden legacy data; the app uses the fuller play-intent categories for display, diagnostics, and live suggestions.</p>
 
       <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:2;min-width:180px">
@@ -956,14 +964,23 @@
           </select>
         </div>
         <div style="flex:1;min-width:130px">
-          <label class="fld">Filter family</label>
+          <label class="fld">Filter intent</label>
           <select id="corr-fam">
-            <option value="">All families</option>
-            <option value="run">Run</option>
-            <option value="pass">Pass</option>
-            <option value="play_action">Play action</option>
-            <option value="option_rpo">Option / RPO</option>
+            <option value="">All intents</option>
+            <option value="base_run">Base run</option>
+            <option value="downhill_run">Downhill / short-yardage</option>
+            <option value="perimeter_run">Perimeter run</option>
+            <option value="option_run">Option run</option>
+            <option value="run_constraint">Run constraint</option>
+            <option value="rpo_access">RPO access</option>
+            <option value="play_action">Play-action</option>
+            <option value="boot_keeper">Boot / keeper</option>
+            <option value="quick_game">Quick game</option>
+            <option value="dropback_pass">Dropback pass</option>
+            <option value="shot">Shot / vertical</option>
             <option value="screen">Screen</option>
+            <option value="draw">Draw</option>
+            <option value="other">Other / changeup</option>
           </select>
         </div>
       </div>
@@ -979,14 +996,24 @@
             <select id="batch-concept" style="min-width:160px"><option value="">— keep current —</option></select>
           </div>
           <div>
-            <label class="fld">Set family</label>
-            <select id="batch-family" style="min-width:130px">
+            <label class="fld">Set play intent</label>
+            <select id="batch-family" style="min-width:170px">
               <option value="">— keep current —</option>
-              <option value="run">Run</option>
-              <option value="pass">Pass</option>
-              <option value="play_action">Play action</option>
-              <option value="option_rpo">Option / RPO</option>
+              <option value="auto">Auto</option>
+              <option value="base_run">Base run</option>
+              <option value="downhill_run">Downhill / short-yardage</option>
+              <option value="perimeter_run">Perimeter run</option>
+              <option value="option_run">Option run</option>
+              <option value="run_constraint">Run constraint</option>
+              <option value="rpo_access">RPO access</option>
+              <option value="play_action">Play-action</option>
+              <option value="boot_keeper">Boot / keeper</option>
+              <option value="quick_game">Quick game</option>
+              <option value="dropback_pass">Dropback pass</option>
+              <option value="shot">Shot / vertical</option>
               <option value="screen">Screen</option>
+              <option value="draw">Draw</option>
+              <option value="other">Other / changeup</option>
             </select>
           </div>
           <div>
@@ -1024,19 +1051,19 @@
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="corr-check-all" title="Select all"></th>
             <th>Formation</th><th>Pers</th><th>Play</th>
-            <th>Concept</th><th>Family</th><th>Mot</th><th>Corrected</th>
+            <th>Core Concept</th><th>Play Intent</th><th>Mot</th><th>Corrected</th>
           </tr></thead>
           <tbody id="corr-tbody"></tbody>
         </table>
       </div>
-      <div class="hint" style="margin-top:8px">Click any cell in the Concept, Family, or Pers column to edit it inline. Changes save instantly. After correcting, regenerate your base playbook to apply them.</div>
+      <div class="hint" style="margin-top:8px">Click any cell in the Core Concept, Play Intent, or Pers column to edit it inline. Changes save instantly. After correcting, regenerate your base playbook to apply them.</div>
     </div>
 
 
     <!-- ── Formation & Play Intent Tags ── -->
     <div class="card">
       <h2>Formation &amp; Play Intent Tags</h2>
-      <p class="desc">The app auto-tags each play from its formation name, play name, family, concept, personnel, and motion. These tags now include Play IQ details — route family, read type, timing, coverage fit, protection stress, hot answer, and install confidence. Correct any wrong tag here — your edits are saved and will override the auto-tagger.</p>
+      <p class="desc">The app auto-tags each play from its formation name, play name, core concept, personnel, motion, and hidden source-bucket data when available. These tags now include Play IQ details — route group, read type, timing, coverage fit, protection stress, hot answer, and install confidence. Correct any wrong tag here — your edits are saved and will override the auto-tagger.</p>
 
       <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:2;min-width:190px">
@@ -1086,7 +1113,7 @@
     <!-- ── CSV Upload ── -->
     <div class="card">
       <h2>Upload / Import Play Database</h2>
-      <p class="desc">Upload a CSV or JSON play file. The importer now separates <b>offensive plays</b>, <b>defensive plays</b>, and <b>unknown rows</b>. Only offensive plays are used by the offensive Coach Brain caller; defensive plays are saved separately for a future defensive call-sheet module. Required fields: <span class="mono" style="font-size:11px">formation, play</span>. Optional fields: <span class="mono" style="font-size:11px">family_guess/family, concept, personnel/pers, formation_slug, play_slug, play_url</span>.</p>
+      <p class="desc">Upload a CSV or JSON play file. The importer now separates <b>offensive plays</b>, <b>defensive plays</b>, and <b>unknown rows</b>. Only offensive plays are used by the offensive Coach Brain caller; defensive plays are saved separately for a future defensive call-sheet module. Required fields: <span class="mono" style="font-size:11px">formation, play</span>. Optional fields: <span class="mono" style="font-size:11px">concept, personnel/pers, formation_slug, play_slug, play_url</span>. Legacy source-bucket fields are accepted but hidden after import.</span></p>
 
       <div id="csv-dropzone" style="border:2px dashed #c8c5ba;border-radius:5px;padding:32px;text-align:center;cursor:pointer;background:#faf9f5;transition:.12s">
         <div style="font-size:28px;margin-bottom:8px">📂</div>
@@ -1111,7 +1138,7 @@
         </div>
         <div class="tbl-wrap" style="max-height:300px">
           <table>
-            <thead><tr><th>Formation</th><th>Play</th><th>Family</th><th>Concept</th><th>Pers</th><th>Motion</th></tr></thead>
+            <thead><tr><th>Formation</th><th>Play</th><th>Play Intent</th><th>Core Concept</th><th>Pers</th><th>Status</th></tr></thead>
             <tbody id="csv-preview-tbody"></tbody>
           </table>
         </div>
@@ -1456,6 +1483,7 @@ function conceptNameLower(pl){return ((pl&&pl.concept)||'')+' '+((pl&&pl.play)||
 function intentSafe(pl){try{return getIntentTags(pl)||{};}catch(e){return {};}}
 function isPassish(pl){
   if(!pl)return false;
+  if(playIntentKey(pl)==='option_run')return false;
   const t=intentSafe(pl);
   return ['pass','play_action','screen','rpo','draw'].includes(t.playType)||['dropback','quick_game','play_action','boot','rpo_access','screen','shot','draw'].includes(t.passStructure)||pl.family==='pass'||pl.family==='play_action'||pl.family==='screen'||pl.family==='option_rpo';
 }
@@ -1468,8 +1496,9 @@ function isDrawPlay(pl){
   return !!pl && (t.playType==='draw'||t.runScheme==='draw'||t.passStructure==='draw'||/draw/i.test(conceptNameLower(pl)));
 }
 function isRpoPlay(pl){
+  if(playIntentKey(pl)==='option_run')return false;
   const t=intentSafe(pl);
-  return !!pl && (t.playType==='rpo'||t.passStructure==='rpo_access'||pl.family==='option_rpo'||/rpo|read|option|glance|bubble/i.test(conceptNameLower(pl)));
+  return !!pl && (t.playType==='rpo'||t.passStructure==='rpo_access'||/\brpo\b|glance|bubble|peek|alert/i.test(conceptNameLower(pl)));
 }
 function isPlayActionLike(pl){
   const t=intentSafe(pl);
@@ -4164,6 +4193,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 function el(t,c,txt){const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
 function persPill(p){const s=el('span','pill pers',p);return s;}
 function famPill(f){f=String(f||'unknown');const s=el('span','pill '+f,f.replace('_',' '));return s;}
+function intentOrFamPill(pl){return playIntentPill(pl);}
 let toastTimer;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
 
@@ -4181,7 +4211,8 @@ function initPhilosophyForm(){
   // v14.4: legacy concept-family checkboxes are merged into Core Concept targets.
   const wrap=$('#ph-families');
   if(wrap){
-    wrap.innerHTML='<div class="hint">Merged into the Core concept call targets below. Plays are now reclassified into the fuller core-concept list instead of old concept-family buckets.</div>';
+    wrap.innerHTML='<div class="hint">Old family checkboxes are gone. Use the Core concept call targets below and Data → Play Corrections → Play Intent for precision.</div>';
+    wrap.style.display='none';
   }
   renderConceptTargets();
   // motion slider
@@ -4318,18 +4349,18 @@ function renderPlaybook(){
   const chips=[['Plays',playbook.plays.length],['Identity',labelIdent(m.identity)],['System',labelSystem(m.system||'none')],['Personnel mix',persMixSummary(m.persMix)],['Run band',rpTxt],['Motion',m.motion]];
   chips.forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));stats.appendChild(c);});
   // distribution
-  const byFam={}; playbook.plays.forEach(p=>byFam[p.family]=(byFam[p.family]||0)+1);
-  const dd=$('#pb-distro'); dd.innerHTML='<label class="fld">Family distribution</label>';
+  const byFam={}; playbook.plays.forEach(p=>{const k=playIntentKey(p);byFam[k]=(byFam[k]||0)+1;});
+  const dd=$('#pb-distro'); dd.innerHTML='<label class="fld">Play intent distribution</label>';
   const bar=el('div');bar.style.cssText='display:flex;height:26px;border-radius:3px;overflow:hidden;border:1px solid #ddd';
-  const colors={run:'#3f9d6d',play_action:'#e8b54b',pass:'#5a86c4',option_rpo:'#a06bb0',screen:'#d98a44',unknown:'#aaa'};
+  const colors={base_run:'#3f9d6d',downhill_run:'#5fac64',perimeter_run:'#55a88a',option_run:'#a06bb0',run_constraint:'#c1a448',rpo_access:'#b06abf',play_action:'#e8b54b',boot_keeper:'#dba83e',quick_game:'#5a86c4',dropback_pass:'#4978b4',shot:'#c86b48',screen:'#d98a44',draw:'#a89157',other:'#aaa',unknown:'#aaa'};
   Object.entries(byFam).sort((a,b)=>b[1]-a[1]).forEach(([f,n])=>{
     const seg=el('div');const pct=n/playbook.plays.length*100;
     seg.style.cssText=`width:${pct}%;background:${colors[f]};display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700`;
-    seg.title=`${f}: ${n}`;if(pct>7)seg.textContent=n;bar.appendChild(seg);
+    seg.title=`${playIntentLabel(f)}: ${n}`;if(pct>7)seg.textContent=n;bar.appendChild(seg);
   });
   dd.appendChild(bar);
   const leg=el('div');leg.style.cssText='display:flex;gap:12px;flex-wrap:wrap;margin-top:8px';
-  Object.entries(byFam).sort((a,b)=>b[1]-a[1]).forEach(([f,n])=>{const s=el('span');s.style.cssText='font-size:11px;display:flex;align-items:center;gap:5px';s.innerHTML=`<i style="width:10px;height:10px;border-radius:2px;background:${colors[f]};display:inline-block"></i>${f.replace('_',' ')} (${n})`;leg.appendChild(s);});
+  Object.entries(byFam).sort((a,b)=>b[1]-a[1]).forEach(([f,n])=>{const s=el('span');s.style.cssText='font-size:11px;display:flex;align-items:center;gap:5px';s.innerHTML=`<i style="width:10px;height:10px;border-radius:2px;background:${colors[f]||'#aaa'};display:inline-block"></i>${playIntentLabel(f)} (${n})`;leg.appendChild(s);});
   dd.appendChild(leg);
   renderPbTable('');
   renderAudibles('');
@@ -4338,7 +4369,7 @@ function renderPbTable(filter){
   const tb=$('#pb-tbody'); tb.innerHTML='';
   if(!playbook)return;
   const f=filter.toLowerCase();
-  const rows=playbook.plays.filter(p=>!f||(p.formation+p.play+p.concept+p.family).toLowerCase().includes(f));
+  const rows=playbook.plays.filter(p=>!f||(p.formation+p.play+p.concept+p.family+playIntentLabel(p)).toLowerCase().includes(f));
   const manualCount=(playbook.plays||[]).filter(p=>p._manual).length;
   $('#pb-count').textContent=`${rows.length} of ${playbook.plays.length} plays`+(manualCount?` · ${manualCount} manually added`:'');
   const PAGE=500;
@@ -4358,7 +4389,7 @@ function renderPbTable(filter){
     const td2=el('td');td2.appendChild(persPill(p.pers));tr.appendChild(td2);
     tr.appendChild(el('td',null,p.play));
     tr.appendChild(el('td',null,p.concept));
-    const td5=el('td');td5.appendChild(famPill(p.family));tr.appendChild(td5);
+    const td5=el('td');td5.appendChild(playIntentPill(p));tr.appendChild(td5);
     const td6=el('td');if(p.motion===2)td6.appendChild(el('span','pill motion','Move'));else if(p.motion===1){const s=el('span','pill','Form');s.style.cssText='background:#efe7d4;color:#9a7320';td6.appendChild(s);}tr.appendChild(td6);
     if(p._manual){const m=el('td');const b=el('span');b.style.cssText='font-size:9px;color:var(--cool-d);font-weight:700';b.textContent='manual';m.appendChild(b);tr.appendChild(m);}
     tb.appendChild(tr);
@@ -4466,7 +4497,8 @@ function addPlayToBook(){
   const formation=($('#ap-formation').value||'').trim();
   const play=($('#ap-play').value||'').trim().toUpperCase();
   const concept=$('#ap-concept').value||CONCEPTS[0];
-  const family=$('#ap-family').value||'pass';
+  const intentKey=$('#ap-family').value||'dropback_pass';
+  const family=playIntentFamilyForKey(intentKey)||'pass';
   const pers=$('#ap-pers').value||'11';
   const motion=Number($('#ap-motion').value)||0;
   if(!formation){$('#ap-status').textContent='Formation is required.';return;}
@@ -4475,7 +4507,7 @@ function addPlayToBook(){
   const dup=playbook.plays.find(p=>p.formation===formation&&p.play===play);
   if(dup){$('#ap-status').textContent='That formation + play is already in the book.';return;}
   const newPlay={formation,play,concept,family,pers,motion,_manual:true};
-  newPlay.intent=autoIntentTags(newPlay);
+  newPlay.intent=Object.assign({},autoIntentTags(newPlay),playIntentPatchForKey(intentKey));
   playbook.plays.push(newPlay);
   // Rebuild audibles for this formation
   if(playbook.audibles){
@@ -4498,7 +4530,7 @@ function addPlayToBook(){
 function buildListRows(formFilter){
   if(!playbook)return[];
   const rows=playbook.plays.map(p=>({
-    formation:p.formation,pers:p.pers,play:p.play,family:p.family.replace('_',' '),
+    formation:p.formation,pers:p.pers,play:p.play,intent:playIntentLabel(p),
     concept:p.concept,situations:SITUATIONS[p.concept]||'Situational'
   }));
   // always sort by formation name, then concept
@@ -4558,7 +4590,7 @@ function renderBuildList(){
     tr.appendChild(el('td',null,filter==='__ALL__'?'':r.formation));
     const td=el('td');td.appendChild(persPill(r.pers));tr.appendChild(td);
     tr.appendChild(el('td',null,r.play));
-    tr.appendChild(el('td',null,r.family));
+    tr.appendChild(el('td',null,r.intent));
     tr.appendChild(el('td',null,r.concept));
     const ts=el('td',null,r.situations);ts.style.color='#6a7066';ts.style.fontSize='11.5px';tr.appendChild(ts);
     if(filter==='__ALL__') tr.children[0].style.display='none'; // hide redundant col when grouped
@@ -4572,16 +4604,16 @@ function renderBuildList(){
 }
 function buildListCSV(){
   const rows=buildListRows('__ALL__');  // always export full sorted list
-  const head=['Formation','Personnel','Play','Concept Family','Parent Concept','Situations'];
+  const head=['Formation','Personnel','Play','Play Intent','Core Concept','Situations'];
   const esc=v=>/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
-  return [head.join(',')].concat(rows.map(r=>[r.formation,r.pers,r.play,r.family,r.concept,r.situations].map(esc).join(','))).join('\n');
+  return [head.join(',')].concat(rows.map(r=>[r.formation,r.pers,r.play,r.intent,r.concept,r.situations].map(esc).join(','))).join('\n');
 }
 function buildListText(){
   const rows=buildListRows('__ALL__');
   let out=''; let lastForm='';
   rows.forEach(r=>{
     if(r.formation!==lastForm){lastForm=r.formation;out+='\n── '+r.formation+' ['+r.pers+'] ──\n';}
-    out+=`  ${r.play} | ${r.family} / ${r.concept} | ${r.situations}\n`;
+    out+=`  ${r.play} | ${r.intent} / ${r.concept} | ${r.situations}\n`;
   });
   return out.trim();
 }
@@ -5195,7 +5227,7 @@ function renderTwoMinScript(){
     sitWrap.appendChild(sitSel);hdr.appendChild(sitWrap);card.appendChild(hdr);
     const tags=el('div','twom-tags');
     const pp=el('span','pill pers',it.pers);pp.style.cssText='background:rgba(255,255,255,.15);color:var(--chalk)';tags.appendChild(pp);
-    const fp=el('span','pill '+it.family,it.family.replace('_',' '));tags.appendChild(fp);
+    tags.appendChild(playIntentPill(it));
     const cp=el('span');cp.style.cssText='display:inline-block;padding:2px 7px;border-radius:8px;font-size:9.5px;font-weight:700;background:rgba(126,207,255,.18);color:#7ecfff;text-transform:uppercase;letter-spacing:.03em';cp.textContent=it.concept;tags.appendChild(cp);
     card.appendChild(tags);
     card.appendChild(el('div','twom-note',it.note));
@@ -5374,7 +5406,7 @@ function renderScriptCaller(){
   call.appendChild(el('div','script-call-play',`${variant.formation} — ${variant.play}`));
   const meta=el('div','script-call-meta');
   meta.appendChild(persPill(variant.pers));
-  meta.appendChild(famPill(variant.family));
+  meta.appendChild(playIntentPill(variant));
   const cc=el('span','pill');cc.style.cssText='background:#eee;color:#444';cc.textContent=variant.concept;meta.appendChild(cc);
   if(variant.motion===2)meta.appendChild(el('span','pill motion','Move'));
   else if(variant.motion===1){const ms=el('span','pill');ms.style.cssText='background:#efe7d4;color:#9a7320';ms.textContent='Form';meta.appendChild(ms);}
@@ -5452,7 +5484,7 @@ function renderOpeningScript(){
 
     const tags=el('div','sp-tags');
     tags.appendChild(persPill(it.pers));
-    tags.appendChild(famPill(it.family));
+    tags.appendChild(playIntentPill(it));
     const cc=el('span','pill');cc.style.cssText='background:#eee;color:#444';cc.textContent=it.concept;tags.appendChild(cc);
     if(it.motion===2)tags.appendChild(el('span','pill motion','Move'));
     else if(it.motion===1){const ms=el('span','pill');ms.style.cssText='background:#efe7d4;color:#9a7320';ms.textContent='Form';tags.appendChild(ms);}
@@ -5593,9 +5625,9 @@ const INTENT_OPTIONS={
   motionPurpose:['auto','none','coverage_id','add_gap','change_strength','widen_force','apex_conflict','perimeter_leverage','eye_candy','matchup_leverage','communication_stress'],
   runScheme:['auto','none','inside_zone','wide_zone','duo','power','counter','trap_wham','iso_dive','sweep_toss','draw','option_read','screen_run'],
   passStructure:['auto','none','quick_game','dropback','play_action','boot','rpo_access','screen','shot','draw'],
-  series:['auto','Inside Zone Series','Wide Zone Series','Duo/Downhill Series','Power Series','Counter Series','Trap/Wham Series','Perimeter Series','Jet Series','RPO Access Series','Quick Game Series','Play-Action/Boot Series','Flood/Sail Series','Man-Beater Series','Screen Series','Vertical Series','Smash/Corner Series','Draw Series','Changeup'],
-  conflictDefender:['auto','none','apex','edge','force','playside_lb','backside_lb','safety','corner','nickel','box','coverage_shell','pass_rush'],
-  primaryStress:['auto','none','box_count','extra_gap','horizontal_stretch','vertical_stretch','eye_discipline','coverage_leverage','man_zone_id','apex_conflict','force_conflict','lb_flow','protection_stress','space_perimeter','short_yardage'],
+  series:['auto','Inside Zone Series','Wide Zone Series','Duo/Downhill Series','Power Series','Counter Series','Trap/Wham Series','Perimeter Series','Jet Series','Option Series','RPO Access Series','Quick Game Series','Play-Action/Boot Series','Flood/Sail Series','Man-Beater Series','Screen Series','Vertical Series','Smash/Corner Series','Draw Series','Changeup'],
+  conflictDefender:['auto','none','read_key','apex','edge','force','playside_lb','backside_lb','safety','corner','nickel','box','coverage_shell','pass_rush'],
+  primaryStress:['auto','none','assignment_conflict','box_count','extra_gap','horizontal_stretch','vertical_stretch','eye_discipline','coverage_leverage','man_zone_id','apex_conflict','force_conflict','lb_flow','protection_stress','space_perimeter','short_yardage'],
   routeFamily:['auto','none','quick','stick_spacing','slant','mesh_shallow','flood_sail','smash_corner','verts_seams','dagger_dig','crossers','screen','rpo_access','draw','checkdown'],
   readType:['auto','none','one_read','half_field','full_field','pure_progression','key_defender','alert_access','hot_answer'],
   routeTiming:['auto','none','quick','intermediate','long_developing','delayed'],
@@ -5623,6 +5655,118 @@ function intentOptionLabel(v){
   if(v==='auto')return 'Auto';
   if(v==='none')return 'None';
   return String(v).replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase());
+}
+
+
+/* v14.6 — Play Intent replaces visible legacy Family buckets.
+   Family is retained internally only as a compatibility field for old save data. */
+const TRUE_OPTION_CONCEPTS=new Set(['Inside Veer','Midline','Triple Option','Counter Option','Rocket Toss','Zone Dive']);
+const PLAY_INTENT_OPTIONS=[
+  {v:'auto',label:'Auto',color:'#eef1ed',ink:'#4a5048'},
+  {v:'base_run',label:'Base Run',color:'#e8f1e9',ink:'#2c6a42'},
+  {v:'downhill_run',label:'Downhill Run',color:'#e6f0de',ink:'#2f6b25'},
+  {v:'perimeter_run',label:'Perimeter Run',color:'#e5f5ef',ink:'#24745b'},
+  {v:'option_run',label:'Option Run',color:'#f1e8f3',ink:'#7a4a86'},
+  {v:'run_constraint',label:'Run Constraint',color:'#f2efdf',ink:'#7b6720'},
+  {v:'rpo_access',label:'RPO Access',color:'#f3e6f6',ink:'#79448a'},
+  {v:'play_action',label:'Play-Action',color:'#f3ecdc',ink:'#9a7320'},
+  {v:'boot_keeper',label:'Boot / Keeper',color:'#fff3d9',ink:'#956b09'},
+  {v:'quick_game',label:'Quick Game',color:'#e7eef7',ink:'#2f5891'},
+  {v:'dropback_pass',label:'Dropback Pass',color:'#e7eef7',ink:'#2f5891'},
+  {v:'shot',label:'Shot / Vertical',color:'#f4e7e2',ink:'#9a4620'},
+  {v:'screen',label:'Screen',color:'#f7efe7',ink:'#9a5a20'},
+  {v:'draw',label:'Draw',color:'#eee7d8',ink:'#7e6220'},
+  {v:'other',label:'Other / Changeup',color:'#eeeeee',ink:'#666666'}
+];
+const PLAY_INTENT_META=Object.fromEntries(PLAY_INTENT_OPTIONS.map(o=>[o.v,o]));
+function playIntentMeta(key){return PLAY_INTENT_META[key]||PLAY_INTENT_META.other;}
+function isTrueOptionRun(pl){
+  if(!pl)return false;
+  const text=((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')).toLowerCase();
+  if(/\brpo\b|glance|peek|bubble|now screen|smoke|screen|alert/.test(text))return false;
+  if(TRUE_OPTION_CONCEPTS.has(pl.concept))return true;
+  return /(inside veer|midline|triple\s*opt|tr\s*option|counter\s*option|option\s*cntr|rocket\s*toss|load\s*option|speed\s*option|veer\b|midline\s*qb|fb\s*toss\s*lead|pitch\s*read)/.test(text)
+    && /(flexbone|option|veer|midline|rocket|pitch|toss)/.test(text);
+}
+function normalizeIntentForOptionRuns(pl,tags){
+  if(!isTrueOptionRun(pl))return tags||{};
+  const t=Object.assign({},tags||{});
+  t.playType='run';
+  t.passStructure='none';
+  t.runScheme=t.runScheme&&t.runScheme!=='none'?t.runScheme:'option_read';
+  if(/rocket|toss/.test(((pl.play||'')+' '+(pl.concept||'')).toLowerCase())) t.runScheme='option_read';
+  t.series='Option Series';
+  t.actionFamily='Option Run';
+  t.role='base option / assignment football';
+  t.conflictDefender='read_key';
+  t.primaryStress='assignment_conflict';
+  t.routeFamily='none';
+  t.readType='key_defender';
+  t.beatsCoverage='balanced';
+  t.hasHot='none';
+  return t;
+}
+function playIntentKey(pl){
+  if(!pl)return 'other';
+  if(isTrueOptionRun(pl))return 'option_run';
+  const t=(typeof getIntentTags==='function')?getIntentTags(pl):{};
+  const c=(pl.concept||'');
+  if(t.playType==='screen'||t.passStructure==='screen')return 'screen';
+  if(t.playType==='draw'||t.runScheme==='draw'||t.passStructure==='draw'||c==='Draw')return 'draw';
+  if(t.playType==='rpo'||t.passStructure==='rpo_access')return 'rpo_access';
+  if(t.passStructure==='boot')return 'boot_keeper';
+  if(t.playType==='play_action'||t.passStructure==='play_action')return 'play_action';
+  if(t.passStructure==='quick_game'||['Quick Game','Stick','Spot','Spacing','Slants','Shallow','Curls / Curl Flats','All Curl','Tosser'].includes(c))return 'quick_game';
+  if(t.passStructure==='shot'||['Verticals / Four Verticals','Post','Go Routes','Dagger','Wheel','Choice'].includes(c))return 'shot';
+  if(t.playType==='pass'||t.passStructure==='dropback'||['Mesh','Y Cross','Flood','Sail','Smash','Dag / Smash','Levels','Drive','INC','Ghost'].includes(c))return 'dropback_pass';
+  if(t.runScheme==='option_read')return 'option_run';
+  if(['counter','trap_wham'].includes(t.runScheme)||['Counter','Trap','Fake Jet','Jet Touch Pass'].includes(c))return 'run_constraint';
+  if(['wide_zone','sweep_toss'].includes(t.runScheme)||['Sweep','Jet Sweep','Rocket Toss'].includes(c))return 'perimeter_run';
+  if(['iso_dive','duo'].includes(t.runScheme)||['Dive','Duo','Zone Dive'].includes(c))return 'downhill_run';
+  if(t.playType==='run'||['inside_zone','power'].includes(t.runScheme)||['Inside Zone','Outside Zone / Stretch','HB Base / Zone','Power / Power O'].includes(c))return 'base_run';
+  return 'other';
+}
+function playIntentLabel(plOrKey){
+  const key=typeof plOrKey==='string'?plOrKey:playIntentKey(plOrKey);
+  return playIntentMeta(key).label;
+}
+function playIntentPill(plOrKey){
+  const key=typeof plOrKey==='string'?plOrKey:playIntentKey(plOrKey);
+  const meta=playIntentMeta(key);
+  const s=el('span','pill intent-'+key,meta.label.toUpperCase());
+  s.style.background=meta.color; s.style.color=meta.ink;
+  return s;
+}
+function playIntentFamilyForKey(key){
+  return ({base_run:'run',downhill_run:'run',perimeter_run:'run',option_run:'run',run_constraint:'run',rpo_access:'option_rpo',play_action:'play_action',boot_keeper:'play_action',quick_game:'pass',dropback_pass:'pass',shot:'pass',screen:'screen',draw:'run',other:'unknown'})[key]||'';
+}
+function playIntentPatchForKey(key){
+  const patch={};
+  if(key==='auto')return patch;
+  if(key==='base_run')Object.assign(patch,{playType:'run',runScheme:'inside_zone',passStructure:'none',series:'Inside Zone Series',actionFamily:'Run',primaryStress:'box_count',conflictDefender:'playside_lb'});
+  if(key==='downhill_run')Object.assign(patch,{playType:'run',runScheme:'iso_dive',passStructure:'none',series:'Duo/Downhill Series',actionFamily:'Run',primaryStress:'short_yardage',conflictDefender:'box'});
+  if(key==='perimeter_run')Object.assign(patch,{playType:'run',runScheme:'sweep_toss',passStructure:'none',series:'Perimeter Series',actionFamily:'Perimeter Run',primaryStress:'horizontal_stretch',conflictDefender:'force'});
+  if(key==='option_run')Object.assign(patch,{playType:'run',runScheme:'option_read',passStructure:'none',series:'Option Series',actionFamily:'Option Run',primaryStress:'assignment_conflict',conflictDefender:'read_key',readType:'key_defender'});
+  if(key==='run_constraint')Object.assign(patch,{playType:'run',runScheme:'counter',passStructure:'none',series:'Counter Series',actionFamily:'Run Constraint',primaryStress:'lb_flow',conflictDefender:'backside_lb'});
+  if(key==='rpo_access')Object.assign(patch,{playType:'rpo',runScheme:'option_read',passStructure:'rpo_access',series:'RPO Access Series',actionFamily:'RPO',primaryStress:'apex_conflict',conflictDefender:'apex',routeFamily:'rpo_access',readType:'key_defender'});
+  if(key==='play_action')Object.assign(patch,{playType:'play_action',passStructure:'play_action',series:'Play-Action/Boot Series',actionFamily:'Play-Action',primaryStress:'eye_discipline',conflictDefender:'edge',routeTiming:'intermediate'});
+  if(key==='boot_keeper')Object.assign(patch,{playType:'play_action',passStructure:'boot',series:'Play-Action/Boot Series',actionFamily:'Boot',primaryStress:'eye_discipline',conflictDefender:'edge',routeTiming:'intermediate'});
+  if(key==='quick_game')Object.assign(patch,{playType:'pass',passStructure:'quick_game',series:'Quick Game Series',actionFamily:'Quick Game',primaryStress:'coverage_leverage',conflictDefender:'coverage_shell',routeFamily:'quick',routeTiming:'quick',hasHot:'built_in'});
+  if(key==='dropback_pass')Object.assign(patch,{playType:'pass',passStructure:'dropback',series:'Man-Beater Series',actionFamily:'Dropback Pass',primaryStress:'coverage_leverage',conflictDefender:'coverage_shell',routeTiming:'intermediate'});
+  if(key==='shot')Object.assign(patch,{playType:'pass',passStructure:'shot',series:'Vertical Series',actionFamily:'Shot',primaryStress:'vertical_stretch',conflictDefender:'safety',routeFamily:'verts_seams',routeTiming:'long_developing'});
+  if(key==='screen')Object.assign(patch,{playType:'screen',passStructure:'screen',series:'Screen Series',actionFamily:'Screen',primaryStress:'space_perimeter',conflictDefender:'pass_rush',routeFamily:'screen',routeTiming:'quick',hasHot:'built_in'});
+  if(key==='draw')Object.assign(patch,{playType:'draw',runScheme:'draw',passStructure:'draw',series:'Draw Series',actionFamily:'Draw',primaryStress:'protection_stress',conflictDefender:'pass_rush',routeFamily:'draw',routeTiming:'delayed'});
+  if(key==='other')Object.assign(patch,{playType:'unknown',runScheme:'none',passStructure:'none',series:'Changeup',actionFamily:'Changeup',primaryStress:'none',conflictDefender:'none'});
+  return patch;
+}
+function setPlayIntentOverride(formation,play,key){
+  if(key==='auto'){
+    setIntentPatch(formation,play,{playType:'auto',runScheme:'auto',passStructure:'auto',series:'auto',actionFamily:'auto',primaryStress:'auto',conflictDefender:'auto',routeFamily:'auto',routeTiming:'auto',readType:'auto',hasHot:'auto'});
+    return;
+  }
+  setIntentPatch(formation,play,playIntentPatchForKey(key));
+  const fam=playIntentFamilyForKey(key);
+  if(fam) setCorr(formation,play,{family:fam}); // compatibility only; no longer shown as identity.
 }
 function playText(pl){return ((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')).toLowerCase();}
 function autoIntentTags(pl){
@@ -5863,7 +6007,8 @@ function mergeIntentTags(base,patch){
 function getIntentTags(pl){
   if(!pl)return {};
   const auto=(pl.intent&&typeof pl.intent==='object')?Object.assign({},autoIntentTags(pl),pl.intent):autoIntentTags(pl);
-  return mergeIntentTags(auto,getIntentPatch(pl.formation,pl.play));
+  const merged=mergeIntentTags(auto,getIntentPatch(pl.formation,pl.play));
+  return normalizeIntentForOptionRuns(pl,merged);
 }
 function intentMatchesType(tags,type){
   if(!type)return true;
@@ -6045,10 +6190,10 @@ function corrPlays(){
   plays=plays.map(applyCorr);
   // Deduplicate by formation+play (book may have repeats by design)
   const seen=new Set(); plays=plays.filter(p=>{const k=corrKey(p.formation,p.play);if(seen.has(k))return false;seen.add(k);return true;});
-  if(_corrFam) plays=plays.filter(p=>p.family===_corrFam);
+  if(_corrFam) plays=plays.filter(p=>playIntentKey(p)===_corrFam);
   if(_corrSearch){
     const q=_corrSearch.toLowerCase();
-    plays=plays.filter(p=>(p.formation+' '+p.play+' '+p.concept+' '+p.family).toLowerCase().includes(q));
+    plays=plays.filter(p=>(p.formation+' '+p.play+' '+p.concept+' '+p.family+' '+playIntentLabel(p)).toLowerCase().includes(q));
   }
   return plays;
 }
@@ -6087,8 +6232,8 @@ function renderCorrTable(){
     tr.appendChild(el('td',null,p.play));
     // concept inline edit
     const conTd=el('td');conTd.appendChild(makeInlineSel(p.formation,p.play,'concept',p.concept,allConcepts));tr.appendChild(conTd);
-    // family inline edit
-    const famTd=el('td');famTd.appendChild(makeInlineSel(p.formation,p.play,'family',p.family,['run','pass','play_action','option_rpo','screen']));tr.appendChild(famTd);
+    // play-intent inline edit — replaces visible legacy family buckets
+    const famTd=el('td');famTd.appendChild(makeIntentSel(p.formation,p.play,p));tr.appendChild(famTd);
     // motion toggle
     const motTd=el('td');
     const motBtn=el('button',null,p.motion===2?'Move':p.motion===1?'Form':'—');
@@ -6108,9 +6253,23 @@ function renderCorrTable(){
   });
   if(plays.length>PAGE){
     const tr=el('tr');const td=el('td');td.colSpan=8;td.style.cssText='padding:10px;text-align:center;color:#8a908a;font-size:12px';
-    td.textContent='Showing first '+PAGE+' of '+plays.length+' — use search or family filter to narrow.';
+    td.textContent='Showing first '+PAGE+' of '+plays.length+' — use search or play-intent filter to narrow.';
     tr.appendChild(td);tbody.appendChild(tr);
   }
+}
+
+
+function makeIntentSel(formation,play,currentPlay){
+  const sel=el('select','inline-sel');
+  PLAY_INTENT_OPTIONS.forEach(o=>{const opt=el('option');opt.value=o.v;opt.textContent=o.label;sel.appendChild(opt);});
+  sel.value=playIntentKey(currentPlay);
+  sel.addEventListener('change',()=>{
+    setPlayIntentOverride(formation,play,sel.value);
+    const row=sel.closest('tr'); if(row){row.classList.add('corr-edited');}
+    updateCorrBatch();
+    $('#corr-count').textContent=corrCount()+' correction'+(corrCount()!==1?'s':'');
+  });
+  return sel;
 }
 
 function makeInlineSel(formation,play,field,current,options){
@@ -6162,19 +6321,19 @@ function updateCorrBatch(){
 
 function applyBatchEdit(){
   const concept=$('#batch-concept').value;
-  const family=$('#batch-family').value;
+  const intent=$('#batch-family').value;
   const pers=$('#batch-pers').value;
-  if(!concept&&!family&&!pers){toast('Select at least one field to change');return;}
+  if(!concept&&!intent&&!pers){toast('Select at least one field to change');return;}
   let n=0;
   // Collect unique formations in selection (for pers — applied formation-wide)
   const affectedForms=new Set();
   for(const k of _corrSelected){
     const [form,...rest]=k.split('|||'); const play=rest.join('|||');
-    // concept and family are play-level corrections
+    // concept is a play-level correction; play intent is an intent-tag override
     const patch={};
     if(concept) patch.concept=concept;
-    if(family)  patch.family=family;
     if(Object.keys(patch).length) setCorr(form,play,patch);
+    if(intent) setPlayIntentOverride(form,play,intent);
     // pers is tracked per formation for batch
     if(pers) affectedForms.add(form);
     n++;
@@ -6888,11 +7047,11 @@ function renderSuggestion(plays){
     const body=el('div','pc-body');
     const tags=el('div','pc-tags');
     tags.appendChild(persPill(pl.pers));
-    tags.appendChild(famPill(pl.family));
+    tags.appendChild(playIntentPill(pl));
     if(pl.motion===2){const ms=el('span','pill motion','Move');tags.appendChild(ms);}
     else if(pl.motion===1){const ms=el('span','pill');ms.style.cssText='background:#efe7d4;color:#9a7320';ms.textContent='Form';tags.appendChild(ms);}
     body.appendChild(tags);
-    body.appendChild(el('div','pc-concept',pl.concept+' · '+pl.family.replace('_',' ')));
+    body.appendChild(el('div','pc-concept',pl.concept+' · '+playIntentLabel(pl)));
     const beats=CONCEPT_BEATS[pl.concept];
     if(beats) body.appendChild(el('div','pc-beats',beats));
     const brainNote=coachBrainNoteFor(pl);
@@ -6903,7 +7062,8 @@ function renderSuggestion(plays){
     }
     const it=getIntentTags(pl);
     if(it&&it.series){
-      const inote=el('div','pc-beats',`Intent: ${it.series} · ${intentOptionLabel(it.primaryStress||'none')} · ${intentOptionLabel(it.conflictDefender||'none')} conflict`);
+      const conflictTxt=(it.conflictDefender&&it.conflictDefender!=='none')?' · '+intentOptionLabel(it.conflictDefender)+' key':'';
+      const inote=el('div','pc-beats',`Intent: ${playIntentLabel(pl)} · ${it.series} · ${intentOptionLabel(it.primaryStress||'none')}${conflictTxt}`);
       inote.style.cssText='font-style:normal;color:#2f5891;background:#f6fbff;border-left:3px solid #8fb6df;padding:6px 8px;border-radius:0 3px 3px 0;margin-top:6px';
       body.appendChild(inote);
     }
@@ -7154,7 +7314,7 @@ function handleCsvFile(file){
       const tr=document.createElement('tr');
       if(isBuiltin) tr.style.cssText='background:#eef7ff';
       else if(isCustom) tr.style.cssText='background:#fff8e8';
-      [r.formation,r.play,r.family,r.concept,r.pers,isCustom?'↺ updates custom':isBuiltin?'↺ updates built-in':'+ new'].forEach((v,i)=>{
+      [r.formation,r.play,playIntentLabel(r),r.concept,r.pers,isCustom?'↺ updates custom':isBuiltin?'↺ updates built-in':'+ new'].forEach((v,i)=>{
         const td=document.createElement('td');td.textContent=v;
         if(i===5){td.style.cssText='font-size:10px;font-weight:700;color:'+(isCustom?'#8a7320':isBuiltin?'#2f5891':'#2c7a52');}
         tr.appendChild(td);

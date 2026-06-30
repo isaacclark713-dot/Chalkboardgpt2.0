@@ -1,31 +1,16 @@
-# Call Sheet — Coach Brain v14.5
+# Call Sheet — Coach Brain v14.6
 
-Single-file football play-calling and playbook generation app.
+GitHub Pages package.
 
-## v14.5 changes
+## What changed in v14.6
 
-- Adds three source-backed offensive presets:
-  - Peyton Manning / Tom Moore No-Huddle Precision
-  - Jim Harbaugh / Power West Coast Multiple
-  - Erhardt-Perkins / Concept Offense
-- Upgrades Erhardt-Perkins from starter template to source-backed system profile.
-- Adds new core concept targets/classifications for Manning and E-P profiles:
-  - Levels
-  - Dag / Smash
-  - All Curl
-  - Curls / Curl Flats
-  - Ghost
-  - Tosser
-  - INC
-  - Drive
-  - Dart
-  - Power Read
-  - Zone Dive
-- Adds system rails and seed plans for Peyton Manning, Jim Harbaugh, and Erhardt-Perkins.
-- Keeps existing v14.4 fixes: separated Flexbone vs Wingbone/Wishbone and core-concept reclassification.
+- Visible legacy Family buckets were replaced by Play Intent categories.
+- Data → Play Corrections now edits Core Concept + Play Intent + Personnel.
+- In-game play cards now show Play Intent instead of the old run/pass/play_action/option_rpo family tag.
+- True option plays such as Inside Veer, Midline, Triple Option, Rocket Toss, Counter Option, and Veer Pass are treated as Option Run, not RPO Access.
+- Playbook distribution, Build List, CSV export, opening script, two-minute script, and live suggestions now use Play Intent labels.
+- Legacy family data is retained only internally for backward compatibility with older saves/imports.
 
-## Files
+## Use
 
-- `index.html` — app
-- `global_unique_plays.csv` — optional source data
-- `global_unique_plays.json` — full game play database source
+Upload this folder to GitHub Pages. The app is self-contained in `index.html` and saves locally in the browser.
