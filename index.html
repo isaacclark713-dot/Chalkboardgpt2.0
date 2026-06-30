@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v15.2</title>
+<title>Call Sheet — Coach Brain v15.3</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -394,6 +394,57 @@
   .structure-badge{display:inline-block;padding:1px 7px;border-radius:10px;background:#eef2f5;color:#49606b;font-size:9.5px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
   @media(max-width:760px){.mode-grid{grid-template-columns:1fr}.step-card{padding:12px}}
 
+
+  /* ---------- v15.3 Generate loading / auto Build List jump ---------- */
+  .gen-loading{
+    position:fixed;
+    inset:0;
+    background:rgba(17,21,15,.34);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:500;
+    padding:18px;
+  }
+  .gen-loading.show{display:flex}
+  .gen-loading-card{
+    width:min(360px,92vw);
+    background:var(--card);
+    color:var(--ink);
+    border:2px solid var(--gold);
+    border-radius:8px;
+    box-shadow:0 12px 36px rgba(0,0,0,.28);
+    padding:16px 18px;
+    text-align:left;
+  }
+  .gen-loading-title{
+    font-size:12px;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--field);
+    display:flex;
+    align-items:center;
+    gap:9px;
+  }
+  .gen-loading-title:before{
+    content:'';
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    border:3px solid #e8dfc7;
+    border-top-color:var(--field);
+    animation:spin .75s linear infinite;
+    flex-shrink:0;
+  }
+  .gen-loading-copy{
+    margin-top:8px;
+    font-size:12.5px;
+    color:#5a6058;
+    line-height:1.4;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
 </style>
 </head>
 <body>
@@ -416,6 +467,13 @@
     </nav>
   </div>
 </header>
+
+<div class="gen-loading" id="gen-loading" aria-live="polite" aria-busy="true">
+  <div class="gen-loading-card">
+    <div class="gen-loading-title">Generating base playbook</div>
+    <div class="gen-loading-copy">Building the saved book, checking formations, and preparing the Build List. You will be taken there automatically.</div>
+  </div>
+</div>
 
 <main>
   <!-- ============ PHILOSOPHY ============ -->
@@ -8901,6 +8959,53 @@ function renderSuggestion(plays){
   box.appendChild(cards);
 }
 
+
+function showGenerateLoading(msg){
+  const box=$('#gen-loading');
+  if(!box)return;
+  const copy=box.querySelector('.gen-loading-copy');
+  if(copy&&msg)copy.textContent=msg;
+  box.classList.add('show');
+}
+function hideGenerateLoading(){
+  const box=$('#gen-loading');
+  if(box)box.classList.remove('show');
+}
+function nextPaint(){
+  return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+}
+async function runGenerateWithLoading(opts={}){
+  const btn=opts.button||$('#btn-generate');
+  const statusText=opts.statusText||'Building the saved book, checking formations, and preparing the Build List. You will be taken there automatically.';
+  const shouldJump=opts.jumpToBuildList!==false;
+  showGenerateLoading(statusText);
+  if(btn)btn.disabled=true;
+  const status=$('#ph-status');
+  if(status)status.textContent='Generating base playbook… building formations, checking core concepts, and preparing the Build List.';
+  try{
+    await nextPaint();
+    if(typeof opts.generator==='function') opts.generator();
+    else generatePlaybook();
+    blFormIdx=-1;
+    if(status&&playbook)status.textContent=`✓ Generated ${playbook.plays.length} plays · ${labelSystem(playbook.meta.system||'none')} · saved to this device`;
+    renderPostGenerateChecklist();
+    toast(`Base playbook generated — ${playbook&&playbook.plays?playbook.plays.length:0} plays`);
+    await nextPaint();
+    hideGenerateLoading();
+    if(shouldJump){
+      switchTab('buildlist');
+      toast('Build List is ready');
+    }
+  }catch(err){
+    console.error('Generate failed',err);
+    hideGenerateLoading();
+    toast('Generate failed — check console or try a smaller book');
+    if(status)status.textContent='Generate failed. Try a smaller playbook or loosen sliders.';
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+
 /* ============================================================
    EVENT WIRING
    ============================================================ */
@@ -9171,10 +9276,7 @@ $('#motion-slider').addEventListener('input',e=>{motion=Number(e.target.value);u
 })();
 
 $('#btn-generate').addEventListener('click',()=>{
-  generatePlaybook();
-  blFormIdx=-1;  // reset formation navigator on new book
-  $('#ph-status').textContent=`✓ Generated ${playbook.plays.length} plays · ${labelSystem(playbook.meta.system||'none')} · saved to this device`;
-  toast(`Base playbook generated — ${playbook.plays.length} plays`);
+  runGenerateWithLoading({button:$('#btn-generate'),jumpToBuildList:true});
 });
 $('#btn-reset-ph').addEventListener('click',()=>{
   philosophy=defaultPhilosophy();motion=35;save(LS.ph,philosophy);save(LS.motion,'35');initPhilosophyForm();toast('Philosophy reset');

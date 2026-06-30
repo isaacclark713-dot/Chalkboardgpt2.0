@@ -1,20 +1,15 @@
-# Call Sheet — Coach Brain v15.2
+# Call Sheet — Coach Brain v15.3
 
-Patch for v15 generation stability and formation-package hard rules.
+GitHub Pages-ready package.
 
-## Fixes in v15.2
+## v15.3 patch
 
-- Fixes the Generate Base Playbook freeze/break caused by v15.1 formation hard-rule scanning.
-- Pre-groups formation candidate pools so the generator does not scan and sort the full database once per formation.
-- Keeps the v15.1 hard rules:
-  - no duplicate Formation + Play entries
-  - no defensive calls in offensive generated books
-  - every included formation must carry at least 5 unique plays
-  - every included formation must include at least 1 run, 1 dropback/conversion pass, and 1 play-action/boot answer
-  - formations still have to fit the scheme, personnel gate, formation sliders, surface sliders, and package coverage rules
-- Prevents the final validation step from slicing formations into illegal partial packages.
-- Caps the number of repaired formation packages so a requested book does not balloon just because every thin formation gets filled to five plays.
+- Adds a small loading message after clicking **Generate base playbook**.
+- Lets the browser paint the loading message before generation starts.
+- Disables the Generate button while the book is building so users do not double-click and accidentally rerun generation.
+- After generation finishes, the app automatically opens the **Build List** tab.
+- Keeps the existing v15.2 generation rules, formation/package validation, core concept seeding, duplicate removal, and defensive-row filtering.
 
-## Deploy to GitHub Pages
+## Deploy
 
-Upload the contents of this folder to your repo root. `index.html` is the app entry point. `.nojekyll` is included.
+Upload all files in this folder to a GitHub repository and enable GitHub Pages from the repository settings.
