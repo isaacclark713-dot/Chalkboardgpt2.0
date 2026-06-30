@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v14.3</title>
+<title>Call Sheet — Coach Brain v14.4</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -468,7 +468,7 @@
       <div class="grid2" style="margin-top:16px">
         <div>
           <label class="fld">System discipline</label>
-          <p class="hint" style="margin:0 0 8px">How hard the selected offensive system should drive playbook generation and in-game suggestions. Lower = broader. Higher = stay true to the profile.</p>
+          <p class="hint" style="margin:0 0 8px">How hard the selected offensive system should drive playbook generation and in-game suggestions. This live-blends the personnel, formation-style, run/pass, motion, and core-concept sliders.</p>
           <input type="range" id="ph-system-strength" min="0" max="100" value="75">
           <div class="hint">Current: <span id="ph-system-strength-val" style="font-weight:700;color:var(--field)">75%</span></div>
         </div>
@@ -499,7 +499,7 @@
       </div>
 
       <div style="margin-top:18px">
-        <label class="fld">Concept families to emphasize (optional)</label>
+        <label class="fld">Legacy concept families</label>
         <div id="ph-families" class="grid3" style="gap:6px 18px"></div>
       </div>
 
@@ -1145,7 +1145,7 @@ window.__DB={"forms":["Gun Ace","Gun Ace Offset","Gun Ace Slot Offset","Gun Dbls
    ============================================================ */
 const DB = window.__DB;
 /* persIdx from DB: 0=10 1=11 2=12 3=21, then 4=13 5=20 6=22 7=23.
-   v14.3 embeds the full offensive side of the game database, so built-in plays can now carry 20/22/23-style groupings. */
+   v14.4 embeds the full offensive side of the game database, so built-in plays can now carry 20/22/23-style groupings. */
 const PERS = ['10','11','12','21','13','20','22','23'];   // DB decode — first four preserve legacy order; new full-game DB can use all groups
 // All valid personnel groupings (for UI selectors and generation)
 const ALL_PERS = ['10','11','12','13','20','21','22','23'];
@@ -1163,17 +1163,40 @@ const PERS_LABEL = {
 const HEAVY_PERS = new Set(['12','13','21','22','23']);
 const FORMS = DB.forms, CONCEPTS = DB.concepts, FAMS = DB.fams;
 
+// v14.4: the old imported DB concept bucket is now treated as legacy metadata.
+// Coach Brain classifies every play into the fuller Core Concept list used by scheme presets.
+function classifyCoreConcept(play,family,legacyConcept,formation){
+  const inferred=inferConcept(play||'', family||'');
+  if(inferred && inferred!=='Other / Unknown' && inferred!=='HB Base / Zone') return inferred;
+  const p=String(play||'').toLowerCase();
+  const f=String(formation||'').toLowerCase();
+  const legacy=String(legacyConcept||'').trim();
+  if(/flexbone/.test(f) && /veer/.test(p) && !/pass/.test(p)) return 'Inside Veer';
+  if(/flexbone/.test(f) && /(triple|option)/.test(p)) return 'Triple Option';
+  if(/flexbone/.test(f) && /midline/.test(p)) return 'Midline';
+  if(/flexbone/.test(f) && /rocket/.test(p)) return 'Rocket Toss';
+  if(/flexbone/.test(f) && /counter/.test(p) && /option/.test(p)) return 'Counter Option';
+  if(/choice/i.test(play||'')) return 'Choice';
+  if(legacy && legacy!=='Other / Unknown') return legacy;
+  return inferred || 'Other / Unknown';
+}
+
 // expand compact rows into objects  (motion: 0=none, 1=disguise formation, 2=true pre-snap movement)
-const PLAYS = DB.rows.map((r,i)=>({
-  id:i,
-  formation:FORMS[r[0]],
-  play:r[1],
-  family:FAMS[r[2]],
-  concept:CONCEPTS[r[3]],
-  pers:PERS[r[4]],
-  motion:r[5],                 // 0 | 1 | 2
-  hasMotion:r[5]>0
-}));
+const PLAYS = DB.rows.map((r,i)=>{
+  const formation=FORMS[r[0]], play=r[1], family=FAMS[r[2]], legacyConcept=CONCEPTS[r[3]];
+  const coreConcept=classifyCoreConcept(play,family,legacyConcept,formation);
+  return {
+    id:i,
+    formation,
+    play,
+    family:family,
+    concept:coreConcept,
+    legacyConcept:legacyConcept, // retained only for old backups/debugging; Coach Brain uses core concepts
+    pers:PERS[r[4]],
+    motion:r[5],                 // 0 | 1 | 2
+    hasMotion:r[5]>0
+  };
+});
 const BASE_DB_COUNT = PLAYS.length;
 
 // modal family per concept (for run/pass classification)
@@ -2090,7 +2113,16 @@ function renderSequencePanel(){
 
 // situations per concept (for build list)
 const SITUATIONS = {
-  "Inside Zone":"1st-10, short yardage, 4-min","Outside Zone / Stretch":"1st-10, between 40s, perimeter","HB Base / Zone":"1st-10, base downs","Power / Power O":"Short yardage, red zone, goal line","Counter":"1st-10, 2nd-med, after flow","Trap":"2nd-med, vs over-pursuit","Dive":"Short yardage, goal line","Sweep":"1st-10, perimeter, vs light box","Jet Sweep":"1st-10, force-player stress, tempo","Draw":"2nd/3rd-long, vs blitz","Boot / Play Action":"1st-10, after run success, between 40s","Fake Jet":"1st-10, off jet tendency","Verticals / Four Verticals":"2nd/3rd-med-long, vs 2-high","Smash":"3rd-med, red zone, vs C2/quarters","Flood":"2nd/3rd-med, vs C3/zone","Mesh":"3rd-med, two-minute, vs man/C0","Shallow":"3rd-short-med, vs man","Y Cross":"1st-10, 2nd-med, vs zone","Dagger":"2nd/3rd-long, vs zone match","Post":"Shot play, vs single-high","Sail":"2nd/3rd-med, boundary, vs zone","Curls / Curl Flats":"2nd/3rd-med, vs off coverage","Stick":"3rd-short-med, vs nickel/zone","Spot":"3rd-med, vs zone","Spacing":"3rd-short, vs zone, scramble drill","Slants":"3rd-short, vs man/blitz, quick","Quick Game":"1st-10, vs press, tempo","Go Routes":"Shot play, vs press man","Bench / Corner Strike":"2nd/3rd-med, boundary","Wheel":"2nd-med, vs man, off motion","Screen":"2nd/3rd-long, vs blitz/aggressive","Option / RPO":"1st-10, 2nd-med, vs light box","Jet Touch Pass":"1st-10, perimeter, tempo","Other / Unknown":"Situational / changeup"
+  "Inside Zone":"1st-10, short yardage, 4-min","Outside Zone / Stretch":"1st-10, between 40s, perimeter","HB Base / Zone":"1st-10, base downs","Power / Power O":"Short yardage, red zone, goal line","Counter":"1st-10, 2nd-med, after flow","Trap":"2nd-med, vs over-pursuit","Dive":"Short yardage, goal line","Sweep":"1st-10, perimeter, vs light box","Jet Sweep":"1st-10, force-player stress, tempo","Draw":"2nd/3rd-long, vs blitz","Boot / Play Action":"1st-10, after run success, between 40s","Fake Jet":"1st-10, off jet tendency","Verticals / Four Verticals":"2nd/3rd-med-long, vs 2-high","Smash":"3rd-med, red zone, vs C2/quarters","Flood":"2nd/3rd-med, vs C3/zone","Mesh":"3rd-med, two-minute, vs man/C0","Shallow":"3rd-short-med, vs man","Y Cross":"1st-10, 2nd-med, vs zone","Dagger":"2nd/3rd-long, vs zone match","Post":"Shot play, vs single-high","Sail":"2nd/3rd-med, boundary, vs zone","Curls / Curl Flats":"2nd/3rd-med, vs off coverage","Stick":"3rd-short-med, vs nickel/zone","Spot":"3rd-med, vs zone","Spacing":"3rd-short, vs zone, scramble drill","Slants":"3rd-short, vs man/blitz, quick","Quick Game":"1st-10, vs press, tempo","Go Routes":"Shot play, vs press man","Bench / Corner Strike":"2nd/3rd-med, boundary","Wheel":"2nd-med, vs man, off motion","Screen":"2nd/3rd-long, vs blitz/aggressive","Option / RPO":"1st-10, 2nd-med, vs light box",
+"Jet Touch Pass":"1st-10, perimeter, tempo",
+  "Triple Option":"1st-10, base option, read assignment discipline",
+  "Inside Veer":"1st-10, base option vs 1-tech/bubble",
+  "Midline":"1st-10, 2nd-med, base option vs 3-tech/bubble",
+  "Counter Option":"after backside LB runs over the top, constraint option",
+  "Rocket Toss":"vs loaded box, blitz, or tight interior fits",
+  "Veer Pass":"after DB/safety triggers downhill on option action",
+  "Choice":"shot/isolation concept, vs leverage or single coverage",
+  "Other / Unknown":"Situational / changeup"
 };
 
 const MOTION_LABELS=[[0,"Static"],[20,"Light motion"],[40,"Moderate motion"],[65,"Heavy motion"],[85,"Max disguise"]];
@@ -2147,9 +2179,9 @@ function formationStyleGameMult(pl){
   const share=formTypeShare(type);
   const strength=offenseSystemStrength01();
   // In-game now treats formation as part of identity. The user's alignment sliders matter more at high discipline.
-  const cap=1.28 + strength*0.34;
-  const floor=Math.max(0.58,0.86-strength*0.20);
-  return Math.max(floor,Math.min(cap,0.72+share*(2.15+strength*1.25)));
+  const cap=1.34 + strength*0.52;
+  const floor=Math.max(0.48,0.82-strength*0.28);
+  return Math.max(floor,Math.min(cap,0.66+share*(2.55+strength*1.80)));
 }
 function safeFormationStyleGameMult(pl){return safeMult('formation style game mult',()=>formationStyleGameMult(pl),1);}
 
@@ -2459,24 +2491,25 @@ function sitLabelExact(down,yards){const d=String(down); const suf={1:'st',2:'nd
 // Default personnel mix — percentage weight each grouping gets in the book (must sum to 100)
 const DEFAULT_PERS_MIX={'11':65,'12':25,'10':0,'13':0,'20':0,'21':10,'22':0,'23':0};
 // Formation/alignment style mix — the active book may be tilted toward shotgun, singleback, pistol, etc.
-const ALL_FORM_TYPES=['shotgun','singleback','pistol','i_form','flexbone','empty','under_center','other'];
+const ALL_FORM_TYPES=['shotgun','singleback','pistol','i_form','flexbone','wingbone','empty','under_center','other'];
 const FORM_TYPE_LABEL={
   shotgun:'Gun / shotgun', singleback:'Singleback', pistol:'Pistol', i_form:'I-Form / Strong-I',
-  flexbone:'Flexbone / wingbone', empty:'Empty / 5WR', under_center:'Under-center other', other:'Other'
+  flexbone:'Flexbone', wingbone:'Wingbone / wishbone', empty:'Empty / 5WR', under_center:'Under-center other', other:'Other'
 };
-const DEFAULT_FORM_MIX={shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,empty:8,under_center:4,other:2};
+const DEFAULT_FORM_MIX={shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,wingbone:0,empty:8,under_center:4,other:2};
 const IDENTITY_FORM_MIX={
-  balanced:{shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,empty:8,under_center:4,other:2},
-  run:{shotgun:30,singleback:20,pistol:8,i_form:18,flexbone:10,empty:2,under_center:8,other:4},
-  pass:{shotgun:58,singleback:8,pistol:8,i_form:2,flexbone:0,empty:20,under_center:2,other:2},
-  spread:{shotgun:66,singleback:4,pistol:10,i_form:0,flexbone:0,empty:16,under_center:0,other:4},
-  pro:{shotgun:28,singleback:26,pistol:6,i_form:22,flexbone:2,empty:4,under_center:10,other:2}
+  balanced:{shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,wingbone:0,empty:8,under_center:4,other:2},
+  run:{shotgun:30,singleback:20,pistol:8,i_form:18,flexbone:8,wingbone:4,empty:2,under_center:6,other:4},
+  pass:{shotgun:58,singleback:8,pistol:8,i_form:2,flexbone:0,wingbone:0,empty:20,under_center:2,other:2},
+  spread:{shotgun:66,singleback:4,pistol:10,i_form:0,flexbone:0,wingbone:0,empty:16,under_center:0,other:4},
+  pro:{shotgun:28,singleback:26,pistol:6,i_form:22,flexbone:1,wingbone:1,empty:4,under_center:10,other:2}
 };
 const IDENTITY_MOTION_PRESET={balanced:35,run:28,pass:30,spread:45,pro:42};
 function inferFormationType(form){
   const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
   if(/empty|5\s*wr|five\s*wide/.test(f))return 'empty';
-  if(/flexbone|wingbone|wishbone|split\s*t|split back|split backs/.test(f))return 'flexbone';
+  if(/flexbone/.test(f))return 'flexbone';
+  if(/wingbone|wishbone|split\s*t|split back|split backs/.test(f))return 'wingbone';
   if(/pistol/.test(f))return 'pistol';
   if(/singleback|ace|deuce/.test(f)&&!/^gun\b/.test(f))return 'singleback';
   if(/\bgun\b|shotgun|spread|doubles|trips|trio|trey|bunch|y off|y flex/.test(f))return 'shotgun';
@@ -2669,11 +2702,11 @@ const BUILT_IN_OFFENSE_SYSTEMS={
   },
   paul_johnson_flexbone:{
     label:'Paul Johnson / Flexbone Option', shortLabel:'Johnson Flex', source:'Paul Johnson PDF', sourceBacked:true,
-    summary:'Run-first spread-flexbone option system built on Inside Veer, Midline, Zone Dive, Rocket Toss, Counter Option, and Veer Pass. It controls the game by reading unblocked defenders and forcing assignment discipline.',
+    summary:'Run-first true-flexbone option system built on Inside Veer, Midline, Zone Dive, Rocket Toss, Counter Option, and Veer Pass. It controls the game by reading unblocked defenders and forcing assignment discipline.',
     philosophy:'Use a small number of option concepts with many tags and variations. Take what the defense gives, control the ball, and punish overplay with counter option or veer pass.',
     runIdentity:'Inside Veer and Midline are the backbone. Zone Dive, Rocket Toss, Counter Option, and QB/pitch reads punish defensive alignment and backside pursuit.',
     passIdentity:'Low-volume, high-leverage passing off option action: Veer Pass, Rocket Pass, Switch, Verticals, Smash, Mesh, and run-and-shoot inspired shots when safeties commit to the run.',
-    coreFormations:['Flexbone Tight','Flexbone Normal','Flexbone Split','Wingback / A-back surfaces','Trips from flexbone','Unbalanced flexbone/tackle-over'],
+    coreFormations:['Flexbone Tight','Flexbone Normal','Flexbone Split','Flexbone Trips','Unbalanced flexbone/tackle-over','Wingbone only as adjacent change-up'],
     preferredPersonnel:['20','21','10','11'],
     motionShift:'Minimal elaborate shifting. Motion is usually single-back/slot motion tied to option timing, rocket/tail motion, arc/switch rules, or alignment-based checks.',
     baseConcepts:['Option / RPO','Inside Veer','Midline','Dive','Rocket Toss','Counter','Trap','Verticals / Four Verticals'],
@@ -2696,7 +2729,7 @@ const BUILT_IN_OFFENSE_SYSTEMS={
     motionBoosts:{jet:1.10,motion:1.05,formation_disguise:1.03,perimeter_leverage:1.08,add_gap:1.06},
     persBoosts:{'20':1.25,'21':1.18,'10':1.06,'11':1.04},
     tagBoosts:[
-      {tag:'flexbone_surface',label:'flexbone / wingback surface',m:1.25},{tag:'option_read',label:'option read game',m:1.26},{tag:'inside_veer',label:'inside veer',m:1.28},{tag:'midline',label:'midline',m:1.28},{tag:'rocket_toss',label:'rocket toss / edge stress',m:1.20},{tag:'counter_option',label:'counter option',m:1.20},{tag:'zone_dive',label:'zone dive / B-back dive',m:1.16},{tag:'veer_pass',label:'veer pass shot',m:1.16}
+      {tag:'flexbone_surface',label:'true flexbone surface',m:1.36},{tag:'wingbone_surface',label:'wingbone adjacent change-up',m:.92},{tag:'option_read',label:'option read game',m:1.26},{tag:'inside_veer',label:'inside veer',m:1.28},{tag:'midline',label:'midline',m:1.28},{tag:'rocket_toss',label:'rocket toss / edge stress',m:1.20},{tag:'counter_option',label:'counter option',m:1.20},{tag:'zone_dive',label:'zone dive / B-back dive',m:1.16},{tag:'veer_pass',label:'veer pass shot',m:1.16}
     ],
     tagPenalties:[{tag:'screen_constraint',label:'screen-heavy calls not central to Johnson identity',m:.82},{tag:'static_spread_dropback',label:'static dropback divorced from option action',m:.85},{tag:'empty',label:'empty only as change-up',m:.90}], genCap:1.95, gameCap:1.22
   },
@@ -2760,46 +2793,46 @@ const BUILT_IN_OFFENSE_SYSTEMS={
 // v14.1 hard-scheme rails: profiles can now carry alignment-family presets and type boosts.
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.shanahan_wide_zone,{
   systemStrengthPreset:88,
-  formMixPreset:{shotgun:24,singleback:26,pistol:6,i_form:24,flexbone:0,empty:3,under_center:15,other:2},
-  formTypeBoosts:{singleback:1.20,i_form:1.18,under_center:1.12,shotgun:1.08,pistol:1.04,empty:.88,flexbone:.78,other:.88},
+  formMixPreset:{shotgun:24,singleback:26,pistol:6,i_form:24,flexbone:0,wingbone:0,empty:3,under_center:15,other:2},
+  formTypeBoosts:{singleback:1.20,i_form:1.18,under_center:1.12,shotgun:1.08,pistol:1.04,empty:.88,flexbone:.72,wingbone:.70,other:.88},
   genCap:2.55, gameCap:1.42
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.paul_johnson_flexbone,{
   systemStrengthPreset:92,
-  formMixPreset:{shotgun:3,singleback:0,pistol:8,i_form:1,flexbone:84,empty:0,under_center:1,other:3},
-  formTypeBoosts:{flexbone:2.25,pistol:1.08,shotgun:.62,singleback:.45,i_form:.46,empty:.35,under_center:.42,other:.55},
+  formMixPreset:{shotgun:2,singleback:0,pistol:4,i_form:1,flexbone:88,wingbone:3,empty:0,under_center:0,other:2},
+  formTypeBoosts:{flexbone:2.85,wingbone:.72,pistol:.82,shotgun:.44,singleback:.36,i_form:.36,empty:.28,under_center:.34,other:.42},
   genCap:2.75, gameCap:1.48
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread,{
   systemStrengthPreset:88,
-  formMixPreset:{shotgun:64,singleback:1,pistol:8,i_form:0,flexbone:0,empty:22,under_center:0,other:5},
-  formTypeBoosts:{shotgun:1.25,empty:1.22,pistol:1.08,singleback:.68,i_form:.56,flexbone:.55,under_center:.55,other:.92},
+  formMixPreset:{shotgun:64,singleback:1,pistol:8,i_form:0,flexbone:0,wingbone:0,empty:22,under_center:0,other:5},
+  formTypeBoosts:{shotgun:1.25,empty:1.22,pistol:1.08,singleback:.68,i_form:.56,flexbone:.50,wingbone:.50,under_center:.55,other:.92},
   genCap:2.65, gameCap:1.45
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.wide_zone_boot,{
   systemStrengthPreset:82,
-  formMixPreset:{shotgun:28,singleback:26,pistol:6,i_form:20,flexbone:0,empty:4,under_center:14,other:2},
+  formMixPreset:{shotgun:28,singleback:26,pistol:6,i_form:20,flexbone:0,wingbone:0,empty:4,under_center:14,other:2},
   formTypeBoosts:{singleback:1.18,i_form:1.14,under_center:1.10,shotgun:1.08,pistol:1.04,empty:.9}
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.modern_west_coast,{
   systemStrengthPreset:80,
-  formMixPreset:{shotgun:48,singleback:14,pistol:8,i_form:8,flexbone:0,empty:16,under_center:4,other:2},
+  formMixPreset:{shotgun:48,singleback:14,pistol:8,i_form:8,flexbone:0,wingbone:0,empty:16,under_center:4,other:2},
   formTypeBoosts:{shotgun:1.12,empty:1.08,singleback:1.04,pistol:1.03,i_form:.96}
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.erhardt_perkins,{
   systemStrengthPreset:82,
-  formMixPreset:{shotgun:30,singleback:22,pistol:6,i_form:18,flexbone:0,empty:6,under_center:14,other:4},
+  formMixPreset:{shotgun:30,singleback:22,pistol:6,i_form:18,flexbone:0,wingbone:0,empty:6,under_center:14,other:4},
   formTypeBoosts:{singleback:1.12,i_form:1.12,under_center:1.08,shotgun:1.06,pistol:1.02,empty:.95}
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.spread_power_rpo,{
   systemStrengthPreset:82,
-  formMixPreset:{shotgun:58,singleback:2,pistol:10,i_form:0,flexbone:0,empty:18,under_center:0,other:12},
-  formTypeBoosts:{shotgun:1.18,empty:1.10,pistol:1.08,singleback:.78,i_form:.62,under_center:.60}
+  formMixPreset:{shotgun:58,singleback:2,pistol:10,i_form:0,flexbone:0,wingbone:0,empty:18,under_center:0,other:12},
+  formTypeBoosts:{shotgun:1.18,empty:1.10,pistol:1.08,singleback:.78,i_form:.62,flexbone:.50,wingbone:.50,under_center:.60}
 });
 Object.assign(BUILT_IN_OFFENSE_SYSTEMS.spread_tempo_inside_zone,{
   systemStrengthPreset:82,
-  formMixPreset:{shotgun:66,singleback:2,pistol:8,i_form:0,flexbone:0,empty:20,under_center:0,other:4},
-  formTypeBoosts:{shotgun:1.20,empty:1.12,pistol:1.06,singleback:.75,i_form:.60,under_center:.60}
+  formMixPreset:{shotgun:66,singleback:2,pistol:8,i_form:0,flexbone:0,wingbone:0,empty:20,under_center:0,other:4},
+  formTypeBoosts:{shotgun:1.20,empty:1.12,pistol:1.06,singleback:.75,i_form:.60,flexbone:.50,wingbone:.50,under_center:.60}
 });
 const LS_OFF_SYS='callsheet_offense_systems_v1';
 let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
@@ -2826,7 +2859,8 @@ function offSysTagMatch(pl,tag){
     case 'static_condensed': return ['condensed','tight','bunch'].includes(t.surface)&&!(pl&&pl.motion>=1);
     case 'slow_no_hot': return offSysHas(text,['deep','shot','dagger','post','verts','vertical'])&&!offSysHas(text,['hot','screen','quick','slant']);
     case 'unknown_other': return c==='Other / Unknown'||f==='unknown';
-    case 'flexbone_surface': return offSysHas(text,['flexbone','wingback','a back','b back','triple option','flex ']);
+    case 'flexbone_surface': return /(^|\s)flexbone(\s|$)/.test(text);
+    case 'wingbone_surface': return offSysHas(text,['wingbone','wishbone','split t','split back','split backs']);
     case 'option_read': return f==='option_rpo'||t.runScheme==='option_read'||offSysHas(text,['option','read','triple','pitch','load option','speed option']);
     case 'inside_veer': return offSysHas(text,['inside veer','veer'])&&!offSysHas(text,['veer pass']);
     case 'midline': return offSysHas(text,['midline']);
@@ -2897,10 +2931,10 @@ function offenseSystemFormationRailGameMult(pl){
   const match=systemRailFormationMatch(pl.formation,sysKey);
   const ftype=inferFormationType(pl.formation);
   const sys=activeOffenseSystem(sysKey)||{};
-  // Paul Johnson is the cleanest example: formation IS the offense. Flexbone/Wingbone/Wishbone/Split-T must be a real in-game rail.
+  // Paul Johnson is the cleanest example: formation IS the offense. In v14.4 only TRUE FLEXBONE gets the hard rail; Wingbone/Wishbone/Split-T are separate adjacent change-ups.
   if(sysKey==='paul_johnson_flexbone'){
-    if(match) return 1 + strength*0.95;        // 90% discipline ≈ 1.86x for true option surfaces
-    return Math.max(0.42,1 - strength*0.58);  // non-option surfaces become changeups, not normal calls
+    if(match) return 1 + strength*1.25;        // 90% discipline ≈ 2.12x for true Flexbone surfaces
+    return Math.max(0.34,1 - strength*0.66);  // non-Flexbone surfaces become changeups, not normal calls
   }
   // Source-backed systems still care about formation identity, but not as brutally as Flexbone.
   if(match) return 1 + strength*0.50;
@@ -2919,8 +2953,8 @@ function offenseSystemFormationRailGenMult(pl){
   const sys=activeOffenseSystem(sysKey)||{};
   const ftype=inferFormationType(pl.formation);
   if(sysKey==='paul_johnson_flexbone'){
-    if(match)return 1 + strength*1.55;
-    return Math.max(0.24,1 - strength*0.78);
+    if(match)return 1 + strength*1.95;
+    return Math.max(0.18,1 - strength*0.86);
   }
   if(match)return 1 + strength*0.72;
   if(sys.formMixPreset && Number(sys.formMixPreset[ftype]||0)<=3 && strength>=0.70)return Math.max(0.52,1-strength*0.45);
@@ -2950,7 +2984,7 @@ function offenseSystemNoteFor(pl){
 function systemRailFormationMatch(form,systemKey){
   const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
   switch(systemKey||((philosophy&&philosophy.system)||'none')){
-    case 'paul_johnson_flexbone': return /flexbone|wingbone|wishbone|split\s*t/.test(f);
+    case 'paul_johnson_flexbone': return /(^|\s)flexbone(\s|$)/.test(f);
     case 'art_briles_spread': return /\bgun\b|shotgun|spread|trips|doubles|empty|pistol/.test(f);
     case 'shanahan_wide_zone': return /i\s*form|strong\s*i|singleback|wing|y\s*off|bunch|tight|ace|deuce|gun\s+wing/.test(f);
     default: return false;
@@ -2983,11 +3017,11 @@ function applySystemFormationRails(formRanked, allForms, maxForms){
 function systemRailSeedPlans(systemKey,target){
   if(systemKey==='paul_johnson_flexbone'){
     return [
-      {label:'base option',re:/triple option|inside veer|midline|load option|speed option/i,n:Math.max(18,Math.round(target*.24))},
+      {label:'base option',re:/triple option|inside veer|midline|load option|speed option|veer|option/i,n:Math.max(24,Math.round(target*.30))},
       {label:'dive',re:/\b(zone dive|wb dive|dive|fb dive)\b/i,n:Math.max(6,Math.round(target*.07))},
       {label:'counter option',re:/counter option|tr option cntr|option cntr/i,n:Math.max(5,Math.round(target*.06))},
       {label:'rocket/perimeter',re:/rocket|toss|sweep/i,n:Math.max(5,Math.round(target*.06))},
-      {label:'veer pass',re:/veer pass|rocket pass|tr cntr pass|switch|all go|vertical|post/i,n:Math.max(5,Math.round(target*.06))}
+      {label:'veer pass',re:/veer pass|rocket pass|tr cntr pass|switch|all go|vertical|verts|post|go/i,n:Math.max(6,Math.round(target*.07))}
     ];
   }
   if(systemKey==='shanahan_wide_zone'){
@@ -3996,21 +4030,11 @@ function initPhilosophyForm(){
   updateSystemStrengthLabel();
   renderPersMixSliders();
   renderFormMixSliders();
-  // emphasis checkboxes
-  const wrap=$('#ph-families'); wrap.innerHTML='';
-  const popular=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Boot / Play Action","Verticals / Four Verticals","Mesh","Smash","Flood","Stick","Y Cross","Screen","Option / RPO","Jet Sweep","Quick Game"];
-  popular.forEach(con=>{
-    const id='emp_'+con.replace(/\W/g,'');
-    const line=el('label','checkline');
-    const cb=el('input');cb.type='checkbox';cb.id=id;cb.checked=philosophy.emphasis.includes(con);
-    cb.addEventListener('change',()=>{
-      if(cb.checked){if(!philosophy.emphasis.includes(con))philosophy.emphasis.push(con);}
-      else philosophy.emphasis=philosophy.emphasis.filter(x=>x!==con);
-      save(LS.ph,philosophy);
-    });
-    line.appendChild(cb);line.appendChild(el('span',null,con));
-    wrap.appendChild(line);
-  });
+  // v14.4: legacy concept-family checkboxes are merged into Core Concept targets.
+  const wrap=$('#ph-families');
+  if(wrap){
+    wrap.innerHTML='<div class="hint">Merged into the Core concept call targets below. Plays are now reclassified into the fuller core-concept list instead of old concept-family buckets.</div>';
+  }
   renderConceptTargets();
   // motion slider
   $('#motion-slider').value=motion; updateMotionLabel();
@@ -6089,12 +6113,12 @@ function normalizeFamily(family, play){
 function inferConcept(play, family){
   const p=cleanCell(play).toLowerCase();
   const fam=normalizeFamily(family, play);
-  if(/veer pass|rocket pass|tr cntr pass/.test(p)) return 'Veer Pass';
-  if(/inside veer/.test(p)) return 'Inside Veer';
-  if(/midline/.test(p)) return 'Midline';
+  if(/veer pass|rocket pass|tr cntr pass|option pass/.test(p)) return 'Veer Pass';
+  if(/inside veer|veer/.test(p) && !/pass/.test(p)) return 'Inside Veer';
+  if(/midline|mid line/.test(p)) return 'Midline';
   if(/counter option|tr option cntr|option cntr/.test(p)) return 'Counter Option';
-  if(/triple option|tr option/.test(p)) return 'Triple Option';
-  if(/rocket/.test(p)) return 'Rocket Toss';
+  if(/triple option|tr option|triple/.test(p)) return 'Triple Option';
+  if(/rocket|rocket toss|rocket sweep/.test(p)) return 'Rocket Toss';
   if(/choice/.test(p)) return 'Choice';
   if(/\b(mesh)\b/.test(p)) return 'Mesh';
   if(/\b(shallow|drive)\b/.test(p)) return 'Shallow';
@@ -6160,7 +6184,7 @@ function normalizeImportedPlayRow(obj,i){
   if(!formation||!play)return null;
   const family=normalizeFamily(obj.family||obj.family_guess||obj.fam||'',play);
   const conceptRaw=cleanCell(obj.concept||obj.parent_concept||'');
-  const concept=(conceptRaw&&CONCEPTS.includes(conceptRaw))?conceptRaw:inferConcept(play,family);
+  const concept=classifyCoreConcept(play,family,conceptRaw,formation);
   const persRaw=cleanCell(obj.pers||obj.personnel||'');
   const pers=persRaw&&ALL_PERS.includes(persRaw)?persRaw:inferPers(formation);
   const motRaw=obj.motion!=null?obj.motion:obj.mot;
@@ -6275,7 +6299,7 @@ function parseUploadedCSV(text){
     if(!formation||!play){skippedMissing++;continue;}
     const family=normalizeFamily(get(fami), play);
     const conceptRaw=get(ci);
-    const concept=(conceptRaw&&CONCEPTS.includes(conceptRaw))?conceptRaw:inferConcept(play,family);
+    const concept=classifyCoreConcept(play,family,conceptRaw,formation);
     const persRaw=get(persi);
     const pers=persRaw&&ALL_PERS.includes(persRaw) ? persRaw : inferPers(formation);
     const motRaw=get(motioni);
@@ -6414,7 +6438,7 @@ function effectivePlays(){
         formation:r.formation||prev.formation,
         play:r.play||prev.play,
         family:r.family||prev.family||'unknown',
-        concept:r.concept||prev.concept||'Other / Unknown',
+        concept:classifyCoreConcept(r.play||prev.play,r.family||prev.family,r.concept||prev.concept,r.formation||prev.formation),
         pers:r.pers||prev.pers||inferPers(r.formation||''),
         motion:r.motion!=null?r.motion:(prev.motion||0),
         hasMotion:(r.motion!=null?r.motion:(prev.motion||0))>0,
@@ -6438,7 +6462,7 @@ function sourceRowsToPlays(rows){
       formation:r.formation||'',
       play:r.play||'',
       family:r.family||normalizeFamily(r.family||'',r.play||''),
-      concept:r.concept||inferConcept(r.play||'',r.family||''),
+      concept:classifyCoreConcept(r.play||'',r.family||'',r.concept||'',r.formation||''),
       pers:r.pers||inferPers(r.formation||''),
       motion:r.motion!=null?Number(r.motion):inferMotion(r.formation||'',r.play||''),
       uploaded:true,
