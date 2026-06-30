@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v15.3</title>
+<title>Call Sheet — Coach Brain v15.4</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -395,7 +395,7 @@
   @media(max-width:760px){.mode-grid{grid-template-columns:1fr}.step-card{padding:12px}}
 
 
-  /* ---------- v15.3 Generate loading / auto Build List jump ---------- */
+  /* ---------- v15.4 Generate loading / auto Build List jump ---------- */
   .gen-loading{
     position:fixed;
     inset:0;
@@ -8988,7 +8988,7 @@ async function runGenerateWithLoading(opts={}){
     else generatePlaybook();
     blFormIdx=-1;
     if(status&&playbook)status.textContent=`✓ Generated ${playbook.plays.length} plays · ${labelSystem(playbook.meta.system||'none')} · saved to this device`;
-    renderPostGenerateChecklist();
+    if(typeof renderPostGenerateChecklist==='function') renderPostGenerateChecklist();
     toast(`Base playbook generated — ${playbook&&playbook.plays?playbook.plays.length:0} plays`);
     await nextPaint();
     hideGenerateLoading();

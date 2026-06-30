@@ -1,15 +1,16 @@
-# Call Sheet — Coach Brain v15.3
+# Call Sheet — Coach Brain v15.4
 
-GitHub Pages-ready package.
+Patch release from v15.3.
 
-## v15.3 patch
+## Fix
+- Fixed the Generate Base Playbook loading flow that was incorrectly showing “Generate failed.”
+- The loading message still appears after clicking Generate.
+- The button still disables during generation.
+- After generation completes, the app automatically opens the Build List tab.
 
-- Adds a small loading message after clicking **Generate base playbook**.
-- Lets the browser paint the loading message before generation starts.
-- Disables the Generate button while the book is building so users do not double-click and accidentally rerun generation.
-- After generation finishes, the app automatically opens the **Build List** tab.
-- Keeps the existing v15.2 generation rules, formation/package validation, core concept seeding, duplicate removal, and defensive-row filtering.
-
-## Deploy
-
-Upload all files in this folder to a GitHub repository and enable GitHub Pages from the repository settings.
+## Deploy to GitHub Pages
+Upload all files in this folder to your repository root:
+- `index.html`
+- `.nojekyll`
+- `global_unique_plays.csv`
+- `global_unique_plays.json`
