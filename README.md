@@ -1,17 +1,22 @@
-# Call Sheet — Coach Brain v15.0
+# Call Sheet — Coach Brain v15.1
 
-GitHub Pages package for the Call Sheet playbook builder and in-game play caller.
+GitHub Pages package for the Call Sheet Coach Brain app.
 
-## v15.0 highlights
+## Install on GitHub Pages
 
-- Deeper formation recognition: wide/condensed spacing, trips and quads surfaces, TE/wing/H-back surfaces, nub, unbalanced, 2-back, 3-back, and empty surfaces.
-- New Formation Surface / Structure sliders on the Philosophy page.
-- Surface presets tied to each offensive system template.
-- Formation package coverage minimum: formations must carry enough of the selected offensive menu before being selected.
-- Plays and formations are scored separately, then connected through package completeness.
-- Live playcalling uses a top-10 rank lottery with fixed odds: 15/14/13/12/10/9/8/7/6/6.
-- Retains v14.22 duplicate-play removal, personnel gate, formation slider balancing, and long-yardage safeguards.
+1. Upload every file in this folder to a GitHub repository.
+2. In GitHub, open Settings → Pages.
+3. Select the branch/folder that contains `index.html`.
+4. Open the published GitHub Pages URL.
 
-## Upload
+## v15.1 patch notes
 
-Upload this folder to GitHub Pages. The app runs from `index.html`.
+- Removes duplicate Formation + Play entries from generated books.
+- Filters defensive/coverage rows out of generated offensive playbooks.
+- Formation hard rule: every included formation must have at least 5 unique plays.
+- Formation hard rule: every included formation must include at least one run, one dropback/conversion pass, and one play-action/boot answer.
+- Formation hard rule: formations must pass the selected system/sliders/package coverage before inclusion.
+- Core concept sliders now seed actual plays into the generated book through tag matching, not only soft boosts.
+- Keeps v15.0 formation-surface recognition, package coverage, and rank-lottery play suggestions.
+
+If upgrading from an older version, regenerate the base playbook once so the new package rules and tag matching apply.
