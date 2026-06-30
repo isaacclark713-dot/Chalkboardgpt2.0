@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v14.9</title>
+<title>Call Sheet — Coach Brain v14.10</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -363,7 +363,7 @@
   .intent-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:9.5px;font-weight:800;background:#dfeeff;color:#2f5891;margin-left:4px}
   .intent-sel{width:100%;min-width:120px;padding:4px 5px;font-size:11.5px;font-family:inherit;border:1px solid #bfcbd8;border-radius:2px;background:#f8fbff}
 
-  /* ---------- v14.9 setup flow facelift ---------- */
+  /* ---------- v14.10 setup flow + situation scoring cleanup ---------- */
   .setup-flow{display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px}
   .step-card{border:1px solid #ddd9cd;background:#fbfaf5;border-radius:7px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
   .step-head{display:flex;gap:11px;align-items:flex-start;margin-bottom:10px}
@@ -4249,6 +4249,8 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=safeSequenceFit(pl);
   s*=safeRecognitionFit(pl);
   s*=safePlayIQFit(pl,down,dist,zone,yards);
+  s*=playIntentSituationFit(pl,down,dist,yards);
+  if(s<=0)return 0;
   if(!info.overrideBalance){
     if(isRunFamily(pl.family)) s*=info.runNudge; else s*=info.passNudge;
   }
@@ -4328,6 +4330,7 @@ function simpleFallbackSuggest(down,dist,zone,yards){
     let s=1;
     s*=safeMult('ddFit fallback',()=>ddFit(pl,down,dist,yards),1);
     s*=safeMult('zoneFit fallback',()=>zoneFit(pl,zone),1);
+    s*=safeMult('playIntentSituationFit fallback',()=>playIntentSituationFit(pl,down,dist,yards),1);
     if(pl&&pl.concept==='Other / Unknown')s*=0.55;
     scored.push({pl,s});
   }
@@ -4346,60 +4349,125 @@ function safeSuggestPlay(down,dist,zone,yards){
   }
 }
 
-/* down & distance fit — faithful to script-guide and play-calling logic
-   Rules:
-   · Play-action is ONLY viable on 1st down with short distance (≤3 yds).
-     "Play-action in this game is only viable on first down and in down and
-     distances sub 3." Any PA concept on any other situation scores 0 —
-     completely removed from the pool, not just penalized.
-   · 1st down = 1st-and-10: balanced, run/option/quick all live
-   · 3rd & long = clear pass / screen / shot down
-   · 4th & short = power / conversion call  */
+/* down & distance + play-intent situation fit — v14.10
+   The live caller now scores the *purpose* of the play first, not just the
+   legacy family bucket. Two hard coaching rules are enforced here:
+   · Play-action / boot / keeper is removed from the suggestion pool on:
+       2nd & 5+, 3rd & 5+, 4th & 3+
+   · Non-draw runs receive a major penalty on:
+       2nd & 7+, 3rd & 5+, 4th & 3+
+   Draw remains a pass-down changeup; screens/RPO access are not treated as
+   straight runs for these penalties. */
 
 // All concepts that are play-action by nature (regardless of family tag in DB)
-const PA_CONCEPTS=new Set(["Boot / Play Action","Fake Jet","Veer Pass"]);
+const PA_CONCEPTS=new Set(["Boot / Play Action","Fake Jet","Veer Pass","PA Boot","Play Action","PA Cross"]);
+
+function situationYards(down,dist,yards){
+  down=Number(down)||2;
+  return Math.max(1,Number(yards)||yardsForBucket(down,dist));
+}
+function situationProfile(down,dist,yards){
+  const d=Number(down)||2;
+  const y=situationYards(d,dist,yards);
+  return {
+    down:d,
+    yards:y,
+    short:y<=2,
+    medium:y>=3&&y<=6,
+    long:y>=7,
+    paBan:(d===2&&y>=5)||(d===3&&y>=5)||(d===4&&y>=3),
+    runPenalty:(d===2&&y>=7)||(d===3&&y>=5)||(d===4&&y>=3)
+  };
+}
+function isPlayActionCall(pl){
+  const f=String(pl.family||'').toLowerCase();
+  const c=String(pl.concept||'');
+  const key=playIntentKey(pl);
+  const t=intentSafe(pl)||{};
+  const txt=((pl.formation||'')+' '+(pl.play||'')+' '+c+' '+f+' '+(t.passStructure||'')+' '+(t.actionFamily||'')).toLowerCase();
+  return f==='play_action' || key==='play_action' || key==='boot_keeper' || PA_CONCEPTS.has(c) ||
+    /\bpa\b|play[-\s]?action|boot|keeper|naked|waggle|leak|fake/.test(txt) ||
+    t.playType==='play_action' || t.passStructure==='play_action' || t.passStructure==='boot';
+}
+function isDrawCall(pl){
+  const key=playIntentKey(pl);
+  const c=String(pl.concept||'').toLowerCase();
+  const t=intentSafe(pl)||{};
+  const txt=((pl.play||'')+' '+c+' '+(t.runScheme||'')+' '+(t.passStructure||'')).toLowerCase();
+  return key==='draw' || c==='draw' || /\bdraw\b/.test(txt) || t.passStructure==='draw' || t.runScheme==='draw';
+}
+function isStraightRunCall(pl){
+  if(isDrawCall(pl)) return false;
+  const key=playIntentKey(pl);
+  if(['base_run','downhill_run','perimeter_run','option_run','run_constraint'].includes(key)) return true;
+  if(['rpo_access','screen','play_action','boot_keeper','quick_game','dropback_pass','shot','draw'].includes(key)) return false;
+  return isRunFamily(pl.family);
+}
+function situationHardGate(pl,down,dist,yards){
+  const sp=situationProfile(down,dist,yards);
+  if(sp.paBan && isPlayActionCall(pl)) return 0;
+  return 1;
+}
+function playIntentSituationFit(pl,down,dist,yards){
+  const sp=situationProfile(down,dist,yards);
+  const key=playIntentKey(pl);
+  if(sp.paBan && isPlayActionCall(pl)) return 0;
+  if(sp.runPenalty && isStraightRunCall(pl)) return 0.08;
+  if(sp.down===2 && sp.yards>=7 && key==='draw') return 1.18;
+  if((sp.down===3||sp.down===4) && sp.yards>=5 && key==='draw') return 1.18;
+  if(sp.down===3 && sp.yards>=5 && ['quick_game','dropback_pass','screen','shot'].includes(key)) return 1.18;
+  if(sp.down===4 && sp.yards>=3 && ['quick_game','dropback_pass','screen'].includes(key)) return 1.14;
+  if(sp.down===2 && sp.yards>=5 && ['quick_game','dropback_pass','screen','draw'].includes(key)) return 1.12;
+  if(sp.short && ['downhill_run','option_run','quick_game'].includes(key)) return 1.14;
+  return 1;
+}
 
 function ddFit(pl,down,dist,yards){
-  down=Number(down)||2;
+  const sp=situationProfile(down,dist,yards);
+  down=sp.down;
+  const y=sp.yards;
   const f=pl.family, c=pl.concept;
-  const isPa = f==='play_action' || PA_CONCEPTS.has(c);
-  const run=isRunFamily(f), scr=f==='screen', pass=f==='pass';
-  const power=["Power / Power O","Dive","Trap","Counter"].includes(c);
-  const quick=["Quick Game","Slants","Stick","Spot","Spacing","Mesh","Shallow"].includes(c);
-  const inter=["Stick","Mesh","Spot","Curls / Curl Flats","Option / RPO","Sail","Bench / Corner Strike"].includes(c);
-  const shot=AGGR_SHOT_CONCEPTS.includes(c);
-  const draw=c==='Draw';
-  const y=Math.max(1,Number(yards)||yardsForBucket(down,dist));
+  const key=playIntentKey(pl);
+  const isPa = isPlayActionCall(pl);
+  const run=isStraightRunCall(pl), scr=key==='screen'||f==='screen', pass=f==='pass'||['quick_game','dropback_pass','shot'].includes(key);
+  const power=["Power / Power O","Dive","Trap","Counter","Duo","Inside Zone"].includes(c)||key==='downhill_run';
+  const quick=["Quick Game","Slants","Stick","Spot","Spacing","Mesh","Shallow","Y Stick"].includes(c)||key==='quick_game';
+  const inter=["Stick","Mesh","Spot","Curls / Curl Flats","Option / RPO","Sail","Bench / Corner Strike","Levels","Dig","Drive","Y Cross"].includes(c)||key==='dropback_pass';
+  const shot=AGGR_SHOT_CONCEPTS.includes(c)||key==='shot';
+  const draw=isDrawCall(pl);
 
-  // PA gate: play-action is only live when the distance makes the run fake believable.
+  // Hard rule: PA/boot/keeper should not surface in these distances.
+  if(sp.paBan && isPa) return 0;
+
+  // PA is only elevated when the defense must respect the immediate run threat.
   if(isPa){
-    if(down===1 && y<=3) return 1.45;
-    if(down===2 && y<=3) return 1.15;
-    return 0;
+    if(down===1 && y<=4) return 1.35;
+    if(down===2 && y<=4) return 1.05;
+    return 0.18;
   }
 
   let val=1.0;
   if(down===1){
     if(y<=3) val = power?1.75 : run?1.55 : quick?1.15 : scr?0.75 : shot?0.85 : 1.0;
-    else     val = run?1.35 : f==='option_rpo'?1.30 : quick?1.1 : pass?1.05 : scr?0.85 : shot?0.9 : 1.0;
+    else     val = run?1.32 : key==='rpo_access'?1.28 : quick?1.12 : pass?1.05 : scr?0.9 : shot?0.92 : draw?0.86 : 1.0;
   } else if(down===2){
-    if(y<=2)      val = power?1.7 : run?1.48 : quick?1.22 : pass?1.05 : scr?0.8 : shot?0.85 : 1.0;
-    else if(y<=6) val = f==='option_rpo'?1.32 : quick?1.28 : run?1.08 : pass?1.15 : scr?0.9 : shot?0.98 : 1.0;
-    else          val = quick?1.18 : pass?1.32 : shot?1.22 : scr?1.18 : draw?1.1 : run?0.45 : 1.0;
+    if(y<=2)      val = power?1.7 : run?1.48 : quick?1.24 : pass?1.05 : scr?0.82 : shot?0.85 : 1.0;
+    else if(y<=4) val = key==='rpo_access'?1.32 : quick?1.30 : run?1.05 : pass?1.16 : scr?0.95 : shot?0.98 : draw?0.95 : 1.0;
+    else if(y<=6) val = quick?1.32 : pass?1.25 : scr?1.14 : draw?1.08 : shot?1.02 : key==='rpo_access'?0.95 : run?0.62 : 1.0;
+    else          val = quick?1.22 : pass?1.38 : shot?1.25 : scr?1.24 : draw?1.18 : run?0.08 : 1.0;
   } else if(down===3){
-    if(y<=2)      val = power?1.85 : run?1.5 : quick?1.4 : pass?1.05 : scr?0.75 : shot?0.55 : 1.0;
-    else if(y<=6) val = inter?1.58 : quick?1.4 : pass?1.28 : scr?1.12 : run?0.45 : shot?0.82 : 1.0;
-    else          val = shot?1.52 : scr?1.45 : draw?1.35 : pass?1.35 : run?0.22 : 1.0;
+    if(y<=2)      val = power?1.85 : run?1.5 : quick?1.42 : pass?1.08 : scr?0.82 : shot?0.58 : draw?0.62 : 1.0;
+    else if(y<=4) val = inter?1.54 : quick?1.45 : pass?1.30 : scr?1.08 : run?0.68 : shot?0.85 : draw?0.92 : 1.0;
+    else          val = shot?1.55 : scr?1.48 : draw?1.28 : pass?1.42 : quick?1.34 : run?0.08 : 1.0;
   } else {
-    if(y<=2)      val = power?2.05 : run?1.62 : quick?1.33 : pass?0.85 : 1.0;
-    else if(y<=6) val = quick?1.42 : inter?1.38 : pass?1.28 : run?0.5 : 1.0;
-    else          val = shot?1.45 : scr?1.4 : pass?1.35 : run?0.22 : 1.0;
+    if(y<=2)      val = power?2.05 : run?1.62 : quick?1.35 : pass?0.88 : scr?0.75 : draw?0.55 : 1.0;
+    else          val = scr?1.45 : quick?1.42 : inter?1.38 : pass?1.34 : draw?1.18 : shot?1.12 : run?0.08 : 1.0;
   }
 
   // Fine tune exact yardage within the bucket.
-  if(y===1 && (power||quick||f==='option_rpo')) val*=1.12;
+  if(y===1 && (power||quick||key==='rpo_access')) val*=1.12;
   if(y>=8 && (shot||scr||draw)) val*=1.10;
-  if(y>=10 && run && !draw) val*=0.75;
+  if(sp.runPenalty && run) val*=0.08;
   return val;
 }
 function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;}return h;}
@@ -7670,7 +7738,7 @@ $('#btn-csv-db-reset').addEventListener('click',()=>{
 $$('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 
 // philosophy inputs
-// v14.9: broad Identity selector removed. System template or Custom mode is the top-level build path.
+// v14.10: broad Identity selector removed. System template or Custom mode is the top-level build path; situation scoring now gates PA/runs on long downs.
 $('#ph-system').addEventListener('change',e=>{philosophy.system=e.target.value||'none'; if(philosophy.system==='none'){philosophy.systemStrength=0; if($('#ph-system-strength'))$('#ph-system-strength').value=0; updateSystemStrengthLabel();} else { if(!Number(philosophy.systemStrength))philosophy.systemStrength=85; applyOffenseSystemDisciplineBlend({render:true}); } updateBuildModeUI(); renderOffenseSystemPlan(); save(LS.ph,philosophy);toast(philosophy.system==='none'?'Custom sliders only':'Offensive system set: '+labelSystem(philosophy.system));});
 $('#btn-system-preset').addEventListener('click',()=>applyOffenseSystemPreset());
 $('#btn-system-export').addEventListener('click',()=>exportSelectedSystemProfile());

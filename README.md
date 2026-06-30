@@ -1,22 +1,22 @@
-# Call Sheet — Coach Brain v14.9
+# Call Sheet — Coach Brain v14.10
 
-GitHub Pages-ready package.
+GitHub Pages package for the Call Sheet Coach Brain app.
 
-## v14.9 changes
+## v14.10 changes
 
-- Reworked the Philosophy page into a clearer Playbook Builder flow:
-  1. choose Template or Custom
-  2. pick an offensive system template
-  3. set playbook size and system discipline
-  4. tune personnel, formation style, run/pass band, motion, and core concepts
-- Retired the old broad Identity control.
-- Retired the Tempo & Aggression control from generation scoring.
-- Hardened formation style sliders:
-  - 0% removes that formation family from generation and live suggestions.
-  - Formation family carries much heavier weight in playbook generation and in-game calls.
-- Custom mode sets system discipline to 0 and uses sliders only.
-- Keeps source-backed offensive profiles and localStorage-based persistence.
+- Added hard situation scoring rules for live play suggestions.
+- Play-action / boot / keeper calls are removed from the live suggestion pool on:
+  - 2nd & 5+
+  - 3rd & 5+
+  - 4th & 3+
+- Non-draw runs receive a major penalty on:
+  - 2nd & 7+
+  - 3rd & 5+
+  - 4th & 3+
+- Draws remain available as pass-down changeups.
+- Situation scoring now uses Play Intent, not just legacy family buckets.
+- Maintains v14.9 builder flow: choose a template or custom, then tune playbook size, system discipline, personnel, formation style, run/pass band, motion, and core concepts.
 
 ## Deploy
 
-Upload this folder to a GitHub Pages repository. Keep `index.html`, `.nojekyll`, `global_unique_plays.csv`, and `global_unique_plays.json` together.
+Upload the contents of this folder to a GitHub Pages repository, or upload the whole folder and set Pages to serve from the root.
