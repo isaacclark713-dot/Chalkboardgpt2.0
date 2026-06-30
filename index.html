@@ -3964,6 +3964,10 @@ function generatePlaybook(){
   // This happens before normal quotas, then the remaining book fills by mix/score.
   addSystemRailSeeds(scoredFiltered,target,tryAdd);
 
+  // v14.15: Every book needs a 3rd-and-long answer bucket.
+  // These are true dropback/conversion passes, screens, and draws — not PA, RPO, or called runs.
+  ensureThirdLongAnswers(book,scoredFiltered,target,tryAdd);
+
   // Pass 1: fill by family quota, respecting formation depth cap
   for(const f of Object.keys(mix)){
     const quota=Math.round(target*mix[f]);
@@ -4564,7 +4568,7 @@ function safeSuggestPlay(down,dist,zone,yards){
   }
 }
 
-/* down & distance + play-intent situation fit — v14.13
+/* down & distance + play-intent situation fit — v14.15
    The live caller scores the *purpose* of the play first, not just the
    legacy family bucket. Current hard coaching rules:
    · Play-action / boot / keeper is removed from the suggestion pool on:
@@ -4573,6 +4577,8 @@ function safeSuggestPlay(down,dist,zone,yards){
        2nd & 7+, 3rd & 5+, 4th & 3+
    · RPO Access receives a major penalty on:
        3rd & 7+
+   · 3rd & 7+ is treated as a money-down passing situation:
+       dropback conversion passes, screens, and draws are the boosted menu.
    Draw remains a pass-down changeup. True read/speed/load/veer options are
    treated as runs, not RPO passes. */
 
@@ -4631,6 +4637,61 @@ function isStraightRunCall(pl){
   if(['rpo_access','screen','play_action','boot_keeper','quick_game','dropback_pass','shot','draw'].includes(key)) return false;
   return isRunFamily(pl.family);
 }
+
+function thirdLongAnswerKind(pl){
+  if(!pl) return '';
+  if(isPlayActionCall(pl) || isRpoAccessCall(pl) || isStraightRunCall(pl)) return '';
+  if(isDrawCall(pl)) return 'draw';
+  const key=playIntentKey(pl);
+  const f=String(pl.family||'').toLowerCase();
+  const t=intentSafe(pl)||{};
+  const txt=((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')+' '+(t.passStructure||'')+' '+(t.routeFamily||'')+' '+(t.actionFamily||'')).toLowerCase();
+  if(key==='screen'||f==='screen'||t.passStructure==='screen'||/screen|tunnel|jailbreak|middle screen|rb screen|slip screen|throwback/.test(txt)) return 'screen';
+  // 3rd-and-long answers are conversion passes, not cheap access throws.
+  if(key==='dropback_pass'||key==='shot'||f==='pass'||t.passStructure==='dropback'||t.passStructure==='shot') return 'dropback';
+  if(key==='quick_game' && /mesh|levels|dig|drive|shallow|stick|spacing|spot|smash|dag|sail|flood|bench|corner|curl|comeback|all curl|y cross|y stick|y corner|seam|verts|vertical|post|fade|wheel|option route/.test(txt)) return 'dropback';
+  return '';
+}
+function thirdLongAnswerGenScore(pl){
+  const kind=thirdLongAnswerKind(pl);
+  if(!kind) return 0;
+  const key=playIntentKey(pl);
+  const t=intentSafe(pl)||{};
+  const txt=((pl.formation||'')+' '+(pl.play||'')+' '+(pl.concept||'')+' '+(t.passStructure||'')+' '+(t.routeFamily||'')+' '+(t.actionFamily||'')).toLowerCase();
+  let s=kind==='dropback'?1.70:(kind==='screen'?1.45:1.35);
+  // Conversion pass concepts should lead the 3rd-and-long menu.
+  if(/mesh|levels|dig|drive|dagger|y cross|sail|flood|smash|dag|corner|bench|curl|comeback|all curl|verts|vertical|post|seam|fade|wheel|h wheel|choice|divide|mills/.test(txt)) s*=1.28;
+  // Cheap 0–5 yard access should not masquerade as a 10–15 yard answer.
+  if(/bubble|smoke|now screen|quick hitch|access|gift/.test(txt) && kind==='dropback') s*=0.72;
+  if(key==='quick_game' && !/stick|spacing|spot|mesh|levels|drive|shallow|curl|smash|corner/.test(txt)) s*=0.85;
+  return s;
+}
+function ensureThirdLongAnswers(book,pool,target,tryAdd){
+  // Every generated playbook needs a small money-down bucket.
+  // Even run-first offenses need something to call on 3rd-and-7+.
+  const wanted=Math.max(6,Math.round(Number(target||100)*0.075));
+  const pureWanted=Math.max(3,Math.round(wanted*0.55));
+  const countKind=(kind)=>book.filter(pl=>thirdLongAnswerKind(pl)===kind).length;
+  const countAll=()=>book.filter(pl=>thirdLongAnswerKind(pl)).length;
+  const addedStart=book.length;
+  let candidates=(pool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&thirdLongAnswerKind(x.pl)&&formationTypeAllowedByUser(x.pl.formation))
+    .sort((a,b)=>(thirdLongAnswerGenScore(b.pl)*(b.s||1))-(thirdLongAnswerGenScore(a.pl)*(a.s||1)));
+  // First secure true dropback/conversion pass answers.
+  for(const {pl} of candidates){
+    if(countKind('dropback')>=pureWanted) break;
+    if(book.length>=target) break;
+    if(thirdLongAnswerKind(pl)==='dropback') tryAdd(pl);
+  }
+  // Then round out with screens and draws.
+  for(const {pl} of candidates){
+    if(countAll()>=wanted) break;
+    if(book.length>=target) break;
+    tryAdd(pl);
+  }
+  return book.length-addedStart;
+}
 function situationHardGate(pl,down,dist,yards){
   const sp=situationProfile(down,dist,yards);
   if(sp.paBan && isPlayActionCall(pl)) return 0;
@@ -4640,6 +4701,15 @@ function playIntentSituationFit(pl,down,dist,yards){
   const sp=situationProfile(down,dist,yards);
   const key=playIntentKey(pl);
   if(sp.paBan && isPlayActionCall(pl)) return 0;
+  if(sp.down===3 && sp.yards>=7){
+    const tl=thirdLongAnswerKind(pl);
+    if(tl==='dropback') return 2.55;
+    if(tl==='screen') return 2.35;
+    if(tl==='draw') return 2.10;
+    if(isRpoAccessCall(pl)) return 0.16;
+    if(isStraightRunCall(pl)) return 0.03;
+    return 0.42;
+  }
   if(sp.runPenalty && isStraightRunCall(pl)) return 0.08;
   if(sp.rpoPenalty && isRpoAccessCall(pl)) return 0.35;
   if(sp.down===2 && sp.yards>=7 && key==='draw') return 1.18;
@@ -4689,6 +4759,10 @@ function ddFit(pl,down,dist,yards){
   } else if(down===3){
     if(y<=2)      val = power?1.85 : run?1.5 : quick?1.42 : pass?1.08 : scr?0.82 : shot?0.58 : draw?0.62 : 1.0;
     else if(y<=4) val = inter?1.54 : quick?1.45 : pass?1.30 : scr?1.08 : run?0.68 : shot?0.85 : draw?0.92 : 1.0;
+    else if(y>=7){
+      const tl=thirdLongAnswerKind(pl);
+      val = tl==='dropback'?2.35 : tl==='screen'?2.18 : tl==='draw'?1.95 : run?0.03 : key==='rpo_access'?0.16 : 0.55;
+    }
     else          val = shot?1.55 : scr?1.48 : draw?1.28 : pass?1.42 : quick?1.34 : run?0.08 : 1.0;
   } else {
     if(y<=2)      val = power?2.05 : run?1.62 : quick?1.35 : pass?0.88 : scr?0.75 : draw?0.55 : 1.0;
@@ -7546,6 +7620,7 @@ function generatePlaybookFromRows(rows,name){
     book.push(pl);formCount.set(pl.formation,fc+1);formConceptCount.set(fk,cc+1);return true;
   }
   addSystemRailSeeds(scored.filter(x=>selectedForms.has(x.pl.formation)),target,tryAdd);
+  ensureThirdLongAnswers(book,scored.filter(x=>selectedForms.has(x.pl.formation)),target,tryAdd);
   for(const f of Object.keys(mix)){
     const quota=Math.round(target*mix[f]); let added=0;
     for(const {pl} of byFam[f]){if(added>=quota||book.length>=target)break;if(tryAdd(pl))added++;}
