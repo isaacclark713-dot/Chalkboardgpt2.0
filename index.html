@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v14.22</title>
+<title>Call Sheet — Coach Brain v15.0</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -539,6 +539,27 @@
         <div class="slider-rule-box">
           <b>Formation identity matters.</b><br>
           The app now weights formation family as heavily as concept. Set Flexbone to 0% and a Paul Johnson book will try to find option football outside Flexbone instead of forcing Flexbone back into the book.
+          <br><br><b>v15:</b> formations must also carry enough of the full offensive menu to be selected. A formation is not just a container — it needs a playable package.
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top:16px">
+        <div>
+          <label class="fld">Formation surface / structure emphasis</label>
+          <p class="hint" style="margin:0 0 8px">Recognizes wide vs condensed spacing, trips/3-man surfaces, quads/4-man surfaces, TE/wing surfaces, nub/unbalanced, 2-back, and 3-back structures. These align with the selected system preset.</p>
+          <div id="ph-surface-sliders"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+            <div class="hint">Total: <span id="ph-surface-total" style="font-weight:700;color:var(--field)">100%</span></div>
+            <button class="btn ghost sm" id="btn-surface-preset" style="font-size:10px">↺ Reset surface preset</button>
+          </div>
+        </div>
+        <div class="slider-rule-box">
+          <b>Surface tells the app what the formation is doing.</b><br>
+          Example: Wake/Briles should bias wide splits and 3-man surfaces. Shanahan/RVO should bias condensed TE/wing surfaces. DeBesse wants 2/3-back gun or pistol. Flexbone systems want 3-back under-center structure.
+          <br><br>
+          <label class="fld" style="margin-top:8px">Formation package coverage minimum</label>
+          <input type="range" id="ph-coverage-min" min="0" max="60" step="5" value="25">
+          <div class="hint">Current: <span id="ph-coverage-min-val" style="font-weight:700;color:var(--field)">25%</span>. A formation must contain this much of the selected offense's core menu to be included.</div>
         </div>
       </div>
 
@@ -2343,6 +2364,9 @@ function ensurePhilosophyShape(){
   if(!philosophy.persMix) philosophy.persMix={...DEFAULT_PERS_MIX};
   if(!philosophy.formMix) philosophy.formMix={...DEFAULT_FORM_MIX};
   ALL_FORM_TYPES.forEach(k=>{if(philosophy.formMix[k]==null)philosophy.formMix[k]=0;});
+  if(!philosophy.surfaceMix) philosophy.surfaceMix={...DEFAULT_SURFACE_MIX};
+  ALL_SURFACE_TYPES.forEach(k=>{if(philosophy.surfaceMix[k]==null)philosophy.surfaceMix[k]=0;});
+  if(philosophy.formationCoverageMin==null) philosophy.formationCoverageMin=25;
   if(!Array.isArray(philosophy.emphasis)) philosophy.emphasis=[];
   if(!philosophy.conceptTargets) philosophy.conceptTargets={};
   if(!philosophy.system) philosophy.system='none';
@@ -2544,8 +2568,8 @@ function formationTypeAllowedByUser(form){
 }
 function filterFormsByUserSliders(forms){
   const arr=(forms||[]).filter(Boolean);
-  const allowed=arr.filter(f=>formationTypeAllowedByUser(f));
-  return allowed.length?allowed:arr;
+  const allowed=arr.filter(f=>formationTypeAllowedByUser(f)&&formationMeetsPackageCoverage(f));
+  return allowed.length?allowed:arr.filter(f=>formationTypeAllowedByUser(f));
 }
 function formationStyleGenMult(pl){
   if(!pl)return 1;
@@ -2569,6 +2593,7 @@ function formationStyleGameMult(pl){
   return Math.max(0.05,Math.min(cap,0.05+share*(16.0+strength*20.0)));
 }
 function safeFormationStyleGameMult(pl){return safeMult('formation style game mult',()=>formationStyleGameMult(pl),1);}
+function safeSurfaceStyleGameMult(pl){return safeMult('formation surface game mult',()=>formationSurfaceGameMult(pl),1);}
 
 
 // v14.22: Slider mix enforcement helpers. Generation should obey formation-style
@@ -2697,6 +2722,46 @@ function enforceFormationMixMargin(book,pool,target){
     used.delete(playUniqueKey(out[idx])); out.splice(idx,1);
   }
   return out.slice(0,target);
+}
+
+// v15.0 — Formation package completeness. A formation is not selected just
+// because one play scores well. It needs to carry a minimum percentage of the
+// selected offense's core menu, so formations and plays remain separate but linked.
+function completeOffenseTargetList(){
+  ensurePhilosophyShape();
+  const active=activeConceptTargets().map(([k])=>k);
+  if(active.length>=4)return active.slice(0,24);
+  const sys=BUILT_IN_OFFENSE_SYSTEMS[philosophy.system||'none']||{};
+  const list=[];
+  ['baseConcepts','constraintConcepts','playActionFamily','screensRpos','shotConcepts'].forEach(k=>{
+    (sys[k]||[]).forEach(x=>{if(CORE_CONCEPT_TARGETS.includes(x)&&!list.includes(x))list.push(x);});
+  });
+  Object.entries(sys.conceptBoosts||{}).sort((a,b)=>b[1]-a[1]).forEach(([k])=>{if(CORE_CONCEPT_TARGETS.includes(k)&&!list.includes(k))list.push(k);});
+  return list.slice(0,24);
+}
+const _formCoverageCache=new Map();
+function formationCoverageCacheKey(form){
+  return [form,philosophy.system||'none',Object.entries(philosophy.conceptTargets||{}).map(([k,v])=>k+':'+v).join(','),Object.keys(_corrections||{}).length,Object.keys(_intentOverrides||{}).length].join('|');
+}
+function formationPackageCoveragePct(form){
+  const key=formationCoverageCacheKey(form);
+  if(_formCoverageCache.has(key))return _formCoverageCache.get(key);
+  const targets=completeOffenseTargetList();
+  if(!targets.length){_formCoverageCache.set(key,100);return 100;}
+  const plays=(FORMATION_PLAYS[form]||[]).map(applyCorr).filter(pl=>pl&&pl.family!=='unknown');
+  if(!plays.length){_formCoverageCache.set(key,0);return 0;}
+  let hit=0;
+  targets.forEach(t=>{ if(plays.some(pl=>conceptTargetMatchScore(t,pl)>=0.60)) hit++; });
+  const intentSet=new Set(plays.map(playIntentKey));
+  const bonus=Math.min(12, ['base_run','downhill_run','option_run','rpo_access','play_action','dropback_pass','screen','draw'].filter(k=>intentSet.has(k)).length*2);
+  const pct=Math.max(0,Math.min(100,Math.round(hit/targets.length*100+bonus)));
+  _formCoverageCache.set(key,pct); return pct;
+}
+function formationMeetsPackageCoverage(form){
+  const min=Number(philosophy.formationCoverageMin==null?25:philosophy.formationCoverageMin)||0;
+  if(min<=0)return true;
+  if((philosophy.system||'none')==='none' && !activeConceptTargets().length)return true;
+  return formationPackageCoveragePct(form)>=min;
 }
 function formationMixDeltaSummary(book){
   const target=(book||[]).length||1, quotas=formationTypeQuotasForTarget(target,(book||[]).map(pl=>({pl,s:1})));
@@ -3058,7 +3123,7 @@ const FORM_TYPE_LABEL={
 const DEFAULT_FORM_MIX={shotgun:52,singleback:18,pistol:8,i_form:8,flexbone:0,wingbone:0,double_wing:0,empty:8,under_center:4,other:2};
 function inferFormationType(form){
   const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
-  if(/empty|5\s*wr|five\s*wide/.test(f))return 'empty';
+  if(/empty|5\s*wr|five\s*wide|quads|4\s*x\s*1/.test(f))return 'empty';
   if(/double\s*wing/.test(f))return 'double_wing';
   if(/flexbone/.test(f))return 'flexbone';
   if(/wingbone|wishbone|split\s*t|split back|split backs/.test(f))return 'wingbone';
@@ -3070,8 +3135,60 @@ function inferFormationType(form){
   if(/under|offset i/.test(f))return 'under_center';
   return 'other';
 }
+
+// v15.0 — secondary formation recognition. These are not mutually exclusive.
+// A formation can be Gun + trips + wide, or Singleback + condensed + TE/wing.
+const ALL_SURFACE_TYPES=['wide','condensed','bunch_stack','trips_3man','quads_4man','attached_te_wing','nub','unbalanced','two_back','three_back','empty_surface','other_surface'];
+const SURFACE_LABEL={
+  wide:'Wide splits / spread width', condensed:'Condensed / tight splits', bunch_stack:'Bunch / stack', trips_3man:'3-man surface / trips',
+  quads_4man:'4-man surface / quads', attached_te_wing:'Attached TE / wing / H-back', nub:'Nub / single-WR side', unbalanced:'Unbalanced / over',
+  two_back:'2-back structure', three_back:'3-back structure', empty_surface:'Empty / 5-out surface', other_surface:'Other surface'
+};
+const DEFAULT_SURFACE_MIX={wide:42,condensed:18,bunch_stack:8,trips_3man:14,quads_4man:2,attached_te_wing:8,nub:2,unbalanced:2,two_back:2,three_back:0,empty_surface:2,other_surface:0};
+function inferFormationSurfaceTags(form,pers){
+  const f=String(form||'').toLowerCase().replace(/[-_]+/g,' ');
+  const p=String(pers||'');
+  const tags=new Set();
+  const ftype=inferFormationType(form);
+  if(/empty|5\s*wr|five\s*wide|quads|4\s*x\s*1/.test(f)||ftype==='empty') tags.add('empty_surface');
+  if(/quads|4\s*x\s*1|quad/.test(f)) tags.add('quads_4man');
+  if(/trips|trey|trio|3\s*x\s*1/.test(f)) tags.add('trips_3man');
+  if(/bunch|stack|cluster|snug/.test(f)) tags.add('bunch_stack');
+  if(/tight|nasty|compressed|condensed|snug|bunch|stack|double\s*wing|flexbone|wingbone|wishbone|ace|deuce/.test(f)) tags.add('condensed');
+  if(/spread|wide|open|doubles|trips|trey|trio|empty|5\s*wr|gun|shotgun/.test(f) && !/tight|compressed|condensed|snug|bunch/.test(f)) tags.add('wide');
+  if(/wing|y\s*off|y-off|h\s*back|h-back|te\b|tight\s*end|ace|deuce|nub|attached|flexbone|double\s*wing/.test(f)||['12','13','21','22','23','32','30'].includes(p)) tags.add('attached_te_wing');
+  if(/nub/.test(f)) tags.add('nub');
+  if(/unbalanced|over|tackle\s*over|te\s*over/.test(f)) tags.add('unbalanced');
+  if(/split\s*back|split\s*backs|near|far|strong\s*i|weak\s*i|i\s*form|full\s*house|diamond|20\b|21\b/.test(f)||['20','21'].includes(p)) tags.add('two_back');
+  if(/flexbone|wishbone|wingbone|diamond|full\s*house|30\b|double\s*wing/.test(f)||['30','32'].includes(p)) tags.add('three_back');
+  if(ftype==='pistol' && /diamond|full\s*house/.test(f)) tags.add('three_back');
+  if(!tags.size) tags.add('other_surface');
+  return tags;
+}
+function surfaceTagsForPlay(pl){return inferFormationSurfaceTags(pl&&pl.formation,pl&&pl.pers);}
+function surfaceMixTotal(){ensurePhilosophyShape(); return ALL_SURFACE_TYPES.reduce((sum,k)=>sum+Number((philosophy.surfaceMix&&philosophy.surfaceMix[k])||0),0);}
+function surfaceRaw(type){ensurePhilosophyShape(); return Number((philosophy.surfaceMix&&philosophy.surfaceMix[type])||0);}
+function surfaceShare(type){const total=surfaceMixTotal()||100; return surfaceRaw(type)/total;}
+function surfaceStyleMultForPlay(pl,mode){
+  const tags=[...surfaceTagsForPlay(pl)];
+  const total=surfaceMixTotal();
+  if(total<=0)return 1;
+  const vals=tags.map(t=>surfaceRaw(t)).filter(v=>Number.isFinite(v));
+  const maxRaw=Math.max(0,...vals);
+  if(maxRaw<=0)return 0.0001;
+  const maxShare=Math.max(...tags.map(surfaceShare));
+  if(mode==='game'){const strength=offenseSystemStrength01(); return Math.max(0.04,Math.min(7.0,0.04+maxShare*(18+strength*24)));}
+  return Math.max(0.01,Math.min(34.0,0.01+maxShare*54.0));
+}
+function formationSurfaceGenMult(pl){return surfaceStyleMultForPlay(pl,'gen');}
+function formationSurfaceGameMult(pl){return surfaceStyleMultForPlay(pl,'game');}
+function surfaceMixSummary(mix){
+  const sm=mix||philosophy.surfaceMix||DEFAULT_SURFACE_MIX;
+  return ALL_SURFACE_TYPES.filter(k=>Number(sm[k]||0)>0).map(k=>`${SURFACE_LABEL[k]||k} ${sm[k]}%`).slice(0,4).join(' · ')||'—';
+}
+
 // Legacy broad identity presets retired in v14.9. Templates + sliders now drive all generation.
-function defaultPhilosophy(){return{system:'none',systemStrength:0,personnelGate:'strict',persMix:{...DEFAULT_PERS_MIX},formMix:{...DEFAULT_FORM_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
+function defaultPhilosophy(){return{system:'none',systemStrength:0,personnelGate:'strict',persMix:{...DEFAULT_PERS_MIX},formMix:{...DEFAULT_FORM_MIX},surfaceMix:{...DEFAULT_SURFACE_MIX},formationCoverageMin:25,size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
 
 /* ============================================================
    STATE + PERSISTENCE
@@ -3774,6 +3891,28 @@ const LS_OFF_SYS='callsheet_offense_systems_v1';
 let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
 function allOffenseSystems(){return {...BUILT_IN_OFFENSE_SYSTEMS,...(_customOffenseSystems||{})};}
 function activeOffenseSystem(k){const lib=allOffenseSystems();return lib[k||((philosophy&&philosophy.system)||'none')]||lib.none;}
+
+function attachV15SurfacePresets(){
+  const B=BUILT_IN_OFFENSE_SYSTEMS;
+  const set=(k,mix,cover=25)=>{if(!B[k])return; B[k].surfaceMixPreset=mix; B[k].formationCoverageMinPreset=cover;};
+  set('shanahan_wide_zone',{wide:10,condensed:28,bunch_stack:10,trips_3man:5,quads_4man:0,attached_te_wing:28,nub:4,unbalanced:5,two_back:8,three_back:0,empty_surface:1,other_surface:1},28);
+  set('rvo_reliable_violent',{wide:10,condensed:24,bunch_stack:8,trips_3man:7,quads_4man:0,attached_te_wing:22,nub:4,unbalanced:5,two_back:18,three_back:0,empty_surface:1,other_surface:1},28);
+  set('debesse_spread_option',{wide:25,condensed:5,bunch_stack:2,trips_3man:10,quads_4man:0,attached_te_wing:5,nub:2,unbalanced:5,two_back:28,three_back:16,empty_surface:1,other_surface:1},30);
+  set('wake_slow_mesh_veer_shoot',{wide:45,condensed:5,bunch_stack:4,trips_3man:20,quads_4man:4,attached_te_wing:5,nub:2,unbalanced:0,two_back:1,three_back:0,empty_surface:8,other_surface:6},30);
+  set('gus_malzahn_hunh',{wide:30,condensed:8,bunch_stack:5,trips_3man:15,quads_4man:2,attached_te_wing:16,nub:1,unbalanced:5,two_back:16,three_back:0,empty_surface:1,other_surface:1},28);
+  set('kenny_wheaton_midline_veer',{wide:3,condensed:30,bunch_stack:0,trips_3man:0,quads_4man:0,attached_te_wing:22,nub:2,unbalanced:5,two_back:8,three_back:28,empty_surface:0,other_surface:2},35);
+  set('paul_johnson_flexbone',{wide:2,condensed:30,bunch_stack:0,trips_3man:0,quads_4man:0,attached_te_wing:20,nub:2,unbalanced:5,two_back:8,three_back:30,empty_surface:0,other_surface:3},35);
+  set('art_briles_spread',{wide:55,condensed:3,bunch_stack:2,trips_3man:22,quads_4man:4,attached_te_wing:2,nub:1,unbalanced:0,two_back:1,three_back:0,empty_surface:8,other_surface:2},28);
+  set('mike_leach_air_raid',{wide:45,condensed:2,bunch_stack:2,trips_3man:25,quads_4man:5,attached_te_wing:1,nub:0,unbalanced:0,two_back:0,three_back:0,empty_surface:15,other_surface:5},28);
+  set('peyton_manning_moore',{wide:30,condensed:8,bunch_stack:8,trips_3man:20,quads_4man:0,attached_te_wing:15,nub:0,unbalanced:0,two_back:2,three_back:0,empty_surface:8,other_surface:9},25);
+  set('harbaugh_power_west_coast',{wide:12,condensed:18,bunch_stack:5,trips_3man:10,quads_4man:0,attached_te_wing:20,nub:3,unbalanced:5,two_back:20,three_back:0,empty_surface:3,other_surface:4},28);
+  set('erhardt_perkins',{wide:18,condensed:10,bunch_stack:12,trips_3man:14,quads_4man:0,attached_te_wing:18,nub:0,unbalanced:3,two_back:12,three_back:0,empty_surface:8,other_surface:5},25);
+  set('wide_zone_boot',B.shanahan_wide_zone&&B.shanahan_wide_zone.surfaceMixPreset||DEFAULT_SURFACE_MIX,25);
+  set('modern_west_coast',{wide:24,condensed:10,bunch_stack:10,trips_3man:18,quads_4man:0,attached_te_wing:10,nub:0,unbalanced:0,two_back:4,three_back:0,empty_surface:8,other_surface:16},22);
+  set('spread_power_rpo',B.gus_malzahn_hunh&&B.gus_malzahn_hunh.surfaceMixPreset||DEFAULT_SURFACE_MIX,25);
+  set('spread_tempo_inside_zone',{wide:42,condensed:4,bunch_stack:3,trips_3man:20,quads_4man:3,attached_te_wing:5,nub:1,unbalanced:0,two_back:4,three_back:0,empty_surface:12,other_surface:6},25);
+}
+attachV15SurfacePresets();
 function labelSystem(k){const o=activeOffenseSystem(k||'none');return o?o.label:'Custom sliders only';}
 function offSysText(pl){
   const t=(typeof intentSafe==='function')?(intentSafe(pl)||{}):{};
@@ -4179,6 +4318,10 @@ function applyOffenseSystemDisciplineBlend(opts={}){
   const baseForm=DEFAULT_FORM_MIX;
   if(sys.persMixPreset) philosophy.persMix=blendPctMaps(basePers,sys.persMixPreset,ALL_PERS,strength);
   if(sys.formMixPreset) philosophy.formMix=blendPctMaps(baseForm,sys.formMixPreset,ALL_FORM_TYPES,strength);
+  if(sys.surfaceMixPreset) philosophy.surfaceMix=blendPctMaps(DEFAULT_SURFACE_MIX,sys.surfaceMixPreset,ALL_SURFACE_TYPES,strength);
+  if(sys.formationCoverageMinPreset!=null){
+    const baseCover=25; philosophy.formationCoverageMin=Math.round(baseCover*(1-strength)+Number(sys.formationCoverageMinPreset)*strength);
+  }
   if(sys.rpBand){
     const base=[45,58];
     philosophy.rpMin=Math.round(base[0]*(1-strength)+Number(sys.rpBand[0])*strength);
@@ -4198,7 +4341,7 @@ function applyOffenseSystemDisciplineBlend(opts={}){
     save(LS.motion,String(motion));
   }
   if(opts.render){
-    renderPersMixSliders(); renderFormMixSliders(); renderConceptTargets();
+    renderPersMixSliders(); renderFormMixSliders(); renderSurfaceMixSliders(); renderConceptTargets();
     if($('#rp-min'))$('#rp-min').value=philosophy.rpMin; if($('#rp-max'))$('#rp-max').value=philosophy.rpMax; updateRpReadout();
     if($('#motion-slider'))$('#motion-slider').value=motion; updateMotionLabel();
     renderOffenseSystemPlan(); updateSystemStrengthLabel();
@@ -4214,6 +4357,8 @@ function applyOffenseSystemPreset(){
   // afterward to intentionally blend back toward broad/custom settings.
   if(sys.persMixPreset) philosophy.persMix=blendPctMaps({},sys.persMixPreset,ALL_PERS,1);
   if(sys.formMixPreset) philosophy.formMix=blendPctMaps({},sys.formMixPreset,ALL_FORM_TYPES,1);
+  if(sys.surfaceMixPreset) philosophy.surfaceMix=blendPctMaps({},sys.surfaceMixPreset,ALL_SURFACE_TYPES,1);
+  if(sys.formationCoverageMinPreset!=null) philosophy.formationCoverageMin=Number(sys.formationCoverageMinPreset)||25;
   if(sys.rpBand){ philosophy.rpMin=Number(sys.rpBand[0]); philosophy.rpMax=Number(sys.rpBand[1]); }
   if(sys.conceptTargetsPreset){ philosophy.conceptTargets={}; Object.entries(sys.conceptTargetsPreset).forEach(([k,v])=>{if(Number(v)>0)philosophy.conceptTargets[k]=Number(v);}); }
   if(sys.motionPreset!=null){ motion=Number(sys.motionPreset); save(LS.motion,String(motion)); }
@@ -4310,8 +4455,9 @@ function hashPhil(p,m){
   const pmSum=Object.entries(p.persMix||{}).reduce((s,[k,v])=>s+k.charCodeAt(0)*Number(v||0),0);
   const gateSum=hashStr(p.personnelGate||'strict');
   const fmSum=Object.entries(p.formMix||{}).reduce((s,[k,v])=>s+k.length*Number(v||0),0);
+  const smSum=Object.entries(p.surfaceMix||{}).reduce((s,[k,v])=>s+hashStr(k)*Number(v||0),0);
   const ctSum=Object.entries(p.conceptTargets||{}).reduce((s,[k,v])=>s+hashStr(k)*Number(v||0),0);
-  return (((p.system||'none').length*29+(p.size||0)+m*7+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+gateSum*7+fmSum*19+(p.systemStrength||0)*23+ctSum))>>>0;
+  return (((p.system||'none').length*29+(p.size||0)+m*7+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+gateSum*7+fmSum*19+smSum*17+(p.formationCoverageMin||0)*31+(p.systemStrength||0)*23+ctSum))>>>0;
 }
 
 function generatePlaybook(){
@@ -4352,6 +4498,7 @@ function generatePlaybook(){
     s*=offenseSystemGenMult(pl);
     s*=safeOffenseSystemFormationRailGenMult(pl);
     s*=formationStyleGenMult(pl);
+    s*=formationSurfaceGenMult(pl);
     // de-emphasize unmapped "Other / Unknown" so named concepts lead
     if(pl.concept==='Other / Unknown') s*=0.45;
     // small deterministic jitter
@@ -4365,7 +4512,7 @@ function generatePlaybook(){
   // 400 plays and let core formations carry much deeper menus.
 
   const MIN_FORM_PLAYS = 5;
-  const allowedScored=scored.filter(x=>formationTypeAllowedByUser(x.pl.formation));
+  const allowedScored=scored.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation));
   const scoringPool=allowedScored.length?allowedScored:scored;
   const availFormationCount=[...new Set(scoringPool.map(x=>x.pl.formation))].length||1;
   const maxByMinimum=Math.max(1,Math.floor(target/MIN_FORM_PLAYS));
@@ -4422,7 +4569,7 @@ function generatePlaybook(){
   function tryAdd(pl){
     const k=playUniqueKey(pl);
     if(usedPlayKeys.has(k)) return false;
-    if(!formationTypeAllowedByUser(pl.formation) || !personnelAllowedByUser(pl)) return false;
+    if(!formationTypeAllowedByUser(pl.formation) || !formationMeetsPackageCoverage(pl.formation) || !personnelAllowedByUser(pl)) return false;
     const fc=formCount.get(pl.formation)||0;
     if(fc>=(formCaps.get(pl.formation)||GLOBAL_MAX_PER_FORM)) return false;
     const fk=pl.formation+'|||'+pl.concept;
@@ -4500,11 +4647,11 @@ function generatePlaybook(){
     }
   }
 
-  book=enforceFormationMixMargin(book,scored.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>b.s-a.s),target);
+  book=enforceFormationMixMargin(book,scored.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>b.s-a.s),target);
   const finalBook=seededShuffle(uniquePlayArray(book).slice(0,target),seed);  // deduped and slider-balanced
 
   playbook={
-    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
+    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},surfaceMix:{...(p.surfaceMix||DEFAULT_SURFACE_MIX)},formationCoverageMin:p.formationCoverageMin,size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,targetTags:conceptTargetTagList(pl).slice(0,28)})),
     audibles:buildAudibles(finalBook)
   };
@@ -4935,6 +5082,7 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=safeOffenseSystemGameMult(pl);
   s*=safeOffenseSystemFormationRailGameMult(pl);
   s*=safeFormationStyleGameMult(pl);
+  s*=safeSurfaceStyleGameMult(pl);
   s*=safePersonnelStyleGameMult(pl);
   if(s<=0)return 0;
   s*=safeConceptTargetGameMult(pl);
@@ -4969,49 +5117,38 @@ function suggestPlay(down, dist, zone, yards){
     .sort((a,b)=>b.s-a.s);
   if(!scored.length)return [];
 
-  /* ── Weighted-random lottery across the top pool ──────────────────
-     Pool = top 20 by merit score. Lottery weight = score^SHARPNESS.
-     Recent plays (exact formation+play match from last 8 suggestions)
-     are zeroed so they cannot be the primary pick again until the ring
-     buffer cycles them out. Alternates also avoid already-picked formations. */
-  const POOL_SIZE=Math.min(20,scored.length);
-  const SHARPNESS=2.2;
-  const pool=scored.slice(0,POOL_SIZE);
-
-  // Time-based seed so two rapid clicks differ
+  /* ── v15.0 rank lottery across top 10 ─────────────────────────────
+     Score first, then choose from the best 10 by fixed rank odds:
+     1=15%, 2=14%, 3=13%, 4=12%, 5=10%, 6=9%, 7=8%, 8=7%, 9=6%, 10=6%.
+     This keeps the caller diverse without letting low-quality calls jump the line. */
+  const RANK_ODDS=[15,14,13,12,10,9,8,7,6,6];
+  const top=scored.slice(0,Math.min(10,scored.length));
   let rSeed=(_suggestCallN*7919+Date.now()+(Math.random()*9999|0))>>>0;
   function rand(){ rSeed=(rSeed*1664525+1013904223)>>>0; return rSeed/4294967296; }
-
-  const weights=pool.map(x=>Math.pow(Math.max(0.001,x.s),SHARPNESS));
   const picks=[];
   const usedIdx=new Set();
   const usedForm=new Set();
-
-  function pickOne(avoidSameFormation){
-    const eligible=pool.map((x,i)=>{
-      if(usedIdx.has(i)) return {x,i,w:0};
-      // Hard-exclude exact formation+play combos seen recently (primary picks only)
-      if(!avoidSameFormation && _isRecent(x.pl)) return {x,i,w:0};
-      // Soft-penalise same formation for alternates
-      const formPenalty=(avoidSameFormation&&usedForm.has(x.pl.formation))?0.15:1;
-      return {x,i,w:weights[i]*formPenalty};
+  function rankPick(primary){
+    const eligible=top.map((x,i)=>{
+      if(usedIdx.has(i))return{x,i,w:0};
+      if(primary&&_isRecent(x.pl))return{x,i,w:0};
+      let w=RANK_ODDS[i]||1;
+      if(!primary&&usedForm.has(x.pl.formation))w*=0.35;
+      return{x,i,w};
     });
-    const total=eligible.reduce((s,e)=>s+e.w,0);
+    let total=eligible.reduce((s,e)=>s+e.w,0);
     if(total<=0){
-      // All recent — fall back to any un-used play (history still rotates)
-      const fb=pool.find((_,i)=>!usedIdx.has(i));
-      if(fb){ usedIdx.add(pool.indexOf(fb)); usedForm.add(fb.pl.formation); return fb.pl; }
+      const fb=top.find((_,i)=>!usedIdx.has(i));
+      if(fb){const idx=top.indexOf(fb);usedIdx.add(idx);usedForm.add(fb.pl.formation);return fb.pl;}
       return null;
     }
     let r=rand()*total;
-    for(const e of eligible){ r-=e.w; if(r<=0){ usedIdx.add(e.i); usedForm.add(e.x.pl.formation); return e.x.pl; } }
-    const fb=eligible.find(e=>e.w>0); if(fb){usedIdx.add(fb.i);return fb.x.pl;} return null;
+    for(const e of eligible){r-=e.w;if(r<=0){usedIdx.add(e.i);usedForm.add(e.x.pl.formation);return e.x.pl;}}
+    const fb=eligible.find(e=>e.w>0); if(fb){usedIdx.add(fb.i);usedForm.add(fb.x.pl.formation);return fb.x.pl;} return null;
   }
-
-  const primary=pickOne(false);
-  if(primary){ picks.push(primary); _pushRecent(primary); }
-  for(let i=1;i<5;i++){ const p=pickOne(true); if(p) picks.push(p); }
-
+  const primary=rankPick(true);
+  if(primary){picks.push(primary);_pushRecent(primary);}
+  for(let i=1;i<5;i++){const p=rankPick(false);if(p)picks.push(p);}
 
   return picks.length?picks:scored.slice(0,5).map(x=>x.pl);
 }
@@ -5314,6 +5451,7 @@ function initPhilosophyForm(){
   const pg=$('#ph-pers-gate'); if(pg) pg.value=philosophy.personnelGate||'strict';
   renderPersMixSliders();
   renderFormMixSliders();
+  renderSurfaceMixSliders();
   // v14.4: legacy concept-family checkboxes are merged into Core Concept targets.
   const wrap=$('#ph-families');
   if(wrap){
@@ -5436,6 +5574,43 @@ function updateFormMixTotal(){
   el_.textContent=total+'%';
   el_.style.color=(total<80||total>120)?'var(--bad)':'var(--field)';
 }
+function renderSurfaceMixSliders(){
+  const wrap=$('#ph-surface-sliders'); if(!wrap)return;
+  ensurePhilosophyShape();
+  wrap.innerHTML='';
+  const sm=philosophy.surfaceMix||{...DEFAULT_SURFACE_MIX};
+  ALL_SURFACE_TYPES.forEach(k=>{if(sm[k]==null)sm[k]=0;});
+  ALL_SURFACE_TYPES.forEach(k=>{
+    const row=el('div','pers-row');
+    const lbl=el('label',null,SURFACE_LABEL[k]||k); row.appendChild(lbl);
+    const sl=el('input'); sl.type='range'; sl.min=0; sl.max=100; sl.value=sm[k]||0; sl.dataset.surfaceType=k;
+    const pct=el('span','pct '+(sm[k]>0?'active':''),(sm[k]||0)+'%');
+    sl.addEventListener('input',()=>{
+      ensurePhilosophyShape();
+      philosophy.surfaceMix[k]=Number(sl.value)||0;
+      pct.textContent=sl.value+'%';
+      pct.className='pct '+(Number(sl.value)>0?'active':'');
+      updateSurfaceMixTotal();
+      save(LS.ph,philosophy);
+      invalidateCallableCache();
+    });
+    row.appendChild(sl); row.appendChild(pct); wrap.appendChild(row);
+  });
+  updateSurfaceMixTotal();
+  updateCoverageMinLabel();
+}
+function updateSurfaceMixTotal(){
+  const sm=philosophy.surfaceMix||{};
+  const total=ALL_SURFACE_TYPES.reduce((a,k)=>a+Number(sm[k]||0),0);
+  const el_=$('#ph-surface-total'); if(!el_)return;
+  el_.textContent=total+'%';
+  el_.style.color=(total<80||total>120)?'var(--bad)':'var(--field)';
+}
+function updateCoverageMinLabel(){
+  const v=Number(philosophy.formationCoverageMin==null?25:philosophy.formationCoverageMin)||0;
+  const out=$('#ph-coverage-min-val'); if(out)out.textContent=v+'%';
+  const sl=$('#ph-coverage-min'); if(sl)sl.value=v;
+}
 function updateSystemStrengthLabel(){
   const v=Number(philosophy.systemStrength==null?75:philosophy.systemStrength);
   const el_=$('#ph-system-strength-val'); if(el_)el_.textContent=v+'%';
@@ -5473,6 +5648,8 @@ function playbookValidationItems(){
   const pm=philosophy.persMix||DEFAULT_PERS_MIX;
   const zeroForms=[...new Set(plays.map(p=>inferFormationType(p.formation)).filter(t=>Number(fm[t]||0)<=0))];
   const zeroPers=[...new Set(plays.map(p=>p.pers).filter(g=>Number(pm[g]||0)<=0))];
+  const sm=philosophy.surfaceMix||DEFAULT_SURFACE_MIX;
+  const zeroSurfaces=[...new Set(plays.flatMap(p=>[...surfaceTagsForPlay(p)]).filter(t=>Number(sm[t]||0)<=0))];
   const tl=plays.filter(p=>thirdLongAnswerKind(p));
   const tlDrop=tl.filter(p=>thirdLongAnswerKind(p)==='dropback');
   const screens=plays.filter(p=>playIntentKey(p)==='screen'||String(p.family||'')==='screen');
@@ -5482,6 +5659,8 @@ function playbookValidationItems(){
   else items.push({level:'good',text:'Formation sliders are clean: no 0% formation families found in the saved book.'});
   if((philosophy.personnelGate||'strict')==='strict'&&zeroPers.length) items.push({level:'bad',text:`Personnel gate problem: ${zeroPers.join(', ')} personnel appears even though it is 0%. Regenerate or correct personnel.`});
   else items.push({level:'good',text:'Personnel gate is clean for the current personnel sliders.'});
+  if(zeroSurfaces.length) items.push({level:'warn',text:`Surface mix warning: ${zeroSurfaces.map(t=>SURFACE_LABEL[t]||t).join(', ')} appears even though its surface slider is 0%. This usually means a formation has multiple tags; lower the matching formation family or remove that formation if needed.`});
+  else items.push({level:'good',text:'Surface sliders are clean: no 0% surface tags found in the saved book.'});
   if(tlDrop.length<3) items.push({level:'bad',text:`3rd-and-long menu is thin: only ${tlDrop.length} dropback/conversion answers found. Add Mesh, Levels, Drive, Y-Cross, Curl, Smash, or vertical conversion calls.`});
   else items.push({level:'good',text:`3rd-and-long menu has ${tlDrop.length} dropback/conversion answers.`});
   if(screens.length<3) items.push({level:'warn',text:`Screen menu is light: ${screens.length} screen calls found.`});
@@ -5508,7 +5687,7 @@ function renderPlaybook(){
   if(!playbook){stats.innerHTML='<div class="empty" style="width:100%">No saved playbook. Go to Philosophy → Generate, upload a team CSV, or start a blank custom book.</div>';$('#pb-distro').innerHTML='';$('#pb-tbody').innerHTML='';$('#pb-count').textContent='—';if($('#pb-audibles'))$('#pb-audibles').innerHTML='';return;}
   const m=playbook.meta;
   const rpTxt=(m.rpMin!=null)?`${m.rpMin}–${m.rpMax}%`:'—';
-  const chips=[['Plays',playbook.plays.length],['System',labelSystem(m.system||'none')],['Personnel mix',persMixSummary(m.persMix)],['Personnel gate',m.personnelGate||philosophy.personnelGate||'strict'],['Formation mix',formMixSummary(m.formMix)],['Run band',rpTxt],['Motion',m.motion]];
+  const chips=[['Plays',playbook.plays.length],['System',labelSystem(m.system||'none')],['Personnel mix',persMixSummary(m.persMix)],['Personnel gate',m.personnelGate||philosophy.personnelGate||'strict'],['Formation mix',formMixSummary(m.formMix)],['Surface mix',surfaceMixSummary(m.surfaceMix)],['Coverage min',(m.formationCoverageMin!=null?m.formationCoverageMin:philosophy.formationCoverageMin||25)+'%'],['Run band',rpTxt],['Motion',m.motion]];
   chips.forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));stats.appendChild(c);});
   // distribution
   const byFam={}; playbook.plays.forEach(p=>{const k=playIntentKey(p);byFam[k]=(byFam[k]||0)+1;});
@@ -8141,6 +8320,7 @@ function scorePoolPlay(pl,mix,pmNorm,p,seed){
   s*=offenseSystemGenMult(pl);
   s*=safeOffenseSystemFormationRailGenMult(pl);
   s*=formationStyleGenMult(pl);
+  s*=formationSurfaceGenMult(pl);
   if(pl.concept==='Other / Unknown') s*=0.45;
   s*=0.85+(((pl.id||0)*2654435761>>>0)%100)/100*0.3;
   return s;
@@ -8163,7 +8343,7 @@ function generatePlaybookFromRows(rows,name){
   const seed=hashPhil(p,motion);
   const sourceMap=buildFormationMapFromPool(source);
   const scoredAll=source.map(pl=>({pl,s:scorePoolPlay(pl,mix,pmNorm,p,seed)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
-  const scoredAllowed=scoredAll.filter(x=>formationTypeAllowedByUser(x.pl.formation));
+  const scoredAllowed=scoredAll.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl));
   const scored=(scoredAllowed.length?scoredAllowed:scoredAll);
   const MIN_FORM_PLAYS=5;
   const allForms=filterFormsByUserSliders([...new Set(source.map(p=>p.formation))]);
@@ -8197,6 +8377,7 @@ function generatePlaybookFromRows(rows,name){
   const byFam={}; Object.keys(mix).forEach(f=>byFam[f]=scored.filter(x=>selectedForms.has(x.pl.formation)&&x.pl.family===f));
   let book=[], formCount=new Map(), formConceptCount=new Map();
   function tryAdd(pl){
+    if(!formationTypeAllowedByUser(pl.formation)||!formationMeetsPackageCoverage(pl.formation)||!personnelAllowedByUser(pl))return false;
     const fc=formCount.get(pl.formation)||0; if(fc>=(formCaps.get(pl.formation)||GLOBAL_MAX_PER_FORM))return false;
     const fk=pl.formation+'|||'+pl.concept; const cc=formConceptCount.get(fk)||0; if(cc>=4)return false;
     if(book.find(b=>dbKey(b.formation,b.play)===dbKey(pl.formation,pl.play)))return false;
@@ -8215,16 +8396,16 @@ function generatePlaybookFromRows(rows,name){
     }
   }
   for(const {pl} of scored){if(book.length>=target)break;tryAdd(pl);}
-  book=enforceFormationMixMargin(book,scored.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>b.s-a.s),target);
+  book=enforceFormationMixMargin(book,scored.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>b.s-a.s),target);
   const finalBook=seededShuffle(uniquePlayArray(book).slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team_generated'}));
-  playbook={meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
+  playbook={meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},surfaceMix:{...(p.surfaceMix||DEFAULT_SURFACE_MIX)},formationCoverageMin:p.formationCoverageMin,size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
   save(LS.pb,playbook); invalidateCallableCache(); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
   toast('Generated '+finalBook.length+'-play Coach Brain book from '+(name||'team source'));
   return playbook;
 }
 function startBlankCustomPlaybook(){
   if(playbook&&playbook.plays&&playbook.plays.length&&!confirm('Start a blank custom playbook? Your current saved base playbook will be replaced. Download a backup first if needed.'))return;
-  playbook={meta:{generated:Date.now(),identity:'custom',personnelGate:philosophy.personnelGate||'strict',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
+  playbook={meta:{generated:Date.now(),identity:'custom',personnelGate:philosophy.personnelGate||'strict',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},formMix:{...(philosophy.formMix||DEFAULT_FORM_MIX)},surfaceMix:{...(philosophy.surfaceMix||DEFAULT_SURFACE_MIX)},formationCoverageMin:philosophy.formationCoverageMin,size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
   save(LS.pb,playbook); invalidateCallableCache(); ingame=null; localStorage.removeItem(LS.ig); renderPlaybook(); initAddPlayForm(); toast('Blank custom playbook started — add plays below');
 }
 function renderPlaybookSourcePanel(){
@@ -8706,6 +8887,19 @@ $('#btn-form-preset').addEventListener('click',()=>{
   philosophy.formMix={...((sys&&sys.formMixPreset)||DEFAULT_FORM_MIX)};
   save(LS.ph,philosophy);renderFormMixSliders();
   toast('Formation style mix reset to system/default preset');
+});
+$('#btn-surface-preset').addEventListener('click',()=>{
+  const sys=activeOffenseSystem();
+  philosophy.surfaceMix={...((sys&&sys.surfaceMixPreset)||DEFAULT_SURFACE_MIX)};
+  if(sys&&sys.formationCoverageMinPreset!=null) philosophy.formationCoverageMin=Number(sys.formationCoverageMinPreset)||25;
+  save(LS.ph,philosophy);renderSurfaceMixSliders();
+  toast('Formation surface mix reset to system/default preset');
+});
+$('#ph-coverage-min').addEventListener('input',e=>{
+  philosophy.formationCoverageMin=Number(e.target.value)||0;
+  updateCoverageMinLabel();
+  save(LS.ph,philosophy);
+  invalidateCallableCache();
 });
 $('#btn-pers-preset').addEventListener('click',()=>{
   const sys=activeOffenseSystem();
