@@ -1228,9 +1228,15 @@ const PERS_LABEL = {
 const HEAVY_PERS = new Set(['12','13','21','22','23']);
 const FORMS = DB.forms, CONCEPTS = DB.concepts, FAMS = DB.fams;
 
+// v14.16: fake toss / FK TOSS are play-action calls, not runs.
+// This intentionally matches fake/fk BEFORE toss (FK TOSS, PA FK TOSS, PA FAKE TOSS)
+// and does not catch true toss runs that fake something else (TOSS FK JET).
+function isFakeTossName(play){return /\b(?:pa\s+)?(?:fake|fk)\s+toss\b/i.test(String(play||''));}
+
 // v14.4: the old imported DB concept bucket is now treated as legacy metadata.
 // Coach Brain classifies every play into the fuller Core Concept list used by scheme presets.
 function classifyCoreConcept(play,family,legacyConcept,formation){
+  if(isFakeTossName(play)) return 'Boot / Play Action';
   const inferred=inferConcept(play||'', family||'');
   if(inferred && inferred!=='Other / Unknown' && inferred!=='HB Base / Zone') return inferred;
   const p=String(play||'').toLowerCase();
@@ -1280,7 +1286,9 @@ function classifyCoreConcept(play,family,legacyConcept,formation){
 
 // expand compact rows into objects  (motion: 0=none, 1=disguise formation, 2=true pre-snap movement)
 const PLAYS = DB.rows.map((r,i)=>{
-  const formation=FORMS[r[0]], play=r[1], family=FAMS[r[2]], legacyConcept=CONCEPTS[r[3]];
+  const formation=FORMS[r[0]], play=r[1], legacyConcept=CONCEPTS[r[3]];
+  let family=FAMS[r[2]];
+  if(isFakeTossName(play)) family='play_action';
   const coreConcept=classifyCoreConcept(play,family,legacyConcept,formation);
   return {
     id:i,
@@ -4610,7 +4618,7 @@ function isPlayActionCall(pl){
   const t=intentSafe(pl)||{};
   const txt=((pl.formation||'')+' '+(pl.play||'')+' '+c+' '+f+' '+(t.passStructure||'')+' '+(t.actionFamily||'')).toLowerCase();
   return f==='play_action' || key==='play_action' || key==='boot_keeper' || PA_CONCEPTS.has(c) ||
-    /\bpa\b|play[-\s]?action|boot|keeper|naked|waggle|leak|fake/.test(txt) ||
+    /\bpa\b|play[-\s]?action|boot|keeper|naked|waggle|leak|fake|\bfk\s+toss\b/.test(txt) ||
     t.playType==='play_action' || t.passStructure==='play_action' || t.passStructure==='boot';
 }
 function isDrawCall(pl){
@@ -6338,6 +6346,7 @@ function normalizeIntentForOptionRuns(pl,tags){
 function playIntentKey(pl){
   if(!pl)return 'other';
   if(isOptionRunText(pl)||isTrueOptionRun(pl))return 'option_run';
+  if(isFakeTossName(pl.play))return 'play_action';
   const t=(typeof getIntentTags==='function')?getIntentTags(pl):{};
   const c=(pl.concept||'');
   if(t.playType==='screen'||t.passStructure==='screen')return 'screen';
@@ -6427,6 +6436,7 @@ function autoIntentTags(pl){
   const concept=(pl.concept||'').toLowerCase();
   const brain=brainForConcept((pl&&pl.concept)||'Other / Unknown')||{};
   const fam=(pl&&pl.family)||'unknown';
+  const fakeTossAction=isFakeTossName(play);
 
   let surface='balanced';
   if(/empty|5wr|5 wr/.test(form)) surface='empty';
@@ -6469,7 +6479,8 @@ function autoIntentTags(pl){
   const explicitRpoAccess=isExplicitRpoAccessText(pl);
 
   let runScheme='none';
-  if(/draw/.test(text)) runScheme='draw';
+  if(fakeTossAction) runScheme='none';
+  else if(/draw/.test(text)) runScheme='draw';
   else if(trueOptionRun) runScheme='option_read';
   else if(/counter|gt|gh/.test(text)) runScheme='counter';
   else if(/power/.test(text)) runScheme='power';
@@ -6485,6 +6496,7 @@ function autoIntentTags(pl){
   let passStructure='none';
   if(/draw/.test(text)) passStructure='draw';
   else if(trueOptionRun) passStructure='none';
+  else if(fakeTossAction) passStructure='play_action';
   else if(fam==='screen'||/screen|bubble|smoke|slip|tunnel|jailbreak/.test(text)) passStructure='screen';
   else if(explicitRpoAccess || fam==='option_rpo') passStructure='rpo_access';
   else if(fam==='play_action'||/boot|naked|keeper|waggle|play.action|\bpa\b|leak/.test(text)) passStructure=/boot|naked|keeper|waggle/.test(text)?'boot':'play_action';
@@ -6493,6 +6505,7 @@ function autoIntentTags(pl){
   else if(fam==='pass') passStructure='dropback';
 
   let playType=fam==='screen'?'screen':(passStructure==='draw'?'draw':(passStructure==='rpo_access'?'rpo':(fam==='play_action'?'play_action':(fam==='pass'?'pass':(fam==='run'?'run':fam)))));
+  if(fakeTossAction) playType='play_action';
   if(trueOptionRun) playType='run';
   if(passStructure==='screen') playType='screen';
   if(passStructure==='draw') playType='draw';

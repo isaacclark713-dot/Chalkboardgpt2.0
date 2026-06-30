@@ -1,15 +1,10 @@
-# Call Sheet — Coach Brain v14.15
+# Call Sheet — Coach Brain v14.16
 
-GitHub Pages-ready build.
+GitHub Pages package for Call Sheet — Coach Brain.
 
-## v14.15 patch
+## v14.16 patch
+- Classifies `FK TOSS`, `FAKE TOSS`, `PA FK TOSS`, and similar fake-toss calls as play-action.
+- Keeps true toss runs that fake something else, such as `TOSS FK JET`, out of the fake-toss play-action override.
+- Updates core concept, play intent, auto-intent tags, and live play-action detection for fake-toss calls.
 
-- Adds a dedicated 3rd-and-long answer bucket to generated playbooks.
-- Ensures every generated book carries several true 3rd-and-long answers:
-  - dropback/conversion passes
-  - screens
-  - draws
-- Boosts dropback conversion passes, screens, and draws on 3rd & 7+ in the live caller.
-- Keeps play-action, RPO access, and called runs heavily penalized or removed in long-yardage situations.
-
-Upload this folder to GitHub Pages with `index.html` at the root.
+Open `index.html` locally or deploy this folder to GitHub Pages.
