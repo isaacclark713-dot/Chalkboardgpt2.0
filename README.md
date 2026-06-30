@@ -1,13 +1,12 @@
-# Call Sheet — Coach Brain v14.17
+# Call Sheet — Coach Brain v14.18
 
-Standalone football call sheet / playbook builder.
+GitHub Pages ready package.
 
-v14.17 focuses on beta-tester cleanup:
-- Template/custom workflow stays system-first.
-- Core concept targets are grouped into menu-builder sections.
-- Concept rows now show structure hints such as Gun, Pistol, Flexbone, Double Wing, or Under Center.
-- Personnel gate added: strict mode prevents 0% personnel from leaking into generated books and live suggestions.
-- Manual add filters formation/play choices by the selected personnel.
-- Post-generate checklist warns about 0% formation/personnel leakage and thin 3rd-and-long menus.
+## v14.18 changes
 
-Open `index.html` directly or publish this folder on GitHub Pages.
+- Removed the Hugh Wyatt Double Wing built-in offensive template.
+- Added Kenny Wheaton / Midline Veer Flexbone as a source-backed offensive template.
+- Added Wheaton-specific system rails, formation/personnel presets, concept targets, seed plans, in-game boosts, opening-script questions, sequencing rules, and self-scout guardrails.
+- Saved users with the old Hugh Wyatt template selected are migrated to the Kenny Wheaton Midline Veer template.
+
+Upload the contents of this folder to a GitHub Pages repository root. The app entry point is `index.html`.

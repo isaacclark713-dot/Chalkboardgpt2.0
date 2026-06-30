@@ -431,7 +431,7 @@
             <div><h3>Choose your starting point</h3><p>Templates build a system from a coach profile. Custom ignores templates and uses only your sliders.</p></div>
           </div>
           <div class="mode-grid">
-            <button class="mode-card" id="btn-mode-template" type="button"><span class="mode-title">Use template</span><span class="mode-copy">Best for Shanahan, RVO, DeBesse, Malzahn, Wyatt Double Wing, Paul Johnson, Briles, Leach, Manning/Moore, Harbaugh, or Erhardt-Perkins.</span></button>
+            <button class="mode-card" id="btn-mode-template" type="button"><span class="mode-title">Use template</span><span class="mode-copy">Best for Shanahan, RVO, DeBesse, Malzahn, Kenny Wheaton Midline Veer, Paul Johnson, Briles, Leach, Manning/Moore, Harbaugh, or Erhardt-Perkins.</span></button>
             <button class="mode-card" id="btn-mode-custom" type="button"><span class="mode-title">Go custom</span><span class="mode-copy">No coach profile. Build from your personnel, formation, concept, run/pass, and motion sliders.</span></button>
           </div>
         </div>
@@ -448,7 +448,7 @@
             <option value="rvo_reliable_violent">RVO — Reliable Violent Offense</option>
             <option value="debesse_spread_option">DeBesse — shotgun triple spread option</option>
             <option value="gus_malzahn_hunh">Gus Malzahn — HUNH Wing-T spread option</option>
-            <option value="hugh_wyatt_double_wing">Hugh Wyatt — Double Wing</option>
+            <option value="kenny_wheaton_midline_veer">Kenny Wheaton — Midline Veer Flexbone</option>
             <option value="paul_johnson_flexbone">Paul Johnson — flexbone option</option>
             <option value="art_briles_spread">Art Briles — Baylor wide-split spread</option>
             <option value="mike_leach_air_raid">Mike Leach — Air Raid</option>
@@ -2336,6 +2336,7 @@ function ensurePhilosophyShape(){
   if(!Array.isArray(philosophy.emphasis)) philosophy.emphasis=[];
   if(!philosophy.conceptTargets) philosophy.conceptTargets={};
   if(!philosophy.system) philosophy.system='none';
+  if(philosophy.system==='hugh_wyatt_double_wing') philosophy.system='kenny_wheaton_midline_veer';
   if(philosophy.systemStrength==null) philosophy.systemStrength=75;
   if(!philosophy.personnelGate) philosophy.personnelGate='strict';
 }
@@ -3358,7 +3359,7 @@ Object.assign(BUILT_IN_OFFENSE_SYSTEMS.debesse_spread_option,{systemStrengthPres
 
 
 
-// v14.14 source-backed additions: Malzahn HUNH Wing-T Spread Option and Wyatt Double Wing.
+// v14.18 source-backed additions: Malzahn HUNH Wing-T Spread Option and Kenny Wheaton Midline Veer Flexbone.
 BUILT_IN_OFFENSE_SYSTEMS.gus_malzahn_hunh={
   label:'Gus Malzahn / HUNH Wing-T Spread Option', shortLabel:'Malzahn HUNH', source:'Gus Malzahn offense profile PDF', sourceBacked:true,
   summary:'Run-first hurry-up spread option built on Wing-T sequencing, shotgun run game, power read, buck sweep, counter, QB run, RPO access, screens, motion, and play-action explosives.',
@@ -3395,40 +3396,40 @@ BUILT_IN_OFFENSE_SYSTEMS.gus_malzahn_hunh={
   tagPenalties:[{tag:'static_condensed',label:'static tight set without spread conflict',m:.72},{tag:'under_center_drift',label:'under-center drift',m:.35},{tag:'flexbone_surface',label:'flexbone drift',m:.24},{tag:'double_wing_surface',label:'double-wing drift',m:.20}], genCap:2.90, gameCap:1.52
 };
 
-BUILT_IN_OFFENSE_SYSTEMS.hugh_wyatt_double_wing={
-  label:'Hugh Wyatt / Double Wing', shortLabel:'Wyatt DW', source:'Hugh Wyatt Double Wing profile PDF', sourceBacked:true,
-  summary:'Tight, under-center, physical Double Wing offense built around Super Power, Wedge, Trap, Counter, Counter XX, misdirection, unbalanced formations, and low-volume play-action.',
-  philosophy:'Run fewer plays, make them look the same, and execute them better than the defense can adjust. Formation answers and same backfield pictures matter more than a bloated call sheet.',
-  runIdentity:'Super Power/off-tackle Double Wing football is the heartbeat. Wedge, Trap, Counter/XX, Reverse, Sweep and unbalanced Power punish overplay.',
-  passIdentity:'Low-volume, high-leverage play-action: TE Pop, Wing Leak, Power Pass, Boot Flood, Waggle, Corner/Post, and throwback screens only when the defense is selling out against the run.',
-  coreFormations:['Double Tight Double Wing','Tight Right / Tight Left','Unbalanced Double Wing','Over / Under','Stack','Slot Double Wing','Nasty / Loose TE'],
-  preferredPersonnel:['32','23','22','21'],
-  motionShift:'Rip/Liz wing motion creates Super Power timing, misdirection, and edge stress. Shifts and unbalanced sets force the defense to count gaps.',
-  baseConcepts:['Super Power','Power / Power O','Wedge','Trap','6-G / G','Counter','Counter XX','Sweep','Buck Sweep','Boot / Play Action','TE Pop'],
-  constraintConcepts:['Wedge','Trap','Counter XX','Counter','Sweep','Boot / Play Action','TE Pop','Power Pass','Wing Leak'],
-  shotConcepts:['Power Pass','TE Pop','Wing Leak','Post','Wheel','Flood','Waggle'],
-  screensRpos:['Screen','Throwback screen','Bubble Access','Hitch Access'],
-  playActionFamily:['Power Pass','TE Pop','Wing Leak','Boot Flood','Waggle','Throwback','FB Flat','Drag/Wheel'],
-  bestAudibles:['Run Power right/left based on numbers','Check Wedge if the defense widens','Check Trap if tackles fly upfield','Check Counter/XX if linebackers overrun motion','Check Sweep if the defense packs inside','Check TE Pop if linebackers step downhill','Check Boot if backside end crashes'],
-  scriptQuestions:['Can they line up to Double Tight Double Wing?','Do they have enough bodies to the motion side?','Are they reducing the front to stop Wedge?','Are the ends boxing, spilling, or crashing?','Are linebackers flowing fast with motion?','Can they handle unbalanced?','Is TE Pop available behind aggressive linebackers?'],
-  defensesStressed:['undersized defensive lines','overhangs that are poor force players','linebackers who chase motion','safeties that insert too fast','corners who do not want to tackle','defenses that fail to adjust to unbalanced'],
-  defensesStruggles:['disciplined five-man surfaces','Bear/46 fronts','heavy six-man fronts','penetrating tackles','well-coached spill/force teams','long-yardage situations','negative plays and penalties'],
-  sequencingRules:['Open with Power and Wedge.','If linebackers flow fast, call Counter/XX.','If tackles penetrate, call Trap.','If the defense widens, call Wedge.','If the edge crashes, call Boot or Sweep.','If safeties enter the fit, call play-action.','If they do not adjust to unbalanced, stay unbalanced.','After 3–4 downhill runs, take a low-risk play-action shot.'],
-  selfScoutGuardrails:['Track Power direction tendency.','Do not let motion always equal play direction.','Do not call Wedge only on short yardage.','Do not make Trap only an after-Power call.','Do not make play-action only a 2nd-and-short call.','Do not always run to unbalanced.','Make sure QB Boot and TE Pop exist.','Do not add plays when formation answers solve the problem.'],
-  rpBand:[72,88], motionPreset:80, sizeHint:150, systemStrengthPreset:92,
-  persMixPreset:{'23':45,'22':25,'21':12,'13':8,'12':5,'11':2,'20':1,'10':0},
-  formMixPreset:{shotgun:1,singleback:10,pistol:1,i_form:14,flexbone:0,wingbone:24,double_wing:28,empty:0,under_center:18,other:4},
-  formTypeBoosts:{double_wing:2.65,wingbone:1.30,under_center:1.24,i_form:1.16,singleback:1.06,pistol:.30,shotgun:.18,empty:.10,flexbone:.30,other:.86},
-  conceptTargetsPreset:{'Super Power':24,'Wedge':15,'Trap':13,'Counter XX':10,'Counter':8,'6-G / G':8,'Buck Sweep':6,'Sweep':5,'Power Pass':4,'TE Pop':4,'Boot / Play Action':3},
-  conceptBoosts:{'Super Power':1.45,'Power / Power O':1.30,'Wedge':1.34,'Trap':1.26,'Counter':1.18,'Counter XX':1.30,'6-G / G':1.20,'Sweep':1.10,'Buck Sweep':1.10,'TE Pop':1.14,'Power Pass':1.12,'Boot / Play Action':1.08,'Wing Leak':1.12,'Waggle':1.10},
-  familyBoosts:{run:1.32,play_action:1.08,screen:.78,pass:.45,option_rpo:.25},
-  surfaceBoosts:{tight:1.30,wing:1.24,condensed:1.25,unbalanced:1.18,i_form:1.08,full_house:1.10,bunch:1.05,spread:.28,empty:.15},
-  motionBoosts:{motion:1.18,shift_trade:1.10,shift:1.08,formation_disguise:1.08,add_gap:1.12,eye_candy:1.06,jet:.88,orbit:.72},
-  persBoosts:{'23':1.32,'22':1.25,'21':1.10,'13':1.08,'12':.92,'11':.45,'10':.22},
+BUILT_IN_OFFENSE_SYSTEMS.kenny_wheaton_midline_veer={
+  label:'Kenny Wheaton / Midline Veer Flexbone', shortLabel:'Wheaton Midline', source:'Kenny Wheaton Flexbone / Midline Veer profile PDF', sourceBacked:true,
+  summary:'Run-first Flexbone/Midline Veer option-control offense built around fullback-first midline, inside veer, pitch phase, rocket/toss, counter option, and low-volume play-action punishment.',
+  philosophy:'Leave defenders unblocked, read them, and make their rules wrong. Control the ball, shorten the game, force every defender to fit the fullback/QB/pitch phases, and punish safeties when they overcommit.',
+  runIdentity:'The fullback is the heartbeat. Midline, midline triple, inside veer, zone dive, FB dive, QB keep, pitch, rocket/toss, load option, speed option, counter option, QB follow, trap, and belly/down form the base.',
+  passIdentity:'Low-volume, high-leverage punishment: play-action shots, seam/pop passes, slot wheels, switch verticals, boot/flood, quick smoke/hitch against soft corners, and one-read throws off option action.',
+  coreFormations:['Double slot Flexbone','Double slot 2 WR','Flexbone tight','Flexbone over','Unbalanced Flexbone','TE/Wing option looks','Nasty split WR','Heavy goal-line Flexbone','Pistol Flexbone changeup only'],
+  preferredPersonnel:['20','21','12'],
+  motionShift:'Motion is essential. Slot orbit, rocket, short return, twirl, false motion, wing insert, crack/arc motion create the pitch phase, adjust option count, and force defensive communication.',
+  baseConcepts:['Midline','Triple Option','Inside Veer','Zone Dive','Dive','Rocket Toss','Load Option','Speed Option','Counter Option','Trap','Sweep','Veer Pass'],
+  constraintConcepts:['Rocket Toss','Counter Option','Trap','Load Option','Veer Pass','Screen','Hitch Access','Glance','Pop Pass'],
+  shotConcepts:['Veer Pass','Verticals / Four Verticals','Post','Wheel','Flood','Seam Read','Go Routes'],
+  screensRpos:['Screen','Hitch Access','Bubble Access','Glance'],
+  playActionFamily:['Veer Pass','Boot / Play Action','Post','Wheel','Flood','Seam Read','Pop Pass'],
+  bestAudibles:['Check Midline to favorable B-gap / 3-tech looks.','Check Inside Veer away from overloaded interior.','Check Rocket/Toss when numbers are light outside.','Check Load Option when the end squeezes hard.','Check Counter Option when linebackers overrun motion.','Check Trap versus penetrating tackles.','Check Pop Pass when safeties insert hard.','Check Hitch/Smoke when corners play 8+ yards off.','Check Unbalanced if the defense will not adjust.'],
+  scriptQuestions:['Can they stop the fullback without extra help?','Who is the dive key?','Who is the pitch key?','Are ends squeezing, surfing, or feathering?','Are linebackers scraping fast over the top?','Is the safety inserting into the alley?','Are corners willing to tackle?','Do they adjust to unbalanced?','Can we get rocket/toss outside?','Are they giving us the pop pass?','Are they playing assignment football or chasing the ball?'],
+  defensesStressed:['undisciplined even fronts','aggressive 4-3 teams','teams that chase motion','poor force players','soft corners','linebackers who overrun fullback flow','defensive ends who cannot play read rules','late-fitting safeties','multiple defenses without option practice time'],
+  defensesStruggles:['disciplined odd fronts','tite/mint structures with strong 4i players','scrape-exchange teams','hard pitch / slow-play defenses','elite interior tackles','safeties who fit downhill and still cover PA','long-yardage situations','penalties and negative plays','bad QB mesh/read mechanics'],
+  sequencingRules:['If fullback dive is working, keep calling it.','If the dive key squeezes, pull and attack QB keep.','If the pitch key takes QB, pitch it now.','If linebackers scrape fast, call Counter Option.','If safeties insert hard, call pop/seam/wheel.','If force widens, hit inside.','If the box tightens, go Rocket/Toss.','If they over-adjust to motion, use false motion.','If they stop one option phase, attack the next phase.','Do not chase plays; make the defense prove it can stop the base.'],
+  selfScoutGuardrails:['Track formation predictability.','Track whether Midline is only called to one side.','Do not give away Rocket by motion speed.','Do not call play-action only on obvious downs.','Grade WR stalk blocking.','Track FB carry count and QB keep usage.','Pitch enough to punish squeeze teams.','Throw enough to punish safety insert.','Do not lose long drives to penalties.','Every base concept needs a constraint attached to it.'],
+  rpBand:[78,85], motionPreset:95, sizeHint:220, systemStrengthPreset:94,
+  persMixPreset:{'20':58,'21':26,'12':8,'22':3,'11':2,'10':0,'13':2,'23':1},
+  formMixPreset:{shotgun:2,singleback:0,pistol:8,i_form:0,flexbone:82,wingbone:4,double_wing:0,empty:0,under_center:2,other:2},
+  formTypeBoosts:{flexbone:3.05,pistol:.92,wingbone:.62,under_center:.42,shotgun:.24,singleback:.18,i_form:.16,double_wing:.08,empty:.06,other:.40},
+  conceptTargetsPreset:{'Midline':22,'Inside Veer':18,'Triple Option':12,'Zone Dive':8,'Dive':4,'Rocket Toss':10,'Load Option':5,'Speed Option':4,'Counter Option':9,'Trap':4,'Veer Pass':6,'Verticals / Four Verticals':3,'Screen':2,'Hitch Access':2},
+  conceptBoosts:{'Midline':1.72,'Inside Veer':1.60,'Triple Option':1.44,'Zone Dive':1.24,'Dive':1.16,'Rocket Toss':1.32,'Load Option':1.24,'Speed Option':1.20,'Counter Option':1.30,'Trap':1.12,'Sweep':1.08,'Veer Pass':1.20,'Boot / Play Action':1.10,'Verticals / Four Verticals':1.08,'Post':1.08,'Wheel':1.08,'Flood':1.06,'Screen':1.04,'Hitch Access':1.04,'Glance':1.04,'Pop Pass':1.05},
+  familyBoosts:{run:1.34,play_action:1.06,screen:.78,pass:.48,option_rpo:.22},
+  surfaceBoosts:{wing:1.18,condensed:1.18,tight:1.12,unbalanced:1.08,pistol:.88,spread:.24,empty:.10,bunch:.62},
+  motionBoosts:{motion:1.24,orbit:1.20,return:1.14,shift_trade:1.08,formation_disguise:1.10,widen_force:1.12,add_gap:1.06,jet:.86},
+  persBoosts:{'20':1.34,'21':1.18,'12':.96,'22':.82,'13':.72,'11':.42,'10':.20},
   tagBoosts:[
-    {tag:'double_wing_core',label:'Super Power/Wedge/Trap core',m:1.30},{tag:'double_wing_surface',label:'tight Double Wing surface',m:1.28},{tag:'heavy_personnel',label:'heavy personnel',m:1.16},{tag:'misdirection_constraint',label:'counter/XX/misdirection answer',m:1.14},{tag:'pa_double_wing',label:'run-action TE/Wing shot',m:1.10},{tag:'unbalanced_surface',label:'unbalanced/gap-count stress',m:1.10}
+    {tag:'kenny_midline_core',label:'midline / inside veer core',m:1.32},{tag:'kenny_flexbone_surface',label:'true Flexbone surface',m:1.30},{tag:'fullback_first',label:'fullback-first dive phase',m:1.20},{tag:'pitch_phase',label:'QB/pitch phase conflict',m:1.14},{tag:'option_read',label:'assignment option read',m:1.12},{tag:'pa_flexbone_shot',label:'option play-action punishment',m:1.10},{tag:'unbalanced_surface',label:'unbalanced option stress',m:1.06}
   ],
-  tagPenalties:[{tag:'static_spread_dropback',label:'spread dropback drift',m:.25},{tag:'rpo_access',label:'RPO drift',m:.42},{tag:'empty',label:'empty drift',m:.12},{tag:'shotgun_spread_surface',label:'shotgun spread drift',m:.22}], genCap:2.95, gameCap:1.54
+  tagPenalties:[{tag:'shotgun_spread_surface',label:'shotgun spread drift',m:.18},{tag:'static_spread_dropback',label:'dropback spread drift',m:.24},{tag:'rpo_access',label:'modern RPO drift',m:.18},{tag:'double_wing_surface',label:'Double Wing drift',m:.20},{tag:'empty',label:'empty drift',m:.08}], genCap:3.10, gameCap:1.56
 };
 
 const LS_OFF_SYS='callsheet_offense_systems_v1';
@@ -3493,6 +3494,12 @@ function offSysTagMatch(pl,tag){
     case 'misdirection_constraint': return ['Counter','Counter XX','Trap','6-G / G','Waggle'].includes(c)||offSysHas(text,['counter','xx','criss cross','reverse','trap','misdirection','throwback']);
     case 'pa_double_wing': return ['Power Pass','TE Pop','Wing Leak','Waggle','Boot / Play Action'].includes(c)||offSysHas(text,['power pass','te pop','wing leak','waggle','boot flood','throwback','play action']);
     case 'unbalanced_surface': return ['unbalanced'].includes(t.surface)||offSysHas(text,['unbalanced','over','under','tackle over','extra gap']);
+
+
+    case 'kenny_midline_core': return ['Midline','Inside Veer','Triple Option','Zone Dive','Dive','Rocket Toss','Load Option','Speed Option','Counter Option','Trap','Veer Pass'].includes(c)||offSysHas(text,['midline','midline triple','midline veer','inside veer','fullback dive','fb dive','zone dive','load option','counter option','rocket toss','midline double']);
+    case 'kenny_flexbone_surface': return /(^|\s)flexbone(\s|$)/.test(text)||offSysHas(text,['double slot','flexbone tight','flexbone over','unbalanced flexbone','te wing','nasty split','pistol flexbone']);
+    case 'fullback_first': return ['Midline','Inside Veer','Zone Dive','Dive','Dive / Give'].includes(c)||offSysHas(text,['fullback','fb dive','b back','dive phase','give phase']);
+    case 'pa_flexbone_shot': return ['Veer Pass','Boot / Play Action','Pop Pass','Verticals / Four Verticals','Post','Wheel','Flood'].includes(c)||((f==='play_action'||offSysHas(text,['pa ','play action','veer pass','rocket pass','slot wheel','switch vertical','pop pass']))&&offSysHas(text,['wheel','seam','post','vertical','switch','flood','boot','pop']));
 
     case 'debesse_core': return ['Zone Triple','Inside Veer','Outside Veer','Read Option','Arc Read','Speed Option','Load Option','QB Power Read','QB Counter','Counter Option','Rocket Toss','Dive / Give'].includes(c)||offSysHas(text,['shotgun triple','gun triple','pistol triple','zone triple','spread option','gun veer','pistol option','option math']);
     case 'spread_option_surface': return offSysHas(text,['gun','shotgun','pistol','spread','split back','split backs','full house','diamond','flexbone gun','nub','unbalanced','trips','2x2','3x1']);
@@ -3620,7 +3627,7 @@ function systemRailFormationMatch(form,systemKey){
     case 'paul_johnson_flexbone': return /(^|\s)flexbone(\s|$)/.test(f);
     case 'debesse_spread_option': return /\bgun\b|shotgun|pistol|split\s*backs|split|go\s*go|duo|full\s*house|diamond|flexbone|spread|trips|doubles|unbalanced|tackle\s*over|nub|y\s*off|wing/.test(f);
     case 'gus_malzahn_hunh': return /\bgun\b|shotgun|pistol|spread|trips|doubles|wing|y\s*off|h\s*back|unbalanced|overload|quads|empty|bunch/.test(f);
-    case 'hugh_wyatt_double_wing': return /double\s*wing|wingbone|wishbone|split\s*t|goal\s*line|power\s*i|full\s*house|double\s*tight|wing\s*tight|singleback\s+ace\s+double\s+wing|nasty|loose|over|under|strong\s*i|i\s*form/.test(f);
+    case 'kenny_wheaton_midline_veer': return /(^|\s)flexbone(\s|$)|double\s*slot|flexbone\s*tight|flexbone\s*over|unbalanced\s*flexbone|te\s*\/\s*wing|nasty|rocket|pistol\s*flexbone|wishbone|wingbone/.test(f);
     case 'rvo_reliable_violent': return /i\s*form|strong\s*i|weak\s*i|singleback|ace|wing|y\s*off|bunch|tight|nub|pistol|\bgun\b|shotgun|trips|doubles/.test(f);
     case 'art_briles_spread': return /\bgun\b|shotgun|spread|trips|doubles|empty|pistol|stack/.test(f);
     case 'mike_leach_air_raid': return /\bgun\b|shotgun|spread|trips|trey|doubles|empty|ace|blue|green|open/.test(f);
@@ -3667,12 +3674,13 @@ function systemRailSeedPlans(systemKey,target){
       {label:'Malzahn run-action shots',re:/pa |play action|post wheel|post-wheel|slot fade|switch vert|smash fade|h-back leak|waggle|wheel|yankee/i,n:Math.max(12,Math.round(target*.11))}
     ];
   }
-  if(systemKey==='hugh_wyatt_double_wing'){
+  if(systemKey==='kenny_wheaton_midline_veer'){
     return [
-      {label:'Double Wing heartbeat',re:/super power|toss power|power|wedge|trap|6-g|g play/i,n:Math.max(36,Math.round(target*.36))},
-      {label:'Double Wing misdirection',re:/counter xx|counter|criss|reverse|trap|buck sweep|sweep/i,n:Math.max(20,Math.round(target*.20))},
-      {label:'Double Wing PA answers',re:/power pass|te pop|tight end pop|wing leak|waggle|boot|play action|corner|post|throwback|flood/i,n:Math.max(12,Math.round(target*.12))},
-      {label:'Unbalanced/tight variations',re:/unbalanced|over|under|nasty|loose|double wing|wingbone|goal line|power i|full house/i,n:Math.max(12,Math.round(target*.10))}
+      {label:'Midline / fullback phase',re:/midline|mid line|zone dive|fb dive|fullback dive|dive/i,n:Math.max(32,Math.round(target*.30))},
+      {label:'Inside veer / triple core',re:/inside veer|triple option|tr option|veer|load option|speed option|option/i,n:Math.max(28,Math.round(target*.25))},
+      {label:'Pitch / perimeter phase',re:/rocket|toss|pitch|speed option|load option|sweep/i,n:Math.max(14,Math.round(target*.12))},
+      {label:'Counter / trap constraints',re:/counter option|counter|trap|reverse|qb follow|belly|down/i,n:Math.max(12,Math.round(target*.10))},
+      {label:'Option play-action punishment',re:/veer pass|rocket pass|pa |play action|switch vert|slot wheel|wheel|pop pass|seam|flood|boot/i,n:Math.max(8,Math.round(target*.08))}
     ];
   }
   if(systemKey==='debesse_spread_option'){
@@ -3789,7 +3797,7 @@ function renderSystemOptions(){
   sel.innerHTML='';
   const add=(value,label,parent=sel)=>{const o=el('option');o.value=value;o.textContent=label;parent.appendChild(o);};
   add('none','Custom sliders only — no system profile');
-  ['shanahan_wide_zone','rvo_reliable_violent','debesse_spread_option','gus_malzahn_hunh','hugh_wyatt_double_wing','paul_johnson_flexbone','art_briles_spread','mike_leach_air_raid','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
+  ['shanahan_wide_zone','rvo_reliable_violent','debesse_spread_option','gus_malzahn_hunh','kenny_wheaton_midline_veer','paul_johnson_flexbone','art_briles_spread','mike_leach_air_raid','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
   const customKeys=Object.keys(_customOffenseSystems||{});
   if(customKeys.length){const og=el('optgroup');og.label='Imported profiles';customKeys.forEach(k=>add(k,_customOffenseSystems[k].label||k,og));sel.appendChild(og);}
   const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);
