@@ -380,6 +380,18 @@
   .workflow-box{border-left:4px solid var(--gold);background:#fff8e8;border-radius:4px;padding:12px;font-size:12.5px;color:#5a4b25;line-height:1.45}
   .slider-rule-box{background:#f3f8f4;border:1px solid #cfe4d6;border-radius:6px;padding:12px;font-size:12.5px;color:#4d5f52;line-height:1.45}
   .slider-rule-box b,.workflow-box b{color:var(--field)}
+  .ct-group{border:1px solid #e2e0d5;border-radius:6px;margin:9px 0;background:#faf9f5;overflow:hidden}
+  .ct-group summary{cursor:pointer;padding:10px 12px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--field);background:#f6f5ef;border-bottom:1px solid #e2e0d5}
+  .ct-group[open] summary{background:#fff8e8}
+  .ct-group-body{padding:8px 12px}
+  .ct-structure{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:9px;background:#eef2f5;color:#49606b;font-size:9px;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+  .validator-box{border:1.5px solid #dcdad0;border-radius:6px;background:#fbfbf8;padding:12px 13px;margin-top:12px}
+  .validator-title{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--field);margin-bottom:8px}
+  .validator-list{margin:0;padding-left:18px;font-size:12px;line-height:1.45;color:#5a6058}
+  .validator-list li.warn{color:#9a5a20;font-weight:700}
+  .validator-list li.bad{color:var(--hot-d);font-weight:800}
+  .validator-list li.good{color:var(--cool-d);font-weight:700}
+  .structure-badge{display:inline-block;padding:1px 7px;border-radius:10px;background:#eef2f5;color:#49606b;font-size:9.5px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
   @media(max-width:760px){.mode-grid{grid-template-columns:1fr}.step-card{padding:12px}}
 
 </style>
@@ -497,6 +509,15 @@
             <div class="hint">Total: <span id="ph-pers-total" style="font-weight:700;color:var(--field)">100%</span></div>
             <button class="btn ghost sm" id="btn-pers-preset" style="font-size:10px">↺ Reset personnel preset</button>
           </div>
+          <div style="margin-top:10px">
+            <label class="fld">Personnel gate</label>
+            <select id="ph-pers-gate">
+              <option value="strict">Strict — only selected personnel groups</option>
+              <option value="adjacent">Adjacent — allow nearby personnel as emergency</option>
+              <option value="any">Open — personnel sliders are only a nudge</option>
+            </select>
+            <div class="hint">Strict mode means 0% 11, 10, Flexbone-style personnel, etc. will not leak into generation or live suggestions.</div>
+          </div>
         </div>
         <div class="workflow-box">
           <b>Flow:</b> choose template/custom → set size/discipline → tune personnel and formations → set run/pass and concepts → generate.
@@ -552,6 +573,7 @@
         <button class="btn danger" id="btn-reset-ph">Reset to defaults</button>
       </div>
       <div id="ph-status" class="hint" style="margin-top:10px"></div>
+      <div id="ph-checklist" class="validator-box" style="display:none"></div>
     </div>
 
     <div class="card">
@@ -2277,6 +2299,36 @@ const CONCEPT_TARGET_GUIDE={
   "Boot / Play Action":"married PA guide 6–14%","Option / RPO":"access guide 8–20%","Quick Game":"rhythm guide 8–18%","Stick":"conversion guide 5–12%","Mesh":"man answer guide 5–12%",
   "Flood":"zone/boot answer 4–10%","Smash":"coverage answer 4–10%","Screen":"pressure answer 5–12%","Verticals / Four Verticals":"shot guide 3–8%","Go Routes":"vertical isolation 3–8%","Post":"single-high shot 3–8%","Slants":"quick/RPO access 4–10%","Choice":"option-route / isolation 5–14%"
 };
+const CONCEPT_TARGET_GROUPS=[
+  {title:'Run Menu — base gives and downhill answers',items:['Inside Zone','Outside Zone / Stretch','Power / Power O','Super Power','Wedge','Duo','Trap','Dive','Zone Dive','Sweep','Jet Sweep','Buck Sweep','Counter','Counter XX','6-G / G']},
+  {title:'Option Menu — give / read / pitch families',items:['Dive / Give','Triple Option','Inside Veer','Midline','Zone Triple','Outside Veer','Arc Read','Read Option','Speed Option','Load Option','Power Read','QB Power Read','QB Counter','Counter Option','Rocket Toss']},
+  {title:'RPO / Access Menu — first-level and perimeter throws',items:['Bubble Access','Hitch Access','Glance','Slants','Pop Pass','Option / RPO']},
+  {title:'Play-Action Menu — run action answers',items:['Boot / Play Action','Veer Pass','Power Pass','Wing Leak','Waggle','TE Pop','Y Cross','Flood','Sail','Bang Post','Post']},
+  {title:'Pass Menu — dropback conversion and coverage answers',items:['Quick Game','Stick','Y Stick','Y Corner','Mesh','Shallow','H Wheel','Smash','Dag / Smash','Levels','Seam Read','All Curl','Curls / Curl Flats','Spacing','Hitch','Choice','Ghost','Tosser','INC','Drive','Verticals / Four Verticals','Go Routes']},
+  {title:'Screen / Draw / 3rd-and-long answers',items:['Screen','Draw','Mesh','Levels','Drive','Y Cross','Curls / Curl Flats','Verticals / Four Verticals']}
+];
+function structureHintForConcept(con){
+  if(['Super Power','Wedge','Counter XX','6-G / G','Power Pass','Wing Leak','Waggle','TE Pop'].includes(con))return 'UC / Double Wing';
+  if(['Triple Option','Inside Veer','Midline','Veer Pass','Rocket Toss','Counter Option'].includes(con))return 'Flexbone';
+  if(['Zone Triple','Outside Veer','Arc Read','QB Power Read','Dive / Give','Bubble Access','Hitch Access','Pop Pass'].includes(con))return 'Gun/Pistol option';
+  if(['Read Option','Speed Option','Load Option','Power Read','QB Counter','Dart','Glance','Slants','Option / RPO'].includes(con))return 'Gun spread';
+  if(['Outside Zone / Stretch','Boot / Play Action','Y Cross','Flood','Sail'].includes(con))return 'UC/Gun PA';
+  if(['Quick Game','Stick','Y Stick','Y Corner','Mesh','Shallow','H Wheel','Smash','Dag / Smash','Levels','Seam Read','All Curl','Curls / Curl Flats','Spacing','Hitch','Choice','Ghost','Tosser','INC','Drive','Verticals / Four Verticals','Go Routes','Post','Bang Post'].includes(con))return 'Pass menu';
+  return 'Any structure';
+}
+function structureLabelForPlay(pl){
+  if(!pl)return '';
+  const type=inferFormationType(pl.formation);
+  const map={shotgun:'Gun',singleback:'Singleback',pistol:'Pistol',i_form:'I/Strong',flexbone:'Flexbone',wingbone:'Wing/Wishbone',double_wing:'Double Wing',empty:'Empty',under_center:'UC',other:'Other'};
+  return map[type]||structureHintForConcept(pl.concept);
+}
+function conceptTargetGroupList(){
+  const seen=new Set(), out=[];
+  CONCEPT_TARGET_GROUPS.forEach(g=>{out.push({...g,items:g.items.filter(x=>CORE_CONCEPT_TARGETS.includes(x)).filter(x=>{const dup=seen.has(x);seen.add(x);return !dup;})});});
+  const rest=CORE_CONCEPT_TARGETS.filter(x=>!seen.has(x));
+  if(rest.length)out.push({title:'Other / changeups',items:rest});
+  return out;
+}
 function ensurePhilosophyShape(){
   if(!philosophy.persMix) philosophy.persMix={...DEFAULT_PERS_MIX};
   if(!philosophy.formMix) philosophy.formMix={...DEFAULT_FORM_MIX};
@@ -2285,6 +2337,7 @@ function ensurePhilosophyShape(){
   if(!philosophy.conceptTargets) philosophy.conceptTargets={};
   if(!philosophy.system) philosophy.system='none';
   if(philosophy.systemStrength==null) philosophy.systemStrength=75;
+  if(!philosophy.personnelGate) philosophy.personnelGate='strict';
 }
 
 function conceptTargetPct(concept){ensurePhilosophyShape(); return Number(philosophy.conceptTargets[concept]||0);}
@@ -2349,6 +2402,45 @@ function formationStyleGameMult(pl){
   return Math.max(0.05,Math.min(cap,0.05+share*(16.0+strength*20.0)));
 }
 function safeFormationStyleGameMult(pl){return safeMult('formation style game mult',()=>formationStyleGameMult(pl),1);}
+
+function personnelGateMode(){ensurePhilosophyShape();return philosophy.personnelGate||'strict';}
+function personnelRaw(group){ensurePhilosophyShape();return Number((philosophy.persMix&&philosophy.persMix[group])||0);}
+function personnelTotal(){ensurePhilosophyShape();return ALL_PERS.reduce((sum,g)=>sum+personnelRaw(g),0);}
+function personnelShare(group){const total=personnelTotal()||100;return personnelRaw(group)/total;}
+function adjacentPersonnelAllowed(group){
+  const raw=personnelRaw(group); if(raw>0)return true;
+  const g=String(group||'');
+  if(['11','10','12'].includes(g)) return ['11','10','12'].some(x=>personnelRaw(x)>0);
+  if(['21','20','22','23'].includes(g)) return ['21','20','22','23','12','13'].some(x=>personnelRaw(x)>0);
+  return false;
+}
+function personnelAllowedByUser(pl){
+  const mode=personnelGateMode();
+  if(mode==='any')return true;
+  if(!pl||!pl.pers)return true;
+  const total=personnelTotal();
+  if(total<=0)return true;
+  if(personnelRaw(pl.pers)>0)return true;
+  if(mode==='adjacent')return adjacentPersonnelAllowed(pl.pers);
+  return false;
+}
+function personnelStyleGenMult(pl,pmNorm){
+  const mode=personnelGateMode();
+  if(mode==='any'){const ps=(pmNorm&&pmNorm[pl.pers])||0.01;return 0.65+ps*4;}
+  if(!personnelAllowedByUser(pl))return 0;
+  const share=personnelShare(pl.pers);
+  if(mode==='adjacent'&&personnelRaw(pl.pers)<=0)return 0.18;
+  return Math.max(0.03,Math.min(24,0.03+share*34));
+}
+function personnelStyleGameMult(pl){
+  const mode=personnelGateMode();
+  if(mode==='any')return 1;
+  if(!personnelAllowedByUser(pl))return 0;
+  const share=personnelShare(pl.pers);
+  if(mode==='adjacent'&&personnelRaw(pl.pers)<=0)return 0.22;
+  return Math.max(0.05,Math.min(8.5,0.05+share*15));
+}
+function safePersonnelStyleGameMult(pl){return safeMult('personnel style game mult',()=>personnelStyleGameMult(pl),1);}
 
 function conceptTargetGameMult(pl){
   const t=conceptTargetPct(pl.concept), active=activeConceptTargets().length;
@@ -2677,7 +2769,7 @@ function inferFormationType(form){
   return 'other';
 }
 // Legacy broad identity presets retired in v14.9. Templates + sliders now drive all generation.
-function defaultPhilosophy(){return{system:'none',systemStrength:0,persMix:{...DEFAULT_PERS_MIX},formMix:{...DEFAULT_FORM_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
+function defaultPhilosophy(){return{system:'none',systemStrength:0,personnelGate:'strict',persMix:{...DEFAULT_PERS_MIX},formMix:{...DEFAULT_FORM_MIX},size:100,emphasis:[],conceptTargets:{},rpMin:45,rpMax:58};}
 
 /* ============================================================
    STATE + PERSISTENCE
@@ -3846,9 +3938,10 @@ function seededShuffle(arr,seed){ // deterministic so same settings => same book
 }
 function hashPhil(p,m){
   const pmSum=Object.entries(p.persMix||{}).reduce((s,[k,v])=>s+k.charCodeAt(0)*Number(v||0),0);
+  const gateSum=hashStr(p.personnelGate||'strict');
   const fmSum=Object.entries(p.formMix||{}).reduce((s,[k,v])=>s+k.length*Number(v||0),0);
   const ctSum=Object.entries(p.conceptTargets||{}).reduce((s,[k,v])=>s+hashStr(k)*Number(v||0),0);
-  return (((p.system||'none').length*29+(p.size||0)+m*7+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+fmSum*19+(p.systemStrength||0)*23+ctSum))>>>0;
+  return (((p.system||'none').length*29+(p.size||0)+m*7+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+gateSum*7+fmSum*19+(p.systemStrength||0)*23+ctSum))>>>0;
 }
 
 function generatePlaybook(){
@@ -3875,9 +3968,9 @@ function generatePlaybook(){
   // concept/family patches) are applied before selection, not just in the UI display
   const scored=effectivePlays().filter(pl=>pl.family!=='unknown').map(pl=>{
     let s=mix[pl.family]||0.05;
-    // personnel preference — weight by the user's persMix for this grouping
-    const persShare=pmNorm[pl.pers]??0.01;  // small non-zero floor so nothing is completely excluded
-    s*=(0.2 + persShare*8);                 // 0.2 floor (always selectable) + boost by mix share
+    // personnel gate/weight — strict mode removes 0% personnel instead of treating it as a soft nudge.
+    s*=personnelStyleGenMult(pl,pmNorm);
+    if(s<=0)return {pl,s:0};
     // motion slider boost — smooth ramp; true movement (2) weighted above disguise (1)
     const mn = motion/100;
     if(pl.motion===2)      s*=(1 + mn*mn*2.2);        // quadratic: low slider barely boosts, high slider strongly favors
@@ -3894,7 +3987,7 @@ function generatePlaybook(){
     // small deterministic jitter
     s*=0.85+((pl.id*2654435761>>>0)%100)/100*0.3;
     return {pl,s};
-  });
+  }).filter(x=>x.s>0);
 
   // ── Formation-aware selection ───────────────────────────────────────
   // Target: variable-depth formations. Five plays is only the floor for a
@@ -4038,7 +4131,7 @@ function generatePlaybook(){
   const finalBook=seededShuffle(book,seed);  // size already enforced by trim pass above
 
   playbook={
-    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
+    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion})),
     audibles:buildAudibles(finalBook)
   };
@@ -4468,6 +4561,8 @@ function coreCallScore(pl,down,dist,zone,yards,ctx){
   s*=safeOffenseSystemGameMult(pl);
   s*=safeOffenseSystemFormationRailGameMult(pl);
   s*=safeFormationStyleGameMult(pl);
+  s*=safePersonnelStyleGameMult(pl);
+  if(s<=0)return 0;
   s*=safeConceptTargetGameMult(pl);
   s*=safeCoachBrainMult(pl);
   s*=safeSequenceFit(pl);
@@ -4684,7 +4779,7 @@ function ensureThirdLongAnswers(book,pool,target,tryAdd){
   const addedStart=book.length;
   let candidates=(pool||[])
     .map(x=>x&&x.pl?x:{pl:x,s:1})
-    .filter(x=>x&&x.pl&&thirdLongAnswerKind(x.pl)&&formationTypeAllowedByUser(x.pl.formation))
+    .filter(x=>x&&x.pl&&thirdLongAnswerKind(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&personnelAllowedByUser(x.pl))
     .sort((a,b)=>(thirdLongAnswerGenScore(b.pl)*(b.s||1))-(thirdLongAnswerGenScore(a.pl)*(a.s||1)));
   // First secure true dropback/conversion pass answers.
   for(const {pl} of candidates){
@@ -4842,6 +4937,7 @@ function initPhilosophyForm(){
   updateBuildModeUI();
   if($('#ph-size')) $('#ph-size').value=String(philosophy.size);
   updateSystemStrengthLabel();
+  const pg=$('#ph-pers-gate'); if(pg) pg.value=philosophy.personnelGate||'strict';
   renderPersMixSliders();
   renderFormMixSliders();
   // v14.4: legacy concept-family checkboxes are merged into Core Concept targets.
@@ -4856,6 +4952,7 @@ function initPhilosophyForm(){
   // run/pass band dual slider
   $('#rp-min').value=philosophy.rpMin; $('#rp-max').value=philosophy.rpMax; updateRpReadout();
   $('#ph-status').textContent=playbook?`Saved book: ${playbook.plays.length} plays · ${labelSystem(playbook.meta.system||'none')} · ${persMixSummary(playbook.meta.persMix)}`:'No saved playbook yet — choose a system and generate one.';
+  renderPlaybookChecklist();
 }
 function labelIdent(i){return{balanced:'Balanced',run:'Run-heavy',pass:'Pass-first',spread:'Spread/RPO',pro:'Pro-style'}[i]||i;}
 function persMixSummary(mix){
@@ -4896,20 +4993,33 @@ function renderConceptTargets(){
   const wrap=$('#ph-concept-targets'); if(!wrap)return;
   ensurePhilosophyShape();
   wrap.innerHTML='';
-  CORE_CONCEPT_TARGETS.forEach(con=>{
-    const row=el('div','ct-row');
-    const lbl=el('label'); lbl.textContent=con;
-    const guide=el('span','ct-guide',CONCEPT_TARGET_GUIDE[con]||'coach-selected target'); lbl.appendChild(guide);
-    const sl=el('input'); sl.type='range'; sl.min=0; sl.max=35; sl.step=1; sl.value=conceptTargetPct(con);
-    const pct=el('span','ct-pct '+(Number(sl.value)>0?'active':''),sl.value+'%');
-    sl.addEventListener('input',()=>{
-      ensurePhilosophyShape();
-      const val=Number(sl.value)||0;
-      if(val>0) philosophy.conceptTargets[con]=val; else delete philosophy.conceptTargets[con];
-      pct.textContent=val+'%'; pct.className='ct-pct '+(val>0?'active':'');
-      updateConceptTargetTotal(); save(LS.ph,philosophy);
+  conceptTargetGroupList().forEach((grp,idx)=>{
+    const details=el('details','ct-group');
+    details.open=idx<2 || grp.items.some(c=>conceptTargetPct(c)>0);
+    const active=grp.items.filter(c=>conceptTargetPct(c)>0).length;
+    const sum=grp.items.reduce((a,c)=>a+conceptTargetPct(c),0);
+    const summary=el('summary',null,grp.title+(active?` · ${active} active / ${sum}%`:''));
+    details.appendChild(summary);
+    const body=el('div','ct-group-body');
+    grp.items.forEach(con=>{
+      const row=el('div','ct-row');
+      const lbl=el('label'); lbl.textContent=con;
+      lbl.appendChild(el('span','ct-structure',structureHintForConcept(con)));
+      const guide=el('span','ct-guide',CONCEPT_TARGET_GUIDE[con]||'coach-selected target'); lbl.appendChild(guide);
+      const sl=el('input'); sl.type='range'; sl.min=0; sl.max=35; sl.step=1; sl.value=conceptTargetPct(con);
+      const pct=el('span','ct-pct '+(Number(sl.value)>0?'active':''),sl.value+'%');
+      sl.addEventListener('input',()=>{
+        ensurePhilosophyShape();
+        const val=Number(sl.value)||0;
+        if(val>0) philosophy.conceptTargets[con]=val; else delete philosophy.conceptTargets[con];
+        pct.textContent=val+'%'; pct.className='ct-pct '+(val>0?'active':'');
+        save(LS.ph,philosophy);
+        renderConceptTargets();
+        updateConceptTargetTotal();
+      });
+      row.appendChild(lbl); row.appendChild(sl); row.appendChild(pct); body.appendChild(row);
     });
-    row.appendChild(lbl); row.appendChild(sl); row.appendChild(pct); wrap.appendChild(row);
+    details.appendChild(body); wrap.appendChild(details);
   });
   updateConceptTargetTotal();
 }
@@ -4979,6 +5089,44 @@ function updateRpReadout(){
   if(fill){ fill.style.left=((lo-min)/span*100)+'%'; fill.style.width=((hi-lo)/span*100)+'%'; }
 }
 
+function playbookValidationItems(){
+  const items=[];
+  if(!playbook||!Array.isArray(playbook.plays)||!playbook.plays.length){
+    return [{level:'warn',text:'No saved playbook yet. Choose a template/custom setup and generate.'}];
+  }
+  const plays=playbook.plays.map((p,i)=>sanitizePlayForCall(p,i)).filter(Boolean);
+  const fm=philosophy.formMix||DEFAULT_FORM_MIX;
+  const pm=philosophy.persMix||DEFAULT_PERS_MIX;
+  const zeroForms=[...new Set(plays.map(p=>inferFormationType(p.formation)).filter(t=>Number(fm[t]||0)<=0))];
+  const zeroPers=[...new Set(plays.map(p=>p.pers).filter(g=>Number(pm[g]||0)<=0))];
+  const tl=plays.filter(p=>thirdLongAnswerKind(p));
+  const tlDrop=tl.filter(p=>thirdLongAnswerKind(p)==='dropback');
+  const screens=plays.filter(p=>playIntentKey(p)==='screen'||String(p.family||'')==='screen');
+  const draws=plays.filter(p=>isDrawCall(p));
+  const pa=plays.filter(p=>isPlayActionCall(p));
+  if(zeroForms.length) items.push({level:'bad',text:`Formation gate problem: ${zeroForms.map(t=>FORM_TYPE_LABEL[t]||t).join(', ')} appears even though its slider is 0%. Regenerate or remove those plays.`});
+  else items.push({level:'good',text:'Formation sliders are clean: no 0% formation families found in the saved book.'});
+  if((philosophy.personnelGate||'strict')==='strict'&&zeroPers.length) items.push({level:'bad',text:`Personnel gate problem: ${zeroPers.join(', ')} personnel appears even though it is 0%. Regenerate or correct personnel.`});
+  else items.push({level:'good',text:'Personnel gate is clean for the current personnel sliders.'});
+  if(tlDrop.length<3) items.push({level:'bad',text:`3rd-and-long menu is thin: only ${tlDrop.length} dropback/conversion answers found. Add Mesh, Levels, Drive, Y-Cross, Curl, Smash, or vertical conversion calls.`});
+  else items.push({level:'good',text:`3rd-and-long menu has ${tlDrop.length} dropback/conversion answers.`});
+  if(screens.length<3) items.push({level:'warn',text:`Screen menu is light: ${screens.length} screen calls found.`});
+  if(draws.length<2) items.push({level:'warn',text:`Draw menu is light: ${draws.length} draw calls found.`});
+  if(pa.length>Math.max(18,plays.length*.22)) items.push({level:'warn',text:`Play-action volume is high (${pa.length} calls). The live caller will still suppress PA in long-yardage situations.`});
+  items.push({level:'good',text:'Next steps: review Base Playbook → fix obvious tags in Data → verify 3rd-and-long / red-zone / short-yardage menus → build Opening Script → go In-Game.'});
+  return items;
+}
+function renderPlaybookChecklist(){
+  const box=$('#ph-checklist'); if(!box)return;
+  const items=playbookValidationItems();
+  box.style.display='block';
+  box.innerHTML='';
+  box.appendChild(el('div','validator-title','Post-generate checklist'));
+  const ul=el('ul','validator-list');
+  items.forEach(it=>{const li=el('li',it.level||'',it.text);ul.appendChild(li);});
+  box.appendChild(ul);
+}
+
 /* ---- Base playbook tab ---- */
 function renderPlaybook(){
   renderPlaybookSourcePanel();
@@ -4986,7 +5134,7 @@ function renderPlaybook(){
   if(!playbook){stats.innerHTML='<div class="empty" style="width:100%">No saved playbook. Go to Philosophy → Generate, upload a team CSV, or start a blank custom book.</div>';$('#pb-distro').innerHTML='';$('#pb-tbody').innerHTML='';$('#pb-count').textContent='—';if($('#pb-audibles'))$('#pb-audibles').innerHTML='';return;}
   const m=playbook.meta;
   const rpTxt=(m.rpMin!=null)?`${m.rpMin}–${m.rpMax}%`:'—';
-  const chips=[['Plays',playbook.plays.length],['System',labelSystem(m.system||'none')],['Personnel mix',persMixSummary(m.persMix)],['Formation mix',formMixSummary(m.formMix)],['Run band',rpTxt],['Motion',m.motion]];
+  const chips=[['Plays',playbook.plays.length],['System',labelSystem(m.system||'none')],['Personnel mix',persMixSummary(m.persMix)],['Personnel gate',m.personnelGate||philosophy.personnelGate||'strict'],['Formation mix',formMixSummary(m.formMix)],['Run band',rpTxt],['Motion',m.motion]];
   chips.forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));stats.appendChild(c);});
   // distribution
   const byFam={}; playbook.plays.forEach(p=>{const k=playIntentKey(p);byFam[k]=(byFam[k]||0)+1;});
@@ -5004,6 +5152,7 @@ function renderPlaybook(){
   dd.appendChild(leg);
   renderPbTable('');
   renderAudibles('');
+  renderPlaybookChecklist();
 }
 function renderPbTable(filter){
   const tb=$('#pb-tbody'); tb.innerHTML='';
@@ -5028,7 +5177,7 @@ function renderPbTable(filter){
     tr.appendChild(el('td',null,p.formation));
     const td2=el('td');td2.appendChild(persPill(p.pers));tr.appendChild(td2);
     tr.appendChild(el('td',null,p.play));
-    tr.appendChild(el('td',null,p.concept));
+    const tdConcept=el('td');tdConcept.appendChild(el('span','structure-badge',structureLabelForPlay(p)));tdConcept.appendChild(document.createTextNode(' '+p.concept));tr.appendChild(tdConcept);
     const td5=el('td');td5.appendChild(playIntentPill(p));tr.appendChild(td5);
     const td6=el('td');if(p.motion===2)td6.appendChild(el('span','pill motion','Move'));else if(p.motion===1){const s=el('span','pill','Form');s.style.cssText='background:#efe7d4;color:#9a7320';td6.appendChild(s);}tr.appendChild(td6);
     if(p._manual){const m=el('td');const b=el('span');b.style.cssText='font-size:9px;color:var(--cool-d);font-weight:700';b.textContent='manual';m.appendChild(b);tr.appendChild(m);}
@@ -5107,28 +5256,59 @@ function loadPlaybookBackup(file){
 }
 
 /* ── Manual add play ────────────────────────────────────────────────── */
-function initAddPlayForm(){
-  // Concept select
-  const cs=$('#ap-concept');if(cs&&cs.options.length<=1){CORE_CONCEPT_TARGETS.forEach(c=>{const o=el('option');o.value=c;o.textContent=c;cs.appendChild(o);});}
-  // Personnel select
-  const ps=$('#ap-pers');if(ps&&ps.options.length<=1){ALL_PERS.forEach(v=>{const o=el('option');o.value=v;o.textContent=v+' — '+PERS_LABEL[v].split(' — ')[1];ps.appendChild(o);});ps.value='11';}
-  // Formation datalist — unique formations from DB + book
-  const fl=$('#ap-formation-list');
-  if(fl&&!fl.children.length){
-    const forms=[...new Set([...effectivePlays().map(p=>p.formation),...(playbook?playbook.plays.map(p=>p.formation):[])].sort())];
+function playCompatibleWithManualFilters(pl){
+  const ps=$('#ap-pers'); const formInput=$('#ap-formation');
+  const wantedPers=ps?String(ps.value||''):'', form=(formInput&&formInput.value||'').trim();
+  if(wantedPers && pl.pers!==wantedPers)return false;
+  if(form && pl.formation!==form)return false;
+  return true;
+}
+function updateManualAddLists(){
+  const fl=$('#ap-formation-list'), dl=$('#ap-play-list');
+  const wantedPers=String(($('#ap-pers')&&$('#ap-pers').value)||'');
+  const form=String(($('#ap-formation')&&$('#ap-formation').value)||'').trim();
+  const pool=[...effectivePlays(),...(playbook&&Array.isArray(playbook.plays)?playbook.plays:[])].map((p,i)=>sanitizePlayForCall(p,i)).filter(Boolean);
+  if(fl){
+    fl.innerHTML='';
+    const forms=[...new Set(pool.filter(p=>!wantedPers||p.pers===wantedPers).map(p=>p.formation))].sort();
     forms.forEach(f=>{const o=el('option');o.value=f;fl.appendChild(o);});
   }
-  // Play datalist — updated when formation changes
-  const formInput=$('#ap-formation');
+  if(dl){
+    dl.innerHTML='';
+    const plays=[...new Set(pool.filter(p=>(!wantedPers||p.pers===wantedPers)&&(!form||p.formation===form)).map(p=>p.play))].sort();
+    plays.forEach(x=>{const o=el('option');o.value=x;dl.appendChild(o);});
+  }
+}
+function autofillManualAddFromExisting(){
+  const form=($('#ap-formation').value||'').trim();
+  const play=($('#ap-play').value||'').trim().toUpperCase();
+  if(!form||!play)return;
+  const pers=String(($('#ap-pers')&&$('#ap-pers').value)||'');
+  const match=effectivePlays().map((p,i)=>sanitizePlayForCall(p,i)).filter(Boolean).find(p=>p.formation===form&&p.play===play&&(!pers||p.pers===pers)) ||
+    effectivePlays().map((p,i)=>sanitizePlayForCall(p,i)).filter(Boolean).find(p=>p.formation===form&&p.play===play);
+  if(match){
+    if($('#ap-concept'))$('#ap-concept').value=match.concept||$('#ap-concept').value;
+    if($('#ap-family'))$('#ap-family').value=playIntentKey(match)||$('#ap-family').value;
+    if($('#ap-pers')&&match.pers)$('#ap-pers').value=match.pers;
+    if($('#ap-motion'))$('#ap-motion').value=String(match.motion||0);
+  }
+}
+function initAddPlayForm(){
+  const cs=$('#ap-concept');if(cs&&cs.options.length<=1){CORE_CONCEPT_TARGETS.forEach(c=>{const o=el('option');o.value=c;o.textContent=c;cs.appendChild(o);});}
+  const ps=$('#ap-pers');if(ps&&ps.options.length<=1){ALL_PERS.forEach(v=>{const o=el('option');o.value=v;o.textContent=v+' — '+PERS_LABEL[v].split(' — ')[1];ps.appendChild(o);});ps.value='11';}
+  updateManualAddLists();
+  const formInput=$('#ap-formation'), playInput=$('#ap-play');
   if(formInput&&!formInput._wired){
     formInput._wired=true;
-    formInput.addEventListener('input',()=>{
-      const dl=$('#ap-play-list');if(!dl)return;dl.innerHTML='';
-      const form=formInput.value.trim();
-      const plays=[...new Set(effectivePlays().filter(p=>p.formation===form).map(p=>p.play))];
-      plays.forEach(p=>{const o=el('option');o.value=p;dl.appendChild(o);});
-      // auto-fill concept/family/pers if play also matches
-    });
+    formInput.addEventListener('input',()=>{updateManualAddLists();autofillManualAddFromExisting();});
+  }
+  if(playInput&&!playInput._wired){
+    playInput._wired=true;
+    playInput.addEventListener('input',()=>{autofillManualAddFromExisting();});
+  }
+  if(ps&&!ps._wired){
+    ps._wired=true;
+    ps.addEventListener('change',()=>{updateManualAddLists();autofillManualAddFromExisting();});
   }
 }
 
@@ -7548,7 +7728,7 @@ function setActivePlaybookFromRows(rows,name,mode){
   if(!pool.length){toast('No valid plays in source');return null;}
   const final=pool.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team'}));
   playbook={
-    meta:{generated:Date.now(),identity:'team_source',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:final.length,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:mode||'exact',sourceName:name||'Team source'},
+    meta:{generated:Date.now(),identity:'team_source',personnelGate:philosophy.personnelGate||'strict',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:final.length,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:mode||'exact',sourceName:name||'Team source'},
     plays:final,
     audibles:buildAudiblesScoped(final,pool)
   };
@@ -7560,8 +7740,8 @@ function setActivePlaybookFromRows(rows,name,mode){
 }
 function scorePoolPlay(pl,mix,pmNorm,p,seed){
   let s=mix[pl.family]||0.05;
-  const persShare=pmNorm[pl.pers]??0.01;
-  s*=(0.2 + persShare*8);
+  s*=personnelStyleGenMult(pl,pmNorm);
+  if(s<=0)return 0;
   const mn=motion/100;
   if(pl.motion===2) s*=(1+mn*mn*2.2);
   else if(pl.motion===1) s*=(1+mn*0.5);
@@ -7592,7 +7772,7 @@ function generatePlaybookFromRows(rows,name){
   const pmNorm={};ALL_PERS.forEach(g=>pmNorm[g]=(pm[g]||0)/pmTotal);
   const seed=hashPhil(p,motion);
   const sourceMap=buildFormationMapFromPool(source);
-  const scoredAll=source.map(pl=>({pl,s:scorePoolPlay(pl,mix,pmNorm,p,seed)})).sort((a,b)=>b.s-a.s);
+  const scoredAll=source.map(pl=>({pl,s:scorePoolPlay(pl,mix,pmNorm,p,seed)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
   const scoredAllowed=scoredAll.filter(x=>formationTypeAllowedByUser(x.pl.formation));
   const scored=(scoredAllowed.length?scoredAllowed:scoredAll);
   const MIN_FORM_PLAYS=5;
@@ -7646,14 +7826,14 @@ function generatePlaybookFromRows(rows,name){
   }
   for(const {pl} of scored){if(book.length>=target)break;tryAdd(pl);}
   const finalBook=seededShuffle(book.slice(0,target),seed).map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,intent:compactIntentForSave(pl.intent),_source:'team_generated'}));
-  playbook={meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
+  playbook={meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,sourceMode:'generated_from_team_source',sourceName:name||'Team source'},plays:finalBook,audibles:buildAudiblesScoped(finalBook,source)};
   save(LS.pb,playbook); invalidateCallableCache(); seedIngameFromBook(); renderPlaybook(); initAddPlayForm(); renderIngame(); renderDataTab();
   toast('Generated '+finalBook.length+'-play Coach Brain book from '+(name||'team source'));
   return playbook;
 }
 function startBlankCustomPlaybook(){
   if(playbook&&playbook.plays&&playbook.plays.length&&!confirm('Start a blank custom playbook? Your current saved base playbook will be replaced. Download a backup first if needed.'))return;
-  playbook={meta:{generated:Date.now(),identity:'custom',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
+  playbook={meta:{generated:Date.now(),identity:'custom',personnelGate:philosophy.personnelGate||'strict',persMix:{...(philosophy.persMix||DEFAULT_PERS_MIX)},size:0,motion,rpMin:philosophy.rpMin,rpMax:philosophy.rpMax,sourceMode:'custom_blank',sourceName:'Custom designed in app'},plays:[],audibles:{}};
   save(LS.pb,playbook); invalidateCallableCache(); ingame=null; localStorage.removeItem(LS.ig); renderPlaybook(); initAddPlayForm(); toast('Blank custom playbook started — add plays below');
 }
 function renderPlaybookSourcePanel(){
@@ -7764,7 +7944,10 @@ function renderSuggestion(plays){
     if(pl.motion===2){const ms=el('span','pill motion','Move');tags.appendChild(ms);}
     else if(pl.motion===1){const ms=el('span','pill');ms.style.cssText='background:#efe7d4;color:#9a7320';ms.textContent='Form';tags.appendChild(ms);}
     body.appendChild(tags);
-    body.appendChild(el('div','pc-concept',pl.concept+' · '+playIntentLabel(pl)));
+    const pcConcept=el('div','pc-concept');
+    pcConcept.appendChild(el('span','structure-badge',structureLabelForPlay(pl)));
+    pcConcept.appendChild(document.createTextNode(' '+pl.concept+' · '+playIntentLabel(pl)));
+    body.appendChild(pcConcept);
     const beats=CONCEPT_BEATS[pl.concept];
     if(beats) body.appendChild(el('div','pc-beats',beats));
     const brainNote=coachBrainNoteFor(pl);
@@ -8139,6 +8322,7 @@ $('#btn-pers-preset').addEventListener('click',()=>{
   save(LS.ph,philosophy);renderPersMixSliders();
   toast('Personnel mix reset to system/default preset');
 });
+$('#ph-pers-gate').addEventListener('change',e=>{philosophy.personnelGate=e.target.value||'strict';save(LS.ph,philosophy);invalidateCallableCache();renderPlaybookChecklist();toast('Personnel gate updated');});
 $('#motion-slider').addEventListener('input',e=>{motion=Number(e.target.value);updateMotionLabel();save(LS.motion,String(motion));});
 
 // run/pass dual range — clamp so min stays below max
