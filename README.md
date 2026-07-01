@@ -1,6 +1,3 @@
-# Coach Brain v15.8.7 Quick Base Pulling Guard Fix
+# Coach Brain v15.8.8 Generate Hotfix
 
-Coach correction: 45 QUICK BASE / HB QUICK BASE is a run with a pulling guard.
-
-This build classifies Quick Base as Power / Power O gap-scheme run, not Quick Game and not generic zone.
-It also repairs target tags to power/gap tags in generated playbooks.
+Fixes the v15.8.7 Generate failure caused by the Quick Base pulling-guard correction calling missing helper functions. Quick Base still classifies as Power / Power O, and Generate now completes.

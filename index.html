@@ -9029,26 +9029,26 @@ function mergeIntentTags(base,patch){
 }
 function getIntentTags(pl){
   if(typeof isQuickBasePullRunName==='function' && isQuickBasePullRunName(pl&&pl.play)){
-    return {
-      surface: structureLabelForPlay(pl),
-      spacing: 'balanced',
-      backfield: inferBackfieldTag(pl&&pl.formation),
-      motionType: inferMotionType(pl&&pl.play,pl&&pl.motion),
-      motionPurpose: 'none',
-      runScheme: 'power',
-      passStructure: 'none',
-      screenType: 'none',
-      actionFamily: 'power',
-      series: 'power_series',
-      role: 'base_run',
-      conflictDefender: 'playside_lb',
-      primaryStress: 'extra_gap',
-      routeFamily: 'none',
-      readType: 'none',
-      beatsCoverage: 'balanced',
-      requiresProtection: 'none',
-      correction: 'quick_base_pull_run'
-    };
+    const base=autoIntentTags({...pl,family:'run',concept:'Power / Power O'});
+    return Object.assign({},base,{
+      playType:'run',
+      runScheme:'power',
+      passStructure:'none',
+      screenType:'none',
+      actionFamily:'Power',
+      series:'Power Series',
+      role:'base run',
+      conflictDefender:'playside_lb',
+      primaryStress:'extra_gap',
+      routeFamily:'none',
+      readType:'none',
+      routeTiming:'none',
+      beatsCoverage:'balanced',
+      weakVs:'none',
+      requiresProtection:'none',
+      hasHot:'none',
+      correction:'quick_base_pull_run'
+    });
   }
 
   if(!pl)return {};
