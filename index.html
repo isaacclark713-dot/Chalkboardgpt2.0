@@ -1428,6 +1428,13 @@ const RPO_CORE_SET=new Set(RPO_CORE_CONCEPTS);
 const RPO_CLASSIFICATION_EXTRA_CONCEPTS=['Duo + Smoke RPO','Zone + Screen RPO','Snag RPO','Post RPO','Counter Alert RPO','QB Draw RPO','QB Power RPO'];
 RPO_CLASSIFICATION_EXTRA_CONCEPTS.forEach(c=>{ if(!RPO_CORE_SET.has(c)){ RPO_CORE_CONCEPTS.push(c); RPO_CORE_SET.add(c); } });
 function isGranularRpoConcept(concept){return RPO_CORE_SET.has(String(concept||''));}
+
+// v15.8.7: Quick Base correction.
+// Coach correction: 45 QUICK BASE / HB QUICK BASE is a run with a pulling guard.
+// Treat it as gap/power family, not quick passing game and not generic zone.
+function isQuickBasePullRunName(play){
+  return /\b(45\s+)?(hb\s+)?quick\s+base\b/i.test(String(play||''));
+}
 function normalizeRpoText(play){return String(play||'').toLowerCase().replace(/[-_/]+/g,' ').replace(/\s+/g,' ').trim();}
 function rpoTextFacts(play,family,formation,legacyConcept){
   const p=normalizeRpoText(play), fam=String(family||'').toLowerCase(), legacy=String(legacyConcept||'').toLowerCase(), form=String(formation||'').toLowerCase();
@@ -1438,7 +1445,7 @@ function rpoTextFacts(play,family,formation,legacyConcept){
     duo:/\bbduo\b|\bduo\b|hb\s*duo/.test(p),
     wide:/wide\s*zone|outside\s*zone|stretch/.test(p),
     inside:/inside\s*zone|\biz\b|\bzone\b|hb\s*zone|zone\s+wk|zone\s+weak|slam|blast|base/.test(p),
-    power:/\bpower\b|power\s*o|qb\s*power/.test(p),
+    power:/\bpower\b|power\s*o|qb\s*power|\b(45\s+)?(hb\s+)?quick\s+base\b/.test(p),
     counter:/counter|\bgt\b|\bgh\b/.test(p),
     bash:/bash|inverted\s*veer/.test(p),
     arc:/arc\s*read|\barc\b/.test(p),
@@ -5489,6 +5496,21 @@ function restoreRpoAccessQuotaAfterTrim(book,scoredPool,target){
 // This pass makes formation depth a hard final rule: keep only formations
 // with at least 5 plays, then top up from those same formations. If the book
 // is short, add a new formation only as a complete 5-play package.
+
+function repairQuickBasePullRunLabels(book){
+  return (book||[]).map(pl=>{
+    if(!(typeof isQuickBasePullRunName==='function' && isQuickBasePullRunName(pl&&pl.play))) return pl;
+    const out={...pl};
+    out.family='run';
+    out.concept='Power / Power O';
+    if(Array.isArray(out.targetTags)){
+      const tags=new Set(out.targetTags.filter(t=>!/core_quick_game|intent_quick_game|pass_quick_game|route_quick|series_quick_game_series|scheme_inside_zone|action_inside_zone/.test(String(t))));
+      ['action_power','core_power_power_o','intent_base_run','pass_none','route_none','scheme_power','series_power_series','role_base_run','stress_extra_gap','conflict_playside_lb'].forEach(t=>tags.add(t));
+      out.targetTags=[...tags].sort();
+    }
+    return out;
+  });
+}
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -5671,6 +5693,125 @@ function enforceWakeSlowMeshIdentity(book,scoredPool,target){
   }
   return uniquePlayArray(out).slice(0,target);
 }
+
+// v15.8.6: Peyton Manning / Tom Moore Precision final repair.
+// This system should be low-motion, non-RPO, one-back 11/12, with a small
+// short-yardage changeup only. The generic repairs were letting RPOs and
+// Strong/Power-I/Goal Line packages leak into the base book.
+function manningMooreSystemActive(){
+  return (philosophy&&philosophy.system)==='peyton_manning_moore';
+}
+function manningFormationAllowed(pl){
+  if(!pl)return true;
+  if(!manningMooreSystemActive())return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  // Core Manning/Moore: Gun, Empty, Singleback/Ace/Doubles/Trips/Y-off.
+  if(/^gun\b|^singleback\b|^empty\b/.test(f))return true;
+  // Block goal-line and full-house/power-I drift from the base 400-play system book.
+  return false;
+}
+function manningPlayAllowed(pl){
+  if(!pl)return false;
+  if(!manningFormationAllowed(pl))return false;
+  if(isTrueRpoAccessPlay(pl)||String(pl.family||'')==='option_rpo'||/\brpo\b|alert\s+(bubble|hitch|screen|slant)|peek\s+slant/i.test(String(pl.play||'')))return false;
+  return true;
+}
+function manningMotionScore(pl){
+  const txt=playText(pl).toLowerCase();
+  let n=Number(pl&&pl.motion||0);
+  if(/\b(mtn|motion|shift|return|shuffle|orbit|jet)\b/.test(txt))n=Math.max(n,2);
+  return n;
+}
+function manningCoreConceptScore(pl){
+  const c=String(pl&&pl.concept||'');
+  const txt=playText(pl).toLowerCase();
+  let score=0;
+  if(['Outside Zone / Stretch','Inside Zone','Draw','Levels','Seam Read','Dagger','All Curl','Curls / Curl Flats','Quick Game','Screen','Verticals / Four Verticals','Stick','Spot','Slants','Smash','Flood'].includes(c))score+=5;
+  if(/stretch|wide\s+zone|outside\s+zone|zone\s+wk|inside\s+zone|draw|levels|seam|curl|stick|spot|slant|smash|flood|screen|vertical|verts|dagger|dig|comeback|hitches?/.test(txt))score+=3;
+  if(c==='Power / Power O'||c==='Dive'||c==='Counter'||c==='Sweep'||c==='HB Base / Zone')score-=2;
+  if(c==='Other / Unknown')score-=4;
+  return score;
+}
+function manningPoolScore(x){
+  const pl=x&&x.pl?x.pl:x;
+  if(!pl)return -999;
+  let s=Number((x&&x.s)||1);
+  if(!manningPlayAllowed(pl))return -999;
+  const pers=String(pl.pers||'');
+  if(pers==='11')s+=80;
+  else if(pers==='12')s+=55;
+  else if(pers==='10')s+=18;
+  else if(pers==='21')s+=8;
+  else s-=50;
+  const ft=inferFormationType(pl.formation);
+  if(ft==='singleback')s+=45;
+  else if(ft==='shotgun')s+=35;
+  else if(ft==='empty')s+=14;
+  else s-=80;
+  const m=manningMotionScore(pl);
+  if(m===0)s+=30;
+  else if(m===1)s+=6;
+  else s-=45;
+  s+=manningCoreConceptScore(pl)*7;
+  return s;
+}
+function cloneWithManningTags(pl){
+  const c={...pl};
+  // Let the latest classifier clean up Quick Base, QB Blast, Inside Cross, etc.
+  c.family=normalizeFamily(c.family,c.play);
+  c.concept=inferConcept(c.play,c.family);
+  return c;
+}
+function enforceManningMooreRails(book,scoredPool,target){
+  if(!manningMooreSystemActive())return uniquePlayArray(book||[]).slice(0,target);
+  const desired={ '11':Math.round(target*.58), '12':Math.round(target*.30), '10':Math.round(target*.09), '21':Math.round(target*.03) };
+  const maxMotion=Math.round(target*.18); // low motion: formation disguise/return is a changeup, not the engine.
+  const pool=(scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&manningPlayAllowed(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl))
+    .sort((a,b)=>manningPoolScore(b)-manningPoolScore(a));
+  const selected=[];
+  const used=new Set();
+  const counts={};
+  let motionCount=0;
+  function tryAdd(pl,relaxPers=false,relaxMotion=false){
+    if(!pl||!manningPlayAllowed(pl))return false;
+    const clean=cloneWithManningTags(pl);
+    const k=playUniqueKey(clean);
+    if(used.has(k))return false;
+    const pers=String(clean.pers||'');
+    if(!relaxPers && desired[pers]!=null && (counts[pers]||0)>=desired[pers])return false;
+    if(!relaxPers && desired[pers]==null)return false;
+    const m=manningMotionScore(clean)>0?1:0;
+    if(!relaxMotion && motionCount+m>maxMotion)return false;
+    selected.push(clean); used.add(k); counts[pers]=(counts[pers]||0)+1; motionCount+=m;
+    return true;
+  }
+  // Keep good plays from the original book first, but respect identity rails.
+  uniquePlayArray(book||[])
+    .sort((a,b)=>manningPoolScore(b)-manningPoolScore(a))
+    .forEach(pl=>{ if(selected.length<target)tryAdd(pl,false,false); });
+  // Fill target personnel buckets from the scored pool.
+  ['11','12','10','21'].forEach(pers=>{
+    for(const {pl} of pool){
+      if(selected.length>=target)break;
+      if(String(pl.pers||'')!==pers)continue;
+      tryAdd(pl,false,false);
+    }
+  });
+  // Fill remaining with best legal low/no-motion plays.
+  for(const {pl} of pool){
+    if(selected.length>=target)break;
+    tryAdd(pl,true,false);
+  }
+  // Last resort: allow a little extra motion, but never RPO or banned formations.
+  for(const {pl} of pool){
+    if(selected.length>=target)break;
+    tryAdd(pl,true,true);
+  }
+  return uniquePlayArray(selected).slice(0,target);
+}
+
 
 
 
@@ -5897,13 +6038,18 @@ function generatePlaybook(){
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceFormationMixMargin(book,finalScoredPool,target);
   book=enforceWakeFormationRails(book,finalScoredPool,target);
+  book=enforceManningMooreRails(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=enforceWakeFormationRails(book,finalScoredPool,target);
+  book=enforceManningMooreRails(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceWakeSlowMeshIdentity(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=enforceWakeSlowMeshIdentity(book,finalScoredPool,target);
+  book=enforceManningMooreRails(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=repairQuickBasePullRunLabels(book);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
@@ -8882,6 +9028,29 @@ function mergeIntentTags(base,patch){
   return out;
 }
 function getIntentTags(pl){
+  if(typeof isQuickBasePullRunName==='function' && isQuickBasePullRunName(pl&&pl.play)){
+    return {
+      surface: structureLabelForPlay(pl),
+      spacing: 'balanced',
+      backfield: inferBackfieldTag(pl&&pl.formation),
+      motionType: inferMotionType(pl&&pl.play,pl&&pl.motion),
+      motionPurpose: 'none',
+      runScheme: 'power',
+      passStructure: 'none',
+      screenType: 'none',
+      actionFamily: 'power',
+      series: 'power_series',
+      role: 'base_run',
+      conflictDefender: 'playside_lb',
+      primaryStress: 'extra_gap',
+      routeFamily: 'none',
+      readType: 'none',
+      beatsCoverage: 'balanced',
+      requiresProtection: 'none',
+      correction: 'quick_base_pull_run'
+    };
+  }
+
   if(!pl)return {};
   const auto=(pl.intent&&typeof pl.intent==='object')?Object.assign({},autoIntentTags(pl),pl.intent):autoIntentTags(pl);
   const merged=mergeIntentTags(auto,getIntentPatch(pl.formation,pl.play));
@@ -9294,7 +9463,7 @@ function normalizeFamily(family, play){
   if(/\b(rpo|alert|peek|lookie|gift|access)\b|\b(glance|bubble|smoke|now\s*screen|stick|slant|choice|fade|speed\s*out|arrow|flat|pop\s*pass)\s*rpo\b/.test(p)) return 'option_rpo';
   // v15.8.5: route-word names in the raw DB sometimes carry a run family.
   // Do not let those become HB Base / Zone or run balance noise.
-  if(/\b(comebacks?|verticals?|seams?|dbl\s*out|double\s*out|sluggo|wheel|spacing|mesh|smash|choice|stick|curl\s+post|post\s+curl|slot\s+outside|slot\s+out)\b/.test(p) && !/\b(outside\s*zone|wide\s*zone|mid\s*zone|inside\s*zone|zone\s*split|split\s*zone)\b/.test(p)) return 'pass';
+  if(/\b(comebacks?|verticals?|seams?|dbl\s*out|double\s*out|sluggo|wheel|spacing|mesh|smash|choice|stick|curl\s+post|post\s+curl|slot\s+outside|slot\s+out|inside\s+cross|inside\s+post|cross|drive|levels|flood|sail|corner|spot|slants?|all\s+curl|hitches?)\b/.test(p) && !/\b(outside\s*zone|wide\s*zone|mid\s*zone|inside\s*zone|zone\s*split|split\s*zone)\b/.test(p)) return 'pass';
   if(/\b(screen|bubble|smoke|slip|tunnel|jailbreak)\b/.test(p)) return 'screen';
   if(/veer pass|rocket pass|tr cntr pass|\b(pa|play action|play-action|boot|fake|leak)\b/.test(p)) return 'play_action';
   // v14.12: read/speed/load/veer/midline options are runs; RPO/access tags are separate.
@@ -9305,12 +9474,19 @@ function normalizeFamily(family, play){
 }
 function inferConcept(play, family){
   const p=cleanCell(play).toLowerCase();
+  if(typeof isQuickBasePullRunName==='function' && isQuickBasePullRunName(play)) return 'Power / Power O';
+
   const fam=normalizeFamily(family, play);
   const rpoConcept=classifyRpoCoreConcept(play,family,'','');
   if(rpoConcept) return rpoConcept;
   if(/split\s*zone|zone\s*split|slice|sift/.test(p)) return 'Split Zone';
   if(/\bbduo\b|\bduo\b|hb\s*duo/.test(p)) return 'Duo';
   // v15.8.5: raw DB cleanups exposed by Wake test v2.
+  // v15.8.6: Manning/Moore cleanup exposed by version 1 test.
+  if(/\binside\s+cross\b/.test(p)) return 'Shallow';
+  if(/\binside\s+post\b/.test(p)) return 'Post';
+  if(/\b(seam\s+read|read\s+seam)\b/.test(p)) return 'Seam Read';
+  if(/\b(dagger|dagger\s+z|dig\s+post|post\s+dig)\b/.test(p)) return 'Dagger';
   if(/\b(outside\s+comebacks?|comebacks?)\b/.test(p)) return 'Curls / Curl Flats';
   if(/\b(slot\s+outside|slot\s+out)\b/.test(p)) return 'Quick Game';
   if(/\b(verticals?|seams?|dbl\s*out|double\s*out)\b/.test(p)) return 'Verticals / Four Verticals';
