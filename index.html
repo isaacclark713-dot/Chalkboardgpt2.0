@@ -5429,6 +5429,7 @@ function ensureRpoAccessQuota(book,scoredPool,target,tryAdd){
   return added;
 }
 
+
 function restoreRpoAccessQuotaAfterTrim(book,scoredPool,target){
   const pct=desiredRpoAccessPct();
   if(!pct||pct<=0)return book;
@@ -5437,6 +5438,7 @@ function restoreRpoAccessQuotaAfterTrim(book,scoredPool,target){
   let current=out.filter(isTrueRpoAccessPlay).length;
   if(current>=desired)return out;
   const used=new Set(out.map(playUniqueKey));
+  const existingForms=new Set(out.map(p=>p.formation));
   const scoreOf=scoreLookupFromPool(scoredPool||[]);
   const formCounts=()=>out.reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
   function removeOneNonRpo(){
@@ -5454,25 +5456,120 @@ function restoreRpoAccessQuotaAfterTrim(book,scoredPool,target){
     if(idx<0)return false;
     used.delete(playUniqueKey(out[idx])); out.splice(idx,1); return true;
   }
-  function addCandidate(pl){
+  function addCandidate(pl,allowNewForm){
     const k=playUniqueKey(pl);
     if(used.has(k))return false;
+    if(existingForms.size && !existingForms.has(pl.formation) && !allowNewForm)return false;
     if(!formationTypeAllowedByUser(pl.formation)||!formationMeetsPackageCoverage(pl.formation)||!personnelAllowedByUser(pl))return false;
     while(out.length>=target){ if(!removeOneNonRpo())break; }
     if(out.length>=target)return false;
-    out.push(pl); used.add(k); current++; return true;
+    out.push(pl); used.add(k); existingForms.add(pl.formation); current++; return true;
   }
   const real=(scoredPool||[]).filter(x=>isTrueRpoAccessPlay(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
-  for(const {pl} of real){ if(current>=desired)break; addCandidate(pl); }
+  // First restore RPOs only from formations already in the book so the quota repair
+  // does not create a pile of 1-play RPO formations.
+  for(const {pl} of real){ if(current>=desired)break; addCandidate(pl,false); }
   if(current>=desired)return uniquePlayArray(out).slice(0,target);
   const runBase=(scoredPool||[]).filter(x=>!isTrueRpoAccessPlay(x.pl)&&!isTrueOptionRun(x.pl)&&isRunFamily(x.pl.family)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
   let slot=0;
   for(const {pl} of runBase){
     if(current>=desired)break;
-    addCandidate(makeSyntheticRpo(pl,slot++));
+    addCandidate(makeSyntheticRpo(pl,slot++),false);
   }
   return uniquePlayArray(out).slice(0,target);
 }
+
+
+// v15.8.3: Final formation floor/consolidation.
+// Late family/personnel/RPO repairs can introduce single-play formations.
+// This pass makes formation depth a hard final rule: keep only formations
+// with at least 5 plays, then top up from those same formations. If the book
+// is short, add a new formation only as a complete 5-play package.
+function enforceFinalFormationDepth(book,scoredPool,target){
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
+  if(!scored.length)return uniquePlayArray(book||[]).slice(0,target);
+  const scoreOf=scoreLookupFromPool(scored);
+  function score(pl){return scoreOf.get(playUniqueKey(pl))||0;}
+  function formCounts(arr){return arr.reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});}
+  function avgFormScore(form,arr){
+    const ps=arr.filter(p=>p.formation===form);
+    return ps.length?ps.reduce((sum,p)=>sum+score(p),0)/ps.length:0;
+  }
+  let out=uniquePlayArray(book||[]).filter(pl=>formationTypeAllowedByUser(pl.formation)&&formationMeetsPackageCoverage(pl.formation)&&personnelAllowedByUser(pl));
+  let counts=formCounts(out);
+  let keepForms=new Set(Object.keys(counts).filter(f=>counts[f]>=min));
+  if(!keepForms.size && out.length){
+    const best=Object.keys(counts).sort((a,b)=>avgFormScore(b,out)-avgFormScore(a,out))[0];
+    if(best)keepForms.add(best);
+  }
+  out=out.filter(pl=>keepForms.has(pl.formation));
+  let used=new Set(out.map(playUniqueKey));
+  function add(pl){
+    const k=playUniqueKey(pl);
+    if(used.has(k))return false;
+    if(!formationTypeAllowedByUser(pl.formation)||!formationMeetsPackageCoverage(pl.formation)||!personnelAllowedByUser(pl))return false;
+    out.push(pl); used.add(k); keepForms.add(pl.formation); return true;
+  }
+  // 1) Top up existing kept formations only.
+  for(const x of scored){
+    if(out.length>=target)break;
+    if(!keepForms.has(x.pl.formation))continue;
+    add(x.pl);
+  }
+  // 2) If still short, add only full 5-play packages from new formations.
+  function candidatePackage(form){
+    const seen=new Set(), arr=[];
+    for(const x of scored){
+      if(x.pl.formation!==form)continue;
+      const k=playUniqueKey(x.pl);
+      if(used.has(k)||seen.has(k))continue;
+      seen.add(k); arr.push(x.pl);
+      if(arr.length>=min)break;
+    }
+    return arr;
+  }
+  const currentForms=()=>new Set(out.map(p=>p.formation));
+  const maxLegalForms=Math.max(1,Math.floor(target/min));
+  const rankedForms=[...new Set(scored.map(x=>x.pl.formation))]
+    .filter(f=>!currentForms().has(f))
+    .map(f=>({f,rank:(scored.filter(x=>x.pl.formation===f).slice(0,6).reduce((sum,x)=>sum+(x.s||0),0)/Math.max(1,Math.min(6,scored.filter(x=>x.pl.formation===f).length)))}))
+    .sort((a,b)=>b.rank-a.rank)
+    .map(x=>x.f);
+  for(const form of rankedForms){
+    if(out.length>=target)break;
+    if(currentForms().size>=maxLegalForms)break;
+    if(target-out.length<min)break;
+    const pack=candidatePackage(form);
+    if(pack.length<min)continue;
+    pack.forEach(add);
+    // Once a full package is admitted, top it up before hunting for another tiny package.
+    for(const x of scored){
+      if(out.length>=target)break;
+      if(x.pl.formation===form)add(x.pl);
+    }
+  }
+  // 3) If repairs overfilled, trim only formations above the 5-play floor.
+  let trimGuard=0;
+  while(out.length>target && trimGuard++<target*5){
+    const c=formCounts(out);
+    let idx=-1,worst=Infinity;
+    for(let i=0;i<out.length;i++){
+      if((c[out[i].formation]||0)<=min)continue;
+      const protectRpo=isTrueRpoAccessPlay(out[i]) && out.filter(isTrueRpoAccessPlay).length<=Math.ceil(target*desiredRpoAccessPct());
+      if(protectRpo)continue;
+      const sc=score(out[i]);
+      if(sc<worst){worst=sc;idx=i;}
+    }
+    if(idx<0)break;
+    used.delete(playUniqueKey(out[idx])); out.splice(idx,1);
+  }
+  // 4) Remove any package still below the floor after trimming/rebuilding.
+  counts=formCounts(out);
+  out=out.filter(pl=>(counts[pl.formation]||0)>=min);
+  return uniquePlayArray(out).slice(0,target);
+}
+
 
 function generatePlaybook(){
   const p=philosophy;
@@ -5530,9 +5627,13 @@ function generatePlaybook(){
   const scoringPool=allowedScored.length?allowedScored:scored;
   const availFormationCount=[...new Set(scoringPool.map(x=>x.pl.formation))].length||1;
   const maxByMinimum=Math.max(1,Math.floor(target/MIN_FORM_PLAYS));
-  const desiredForms=target>=300?Math.round(target/7):target>=220?Math.round(target/6):Math.round(target/5.5);
-  const MAX_FORMS = Math.min(availFormationCount, maxByMinimum, target>=300?60:target>=220?48:36, Math.max(8,desiredForms));
-  const GLOBAL_MAX_PER_FORM = target>=300?32:(target>=220?26:(target>=150?20:16));
+  // v15.8.3: Formation concentration. A 400-play generated book should not
+  // become 70–80 tiny formations. Source/system profiles get fewer, deeper
+  // packages so every formation can actually carry a call-sheet menu.
+  const concentrationDepth=(p.system&&p.system!=='none')?10:7;
+  const desiredForms=target>=300?Math.round(target/concentrationDepth):target>=220?Math.round(target/7):Math.round(target/6);
+  const MAX_FORMS = Math.min(availFormationCount, maxByMinimum, target>=300?44:target>=220?40:32, Math.max(8,desiredForms));
+  const GLOBAL_MAX_PER_FORM = target>=300?38:(target>=220?30:(target>=150?22:16));
 
   // Score every play (already in `scored` array, sorted by score desc within family)
   // Group by formation, pick best-avg formations
@@ -5682,14 +5783,20 @@ function generatePlaybook(){
 
   const finalScoredPool=scored.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>b.s-a.s);
   book=enforceFormationMixMargin(book,finalScoredPool,target);
-  // v15.7: RPO-heavy systems already build from validated selected formations.
-  // Skip the expensive repair pass when an RPO quota is active so synthetic access tags are not stripped or stalled.
-  book=desiredRpoAccessPct()>0 ? uniquePlayArray(book).slice(0,target) : enforceFormationHardRules(book,finalScoredPool,target);
+  // v15.8.3: RPO quota is important, but it must not bypass final formation
+  // package legality. Run the hard-rule repair, then restore RPOs inside the
+  // surviving formations.
+  book=enforceFormationHardRules(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceFamilyMixMargin(book,finalScoredPool,target,mix);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforcePersonnelMixMargin(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
+  book=enforceFormationMixMargin(book,finalScoredPool,target);
+  book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
@@ -9094,6 +9201,7 @@ function inferConcept(play, family){
   if(/split\s*zone|zone\s*split|slice|sift/.test(p)) return 'Split Zone';
   if(/\bbduo\b|\bduo\b|hb\s*duo/.test(p)) return 'Duo';
   if(/\biso\b|insert/.test(p)) return 'Dive';
+  if(/wide\s*zone|outside\s*zone|stretch/.test(p)) return 'Outside Zone / Stretch';
   if(/\b(zone\s*wk|zone\s*weak|hb\s*zone\s*wk|h\s*zone\s*wk)\b/.test(p)) return 'Inside Zone';
   if(/slow\s*mesh|walk\s*mesh|delayed\s*rpo|mesh\s*rpo/.test(p)) return 'Slow Mesh RPO';
   if(/deep\s*choice/.test(p)) return 'Deep Choice';
