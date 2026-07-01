@@ -1,16 +1,17 @@
-# Call Sheet — Coach Brain v15.5
+# Call Sheet — Coach Brain v15.7 RPO Concept Engine
 
-GitHub Pages-ready upload package.
+GitHub Pages upload package.
 
-## Update
-- Added **Capital Motion-Read Pro / Modernized RG3 Washington** as a built-in offensive system profile.
-- Profile includes RG3/Washington 2012 DNA, pistol wide zone, read-option, motion/RPO man-coverage hunting, keeper/play-action, fast-flow answers, formation/personnel presets, concept weights, surface presets, rail seeds, and scoring tags.
-- Keeps the v15.4 OC upgrades: failure diagnosis, defensive memory, and game-management scoring.
+## Patch focus
+- Reviews and supports the full global play database language for RPOs.
+- Classifies real database names like RPO ALERT, RPO READ, ZONE ALERT, PEEK, LOOKIE, WALK, X SMOKE, Y FLAT, DRAW STICK, QB DRAW SCREEN, POWER ALERT, COUNTER ALERT, and GLANCE as true RPO/access concepts.
+- Separates true option runs from RPO access plays.
+- Adds expanded RPO concept buckets and tags.
+- Enforces an RPO quota for RPO-heavy systems such as Capital Motion-Read Pro, Wake Slow Mesh, and spread RPO starter templates.
+- Adds synthetic RPO/access generation only when the source database cannot satisfy the requested system quota from real plays.
 
-## Deploy to GitHub Pages
-Upload all files in this folder to your repository root:
-- `index.html`
-- `.nojekyll`
-- `README.md`
-
-Then enable GitHub Pages for the repository branch/root.
+## Upload
+Upload these files to the root of your GitHub Pages repository:
+- index.html
+- .nojekyll
+- README.md

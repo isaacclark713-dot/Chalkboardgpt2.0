@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Call Sheet — Coach Brain v15.6 RPO Match</title>
+<title>Call Sheet — Coach Brain v15.7 RPO Concept Engine</title>
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -471,7 +471,7 @@
       <span class="yard">1ST &amp; 10</span>
       <div>
         <h1>Call Sheet</h1>
-        <div class="sub">Game-plan &amp; play-calling builder · v15.6 RPO Match</div>
+        <div class="sub">Game-plan &amp; play-calling builder · v15.7 RPO Concept Engine</div>
       </div>
     </div>
     <nav class="tabs">
@@ -1411,52 +1411,106 @@ const FORMS = DB.forms, CONCEPTS = DB.concepts, FAMS = DB.fams;
 // and does not catch true toss runs that fake something else (TOSS FK JET).
 function isFakeTossName(play){return /\b(?:pa\s+)?(?:fake|fk)\s+toss\b/i.test(String(play||''));}
 
-/* v15.6 — Granular RPO concept model.
-   The older app bucketed many run-pass options as Option / RPO, Glance, Slants,
-   Screen, or generic pass concepts. System profiles now name specific RPO pairings
-   like Inside Zone + Glance or Duo + Stick, so the classifier, sliders, importer,
-   and scoring tags all speak the same language. */
+/* v15.7 — Granular RPO concept model.
+   The database uses real CFB play-name language: RPO ALERT, RPO READ,
+   ZONE ALERT, PEEK, LOOKIE, WALK, GLANCE, X SMOKE, Y FLAT, DRAW STICK,
+   QB DRAW SCREEN, POWER ALERT, COUNTER ALERT, etc.  These names must be
+   classified as run-pass conflict answers, not swallowed by generic Screen,
+   Slants, Stick, or Option Run buckets. */
 const RPO_CORE_CONCEPTS=[
   'Inside Zone + Glance RPO','Inside Zone + Bubble RPO','Wide Zone + Now Screen RPO','Duo + Stick RPO',
   'Split Zone + Pop Pass RPO','Counter Read + Slant RPO','GT Bash + Bubble RPO','Arc Read + Flat RPO','Zone Read + Gift Fade RPO',
-  'Slant RPO','Glance RPO','Stick RPO','Bubble RPO','Choice RPO','Now Screen RPO','Fade RPO','Speed Out RPO','Pop Pass RPO','Arrow RPO'
+  'Power + Bubble RPO','Power + Hitch RPO','Power + Slant RPO','Counter + Bubble RPO','Counter + Screen RPO',
+  'Duo + Glance RPO','Duo + Bubble RPO','Zone + Hitch RPO','Zone + Smoke RPO','Draw + Stick RPO','QB Draw + Screen RPO',
+  'Slant RPO','Glance RPO','Stick RPO','Bubble RPO','Screen RPO','Swing RPO','Hitch RPO','Choice RPO','Now Screen RPO','Fade RPO','Speed Out RPO','Pop Pass RPO','Arrow RPO','Flat RPO'
 ];
 const RPO_CORE_SET=new Set(RPO_CORE_CONCEPTS);
 function isGranularRpoConcept(concept){return RPO_CORE_SET.has(String(concept||''));}
+function normalizeRpoText(play){return String(play||'').toLowerCase().replace(/[-_/]+/g,' ').replace(/\s+/g,' ').trim();}
+function rpoTextFacts(play,family,formation,legacyConcept){
+  const p=normalizeRpoText(play), fam=String(family||'').toLowerCase(), legacy=String(legacyConcept||'').toLowerCase(), form=String(formation||'').toLowerCase();
+  const explicit=/\b(rpo|alert|peek|lookie|gift|access|attached|tagged|tag|walk)\b/.test(p)||/\bzone\s+alert\b|\bread\s+alert\b/.test(p)||/rpo|access/.test(legacy);
+  const optionOnly=/\b(triple\s+option|speed\s+option|load\s+option|midline|inside\s+veer|read\s+option|zone\s+read|power\s+read|inverted\s+veer|bash|shovel\s+option|qb\s+slot\s+option)\b/.test(p) && !explicit;
+  const run={
+    inside:/inside\s*zone|\biz\b|\bzone\b|hb\s*zone|zone\s+wk|zone\s+weak|slam|blast|base/.test(p),
+    wide:/wide\s*zone|outside\s*zone|stretch/.test(p),
+    split:/split\s*zone|zone\s*split|slice|sift/.test(p),
+    duo:/\bduo\b/.test(p),
+    power:/\bpower\b|power\s*o|qb\s*power/.test(p),
+    counter:/counter|\bgt\b|\bgh\b/.test(p),
+    bash:/bash|inverted\s*veer/.test(p),
+    arc:/arc\s*read|\barc\b/.test(p),
+    read:/zone\s*read|read\s*option|qb\s*read|read\s+cntr/.test(p),
+    draw:/draw/.test(p),
+    buck:/buck/.test(p),
+    trap:/trap/.test(p)
+  };
+  const access={
+    glance:/glance|lookie|walk\s+glance|peek\s+post|alert\s+post|duo\s+alert\s+post/.test(p),
+    slant:/slant/.test(p),
+    bubble:/bubble/.test(p),
+    screen:/screen|wr\s*screen|z\s*screen|slot\s*screen|smoke|x\s*smoke|now\s*screen/.test(p),
+    stick:/stick/.test(p),
+    hitch:/hitch|hitches/.test(p),
+    out:/\bout\b|speed\s*out|quick\s*out|alert\s*out|x\s*out/.test(p),
+    flat:/flat|arrow|slide|swing|hb\s*flat|te\s*flat|y\s*flat|f\s*slide|y\s*slide|jab\s*flat/.test(p),
+    pop:/pop|y\s*pop|te\s*pop/.test(p),
+    fade:/fade|gift\s*fade/.test(p),
+    choice:/choice|option\s*route|snag|spot\s*wheel/.test(p),
+    drawStick:/draw\s+stick|stick\s+qb\s+draw/.test(p),
+    shock:/shock|omaha|randy|dragon/.test(p)
+  };
+  const hasRun=Object.values(run).some(Boolean);
+  const hasAccess=Object.values(access).some(Boolean);
+  const formEligible=/gun|pistol|spread|empty|bunch|trips|slot/.test(form);
+  const playActionOnly=/\bpa\b|play\s*action|play-action|boot|keeper|fake|fk/.test(p) && !explicit;
+  const rpoish=!optionOnly && !playActionOnly && (explicit||fam==='option_rpo'||/rpo|access/.test(legacy)||((hasRun&&hasAccess)&&(formEligible||/read|alert|peek|lookie|gift|access|tag/.test(p))));
+  return {p,fam,legacy,form,explicit,optionOnly,playActionOnly,run,access,hasRun,hasAccess,rpoish};
+}
 function classifyRpoCoreConcept(play,family,formation,legacyConcept){
-  const p=String(play||'').toLowerCase().replace(/[-_/]+/g,' ').replace(/\s+/g,' ').trim();
-  const f=String(family||'').toLowerCase();
-  const legacy=String(legacyConcept||'').toLowerCase();
-  const form=String(formation||'').toLowerCase();
-  if(!p)return '';
+  const x=rpoTextFacts(play,family,formation,legacyConcept), r=x.run, a=x.access;
+  if(!x.p||!x.rpoish)return '';
 
-  const rpoish=/\b(rpo|alert|peek|lookie|gift|access|attached|tagged|tag)\b/.test(p)||f==='option_rpo'||/rpo|access/.test(legacy);
-  const hasRunAction=/inside\s*zone|\biz\b|wide\s*zone|outside\s*zone|stretch|duo|split\s*zone|slice|sift|counter|\bgt\b|\bgh\b|bash|arc\s*read|zone\s*read|read\s*option|power\s*read/.test(p);
-  const hasAccess=/glance|lookie|bubble|now\s*screen|smoke|stick|slant|choice|fade|gift\s*fade|speed\s*out|quick\s*out|arrow|flat|pop\s*pass|y\s*pop|te\s*pop/.test(p);
-  const pairRpo=(hasRunAction&&hasAccess&&(/read|rpo|alert|peek|lookie|gift|access|attached|tag/.test(p)||/rpo|option/.test(legacy)||/gun|pistol|spread/.test(form)));
-  if(!(rpoish||pairRpo))return '';
+  // Named run + access pairings first.  These are the slider-facing concepts.
+  if((r.inside||r.read) && a.glance) return 'Inside Zone + Glance RPO';
+  if((r.inside||r.read) && a.bubble) return 'Inside Zone + Bubble RPO';
+  if((r.wide||/stretch/.test(x.p)) && (a.screen||a.bubble)) return 'Wide Zone + Now Screen RPO';
+  if(r.duo && a.stick) return 'Duo + Stick RPO';
+  if(r.duo && a.glance) return 'Duo + Glance RPO';
+  if(r.duo && a.bubble) return 'Duo + Bubble RPO';
+  if(r.split && a.pop) return 'Split Zone + Pop Pass RPO';
+  if((r.counter||r.bash) && a.slant) return 'Counter Read + Slant RPO';
+  if((r.bash||/gt\s*bash|counter\s*bash/.test(x.p)) && a.bubble) return 'GT Bash + Bubble RPO';
+  if((r.counter||r.buck) && a.bubble) return 'Counter + Bubble RPO';
+  if((r.counter||r.buck) && a.screen) return 'Counter + Screen RPO';
+  if((r.power||/alert\s+power|power\s+alert/.test(x.p)) && a.bubble) return 'Power + Bubble RPO';
+  if(r.power && a.hitch) return 'Power + Hitch RPO';
+  if(r.power && (a.slant||a.glance)) return 'Power + Slant RPO';
+  if(r.arc && (a.flat||a.out)) return 'Arc Read + Flat RPO';
+  if((r.read||r.arc) && a.fade) return 'Zone Read + Gift Fade RPO';
+  if(r.draw && a.stick) return 'Draw + Stick RPO';
+  if(r.draw && (a.screen||a.bubble||a.flat)) return 'QB Draw + Screen RPO';
+  if((r.inside||r.read||/zone\s+alert/.test(x.p)) && a.hitch) return 'Zone + Hitch RPO';
+  if((r.inside||r.read||/zone\s+alert/.test(x.p)) && a.screen) return 'Zone + Smoke RPO';
 
-  const has=(re)=>re.test(p);
-  if(has(/inside\s*zone|\biz\b|\bzone\b/) && has(/glance|lookie/)) return 'Inside Zone + Glance RPO';
-  if(has(/inside\s*zone|\biz\b|\bzone\b/) && has(/bubble/)) return 'Inside Zone + Bubble RPO';
-  if(has(/wide\s*zone|outside\s*zone|stretch/) && has(/now\s*screen|smoke|bubble/)) return 'Wide Zone + Now Screen RPO';
-  if(has(/duo/) && has(/stick/)) return 'Duo + Stick RPO';
-  if(has(/split\s*zone|slice|sift/) && has(/pop\s*pass|y\s*pop|te\s*pop|pop\b/)) return 'Split Zone + Pop Pass RPO';
-  if(has(/counter|\bgt\b|\bgh\b/) && has(/slant/)) return 'Counter Read + Slant RPO';
-  if(has(/(gt|gh)?\s*bash|counter\s*bash|bash/) && has(/bubble/)) return 'GT Bash + Bubble RPO';
-  if(has(/arc\s*read|arc/) && has(/flat|arrow/)) return 'Arc Read + Flat RPO';
-  if(has(/zone\s*read|read\s*option|qb\s*read/) && has(/gift\s*fade|fade/)) return 'Zone Read + Gift Fade RPO';
-
-  if(has(/glance|lookie/)) return 'Glance RPO';
-  if(has(/slant/)) return 'Slant RPO';
-  if(has(/stick/)) return 'Stick RPO';
-  if(has(/bubble/)) return 'Bubble RPO';
-  if(has(/choice|option\s*route/)) return 'Choice RPO';
-  if(has(/now\s*screen|smoke/)) return 'Now Screen RPO';
-  if(has(/gift\s*fade|fade/)) return 'Fade RPO';
-  if(has(/speed\s*out|quick\s*out|\bout\b/)) return 'Speed Out RPO';
-  if(has(/pop\s*pass|y\s*pop|te\s*pop|pop\b/)) return 'Pop Pass RPO';
-  if(has(/arrow|flat/)) return 'Arrow RPO';
+  // Generic access families when the database name does not reveal the base run.
+  if(a.glance) return 'Glance RPO';
+  if(a.slant) return 'Slant RPO';
+  if(a.stick) return 'Stick RPO';
+  if(a.bubble) return 'Bubble RPO';
+  if(a.screen) return 'Screen RPO';
+  if(a.hitch) return 'Hitch RPO';
+  if(a.choice) return 'Choice RPO';
+  if(a.fade) return 'Fade RPO';
+  if(a.out) return 'Speed Out RPO';
+  if(a.pop) return 'Pop Pass RPO';
+  if(a.flat){
+    if(/swing/.test(x.p))return 'Swing RPO';
+    if(/arrow/.test(x.p))return 'Arrow RPO';
+    return 'Flat RPO';
+  }
+  if(a.shock) return 'Screen RPO';
+  if(/\brpo\b/.test(x.p)) return 'Bubble RPO';
   return '';
 }
 
@@ -1464,6 +1518,9 @@ function classifyRpoCoreConcept(play,family,formation,legacyConcept){
 // Coach Brain classifies every play into the fuller Core Concept list used by scheme presets.
 function classifyCoreConcept(play,family,legacyConcept,formation){
   if(isFakeTossName(play)) return 'Boot / Play Action';
+  // v15.7: RPO language wins before generic Screen / Slants / Stick inference.
+  const earlyRpoConcept=classifyRpoCoreConcept(play,family,formation,legacyConcept);
+  if(earlyRpoConcept) return earlyRpoConcept;
   const inferred=inferConcept(play||'', family||'');
   if(inferred && inferred!=='Other / Unknown' && inferred!=='HB Base / Zone') return inferred;
   const p=String(play||'').toLowerCase();
@@ -1518,6 +1575,8 @@ const PLAYS = DB.rows.map((r,i)=>{
   const formation=FORMS[r[0]], play=r[1], legacyConcept=CONCEPTS[r[3]];
   let family=FAMS[r[2]];
   if(isFakeTossName(play)) family='play_action';
+  // v15.7: true RPO/access names must override old DB family guesses before concept/intent tags are built.
+  if(classifyRpoCoreConcept(play,family,formation,legacyConcept)) family='option_rpo';
   const coreConcept=classifyCoreConcept(play,family,legacyConcept,formation);
   return {
     id:i,
@@ -2692,10 +2751,18 @@ const CONCEPT_TARGET_GUIDE={
   "Boot / Play Action":"married PA guide 6–14%","Option / RPO":"access guide 8–20%","Quick Game":"rhythm guide 8–18%","Stick":"conversion guide 5–12%","Mesh":"man answer guide 5–12%",
   "Flood":"zone/boot answer 4–10%","Smash":"coverage answer 4–10%","Screen":"pressure answer 5–12%","Verticals / Four Verticals":"shot guide 3–8%","Go Routes":"vertical isolation 3–8%","Post":"single-high shot 3–8%","Slants":"quick/RPO access 4–10%","Choice":"option-route / isolation 5–14%"
 };
+Object.assign(CONCEPT_TARGET_GUIDE,{
+  'Power + Bubble RPO':'power run + bubble access 2–6%','Power + Hitch RPO':'power run + hitch access 2–6%','Power + Slant RPO':'power run + slant access 2–6%',
+  'Counter + Bubble RPO':'counter/buck + bubble access 2–6%','Counter + Screen RPO':'counter/buck + screen access 2–6%',
+  'Duo + Glance RPO':'duo + glance/post access 2–6%','Duo + Bubble RPO':'duo + bubble access 2–6%',
+  'Zone + Hitch RPO':'zone + hitch/hitches access 2–6%','Zone + Smoke RPO':'zone + smoke/screen access 2–6%',
+  'Draw + Stick RPO':'QB/RB draw + stick access 2–6%','QB Draw + Screen RPO':'QB draw + screen access 2–6%',
+  'Screen RPO':'generic screen/smoke RPO 3–8%','Swing RPO':'swing/flat RPO 2–6%','Hitch RPO':'hitch RPO 2–6%','Flat RPO':'flat/slide RPO 2–6%'
+});
 const CONCEPT_TARGET_GROUPS=[
   {title:'Run Menu — base gives and downhill answers',items:['Inside Zone','Outside Zone / Stretch','Power / Power O','Super Power','Wedge','Duo','Trap','Dive','Zone Dive','Sweep','Jet Sweep','Buck Sweep','Counter','Counter XX','6-G / G']},
   {title:'Option Menu — give / read / pitch families',items:['Dive / Give','Triple Option','Inside Veer','Midline','Zone Triple','Outside Veer','Arc Read','Read Option','Speed Option','Load Option','Power Read','QB Power Read','QB Counter','Bash Read','Counter Option','Rocket Toss']},
-  {title:'RPO / Access Menu — paired run + throw answers',items:['Slow Mesh RPO','Inside Zone + Glance RPO','Inside Zone + Bubble RPO','Wide Zone + Now Screen RPO','Duo + Stick RPO','Split Zone + Pop Pass RPO','Counter Read + Slant RPO','GT Bash + Bubble RPO','Arc Read + Flat RPO','Zone Read + Gift Fade RPO','Slant RPO','Glance RPO','Stick RPO','Bubble RPO','Choice RPO','Now Screen RPO','Fade RPO','Speed Out RPO','Pop Pass RPO','Arrow RPO','Bubble Access','Hitch Access','Glance','Seam / Bender','Now Screen','Slants','Pop Pass','Option / RPO']},
+  {title:'RPO / Access Menu — paired run + throw answers',items:['Slow Mesh RPO','Inside Zone + Glance RPO','Inside Zone + Bubble RPO','Wide Zone + Now Screen RPO','Duo + Stick RPO','Split Zone + Pop Pass RPO','Counter Read + Slant RPO','GT Bash + Bubble RPO','Arc Read + Flat RPO','Zone Read + Gift Fade RPO','Slant RPO','Glance RPO','Stick RPO','Bubble RPO','Choice RPO','Now Screen RPO','Fade RPO','Speed Out RPO','Pop Pass RPO','Arrow RPO','Power + Bubble RPO','Power + Hitch RPO','Power + Slant RPO','Counter + Bubble RPO','Counter + Screen RPO','Duo + Glance RPO','Duo + Bubble RPO','Zone + Hitch RPO','Zone + Smoke RPO','Draw + Stick RPO','QB Draw + Screen RPO','Screen RPO','Swing RPO','Hitch RPO','Flat RPO','Bubble Access','Hitch Access','Glance','Seam / Bender','Now Screen','Slants','Pop Pass','Option / RPO']},
   {title:'Play-Action Menu — run action answers',items:['Boot / Play Action','Veer Pass','Power Pass','Wing Leak','Waggle','TE Pop','Y Cross','Flood','Sail','Bang Post','Post','Glance-and-Go']},
   {title:'Pass Menu — dropback conversion and coverage answers',items:['Quick Game','Stick','Y Stick','Y Corner','Mesh','Shallow','H Wheel','Smash','Dag / Smash','Dagger','Levels','Seam Read','All Curl','Curls / Curl Flats','Spacing','Hitch','Choice','Deep Choice','Slot Fade','Switch Verticals','Smash Fade','Ghost','Tosser','INC','Drive','Verticals / Four Verticals','Go Routes']},
   {title:'Screen / Draw / 3rd-and-long answers',items:['Screen','Now Screen','Draw','Mesh','Levels','Drive','Y Cross','Curls / Curl Flats','Verticals / Four Verticals','Deep Choice']}
@@ -2857,7 +2924,22 @@ Object.assign(CONCEPT_TARGET_ALIASES,{
   'Fade RPO':['core_fade_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_verts_seams','stress_vertical_stretch'],
   'Speed Out RPO':['core_speed_out_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_quick','stress_coverage_leverage'],
   'Pop Pass RPO':['core_pop_pass_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_rpo_access','stress_safety_insert_conflict'],
-  'Arrow RPO':['core_arrow_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_quick','stress_apex_conflict']
+  'Arrow RPO':['core_arrow_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_quick','stress_apex_conflict'],
+  'Power + Bubble RPO':['core_power_bubble_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_power','screen_bubble','stress_apex_conflict'],
+  'Power + Hitch RPO':['core_power_hitch_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_power','route_quick','stress_apex_conflict'],
+  'Power + Slant RPO':['core_power_slant_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_power','route_slant','stress_apex_conflict'],
+  'Counter + Bubble RPO':['core_counter_bubble_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_counter','screen_bubble','stress_lb_flow','stress_apex_conflict'],
+  'Counter + Screen RPO':['core_counter_screen_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_counter','screen_smoke','stress_lb_flow','stress_space_perimeter'],
+  'Duo + Glance RPO':['core_duo_glance_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_duo','route_slant','stress_safety_insert_conflict'],
+  'Duo + Bubble RPO':['core_duo_bubble_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_duo','screen_bubble','stress_apex_conflict'],
+  'Zone + Hitch RPO':['core_zone_hitch_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_inside_zone','route_quick','stress_apex_conflict'],
+  'Zone + Smoke RPO':['core_zone_smoke_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_inside_zone','screen_smoke','stress_space_perimeter'],
+  'Draw + Stick RPO':['core_draw_stick_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_draw','route_stick_spacing','stress_pass_rush'],
+  'QB Draw + Screen RPO':['core_qb_draw_screen_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_draw','screen_smoke','stress_pass_rush'],
+  'Screen RPO':['core_screen_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','screen_smoke','stress_space_perimeter'],
+  'Swing RPO':['core_swing_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_quick','stress_apex_conflict'],
+  'Hitch RPO':['core_hitch_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_quick','stress_apex_conflict'],
+  'Flat RPO':['core_flat_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_quick','stress_apex_conflict']
 });
 function conceptTargetAliasTags(target){
   const out=new Set(CONCEPT_TARGET_ALIASES[target]||[]);
@@ -3296,13 +3378,15 @@ function enforceFormationHardRules(book,scoredPool,target){
   }
 
   // Top up from already valid formations first.
-  while(out.length<target){
+  // v15.7: guard against rare duplicate/repair deadlocks when synthetic RPOs are added.
+  let topGuard=0;
+  while(out.length<target && topGuard++<Math.max(50,target*20)){
     let added=false;
     const validForms=new Set(formsInOut().filter(f=>formationReqMet(current(f))));
     for(const x of rawScored){
       if(used.has(playUniqueKey(x.pl)))continue;
       if(!validForms.has(x.pl.formation))continue;
-      add(x.pl); added=true; break;
+      if(add(x.pl)){added=true; break;}
     }
     if(added)continue;
     const next=viableForms.find(f=>!formsInOut().includes(f));
@@ -4544,8 +4628,8 @@ BUILT_IN_OFFENSE_SYSTEMS.capital_motion_read_pro={
   persMixPreset:{'11':36,'12':24,'21':18,'20':12,'10':3,'13':3,'22':3,'23':0,'30':1},
   formMixPreset:{shotgun:32,singleback:13,pistol:34,i_form:8,flexbone:0,wingbone:0,double_wing:0,empty:4,under_center:5,other:4},
   formTypeBoosts:{pistol:1.34,shotgun:1.18,singleback:1.12,i_form:1.08,under_center:1.04,empty:1.02,other:.95,flexbone:.34,wingbone:.42,double_wing:.24},
-  conceptTargetsPreset:{'Outside Zone / Stretch':12,'Read Option':8,'Inside Zone':6,'Boot / Play Action':10,'Inside Zone + Glance RPO':5,'Inside Zone + Bubble RPO':4,'Wide Zone + Now Screen RPO':4,'Duo + Stick RPO':3,'Counter Read + Slant RPO':3,'GT Bash + Bubble RPO':3,'Arc Read + Flat RPO':2,'Zone Read + Gift Fade RPO':2,'Arc Read':4,'Duo':4,'Counter':6,'Power Read':4,'Bash Read':4,'QB Counter':3,'Draw':3,'Speed Option':3,'Flood':6,'Y Cross':5,'Mesh':6,'Stick':4,'Snag':4,'Slants':4,'Choice':4,'Glance':4,'Screen':5,'Dagger':3,'Sail':3,'Slot Fade':2,'Wheel':2},
-  conceptBoosts:{'Outside Zone / Stretch':1.30,'Read Option':1.30,'Inside Zone':1.16,'Arc Read':1.20,'Duo':1.10,'Counter':1.20,'Power Read':1.14,'Bash Read':1.16,'QB Counter':1.12,'QB Power Read':1.10,'Draw':1.10,'Speed Option':1.12,'Load Option':1.10,'Boot / Play Action':1.28,'Flood':1.18,'Y Cross':1.16,'Mesh':1.20,'Stick':1.12,'Snag':1.10,'Slants':1.12,'Choice':1.14,'Glance':1.18,'Screen':1.12,'Dagger':1.08,'Sail':1.10,'Verticals / Four Verticals':1.06,'Post':1.08,'Wheel':1.12,'Slot Fade':1.12,'Now Screen':1.12,'Bubble Access':1.12,'Pop Pass':1.08,'Inside Zone + Glance RPO':1.22,'Inside Zone + Bubble RPO':1.20,'Wide Zone + Now Screen RPO':1.18,'Duo + Stick RPO':1.16,'Split Zone + Pop Pass RPO':1.14,'Counter Read + Slant RPO':1.16,'GT Bash + Bubble RPO':1.16,'Arc Read + Flat RPO':1.12,'Zone Read + Gift Fade RPO':1.12,'Slant RPO':1.12,'Glance RPO':1.16,'Stick RPO':1.12,'Bubble RPO':1.14,'Choice RPO':1.10,'Now Screen RPO':1.14,'Fade RPO':1.10,'Speed Out RPO':1.10,'Pop Pass RPO':1.12,'Arrow RPO':1.10},
+  conceptTargetsPreset:{'Outside Zone / Stretch':12,'Read Option':8,'Inside Zone':6,'Boot / Play Action':10,'Inside Zone + Glance RPO':5,'Inside Zone + Bubble RPO':4,'Wide Zone + Now Screen RPO':4,'Duo + Stick RPO':3,'Counter Read + Slant RPO':3,'GT Bash + Bubble RPO':3,'Arc Read + Flat RPO':2,'Zone Read + Gift Fade RPO':2,'Power + Bubble RPO':3,'Zone + Smoke RPO':3,'Screen RPO':3,'Hitch RPO':2,'Flat RPO':2,'Arc Read':4,'Duo':4,'Counter':6,'Power Read':4,'Bash Read':4,'QB Counter':3,'Draw':3,'Speed Option':3,'Flood':6,'Y Cross':5,'Mesh':6,'Stick':4,'Snag':4,'Slants':4,'Choice':4,'Glance':4,'Screen':5,'Dagger':3,'Sail':3,'Slot Fade':2,'Wheel':2},
+  conceptBoosts:{'Outside Zone / Stretch':1.30,'Read Option':1.30,'Inside Zone':1.16,'Arc Read':1.20,'Duo':1.10,'Counter':1.20,'Power Read':1.14,'Bash Read':1.16,'QB Counter':1.12,'QB Power Read':1.10,'Draw':1.10,'Speed Option':1.12,'Load Option':1.10,'Boot / Play Action':1.28,'Flood':1.18,'Y Cross':1.16,'Mesh':1.20,'Stick':1.12,'Snag':1.10,'Slants':1.12,'Choice':1.14,'Glance':1.18,'Screen':1.12,'Dagger':1.08,'Sail':1.10,'Verticals / Four Verticals':1.06,'Post':1.08,'Wheel':1.12,'Slot Fade':1.12,'Now Screen':1.12,'Bubble Access':1.12,'Pop Pass':1.08,'Inside Zone + Glance RPO':1.22,'Inside Zone + Bubble RPO':1.20,'Wide Zone + Now Screen RPO':1.18,'Duo + Stick RPO':1.16,'Split Zone + Pop Pass RPO':1.14,'Counter Read + Slant RPO':1.16,'GT Bash + Bubble RPO':1.16,'Arc Read + Flat RPO':1.12,'Zone Read + Gift Fade RPO':1.12,'Slant RPO':1.12,'Glance RPO':1.16,'Stick RPO':1.12,'Bubble RPO':1.14,'Choice RPO':1.10,'Now Screen RPO':1.14,'Fade RPO':1.10,'Speed Out RPO':1.10,'Pop Pass RPO':1.12,'Arrow RPO':1.10,'Power + Bubble RPO':1.14,'Power + Hitch RPO':1.12,'Power + Slant RPO':1.12,'Counter + Bubble RPO':1.14,'Counter + Screen RPO':1.12,'Duo + Glance RPO':1.12,'Duo + Bubble RPO':1.12,'Zone + Hitch RPO':1.12,'Zone + Smoke RPO':1.14,'Draw + Stick RPO':1.12,'QB Draw + Screen RPO':1.12,'Screen RPO':1.14,'Swing RPO':1.12,'Hitch RPO':1.12,'Flat RPO':1.12},
   familyBoosts:{run:1.08,option_rpo:1.22,play_action:1.18,screen:1.08,pass:1.04},
   surfaceBoosts:{pistol:1.20,condensed:1.16,bunch:1.16,stack:1.14,wing:1.14,y_off:1.14,tight:1.10,trips:1.08,empty:1.04,nub:1.06,spread:1.05,unbalanced:1.05},
   motionBoosts:{motion:1.18,jet:1.18,orbit:1.18,return:1.14,fast:1.12,short:1.10,shift_trade:1.14,shift:1.10,trade:1.10,formation_disguise:1.12,add_gap:1.14,widen_force:1.12,eye_candy:1.08},
@@ -5150,6 +5234,123 @@ function hashPhil(p,m){
   return (((p.system||'none').length*29+(p.size||0)+m*7+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13+gateSum*7+fmSum*19+smSum*17+(p.formationCoverageMin||0)*31+(p.systemStrength||0)*23+ctSum))>>>0;
 }
 
+
+function isRpoAccessConceptName(concept){
+  return (typeof isGranularRpoConcept==='function' && isGranularRpoConcept(concept)) || concept==='Slow Mesh RPO' || concept==='Option / RPO' || /\bRPO\b|Access/.test(String(concept||''));
+}
+function isTrueRpoAccessPlay(pl){
+  if(!pl || isTrueOptionRun(pl))return false;
+  if(isRpoAccessConceptName(pl.concept))return true;
+  try{const t=getIntentTags(pl)||{}; return t.playType==='rpo'||t.passStructure==='rpo_access';}catch(e){return false;}
+}
+function desiredRpoAccessPct(){
+  ensurePhilosophyShape();
+  const sys=philosophy.system||'none';
+  const strength=(Number(philosophy.systemStrength)||0)/100;
+  if(sys==='capital_motion_read_pro')return 0.22 + 0.06*strength;
+  if(sys==='wake_slow_mesh_veer_shoot')return 0.26 + 0.04*strength;
+  if(sys==='spread_power_rpo'||sys==='spread_tempo_inside_zone')return 0.18 + 0.04*strength;
+  const rpoTarget=Object.entries(philosophy.conceptTargets||{}).reduce((s,[k,v])=>s+(isRpoAccessConceptName(k)?Number(v||0):0),0);
+  if(rpoTarget>0)return Math.max(0.08,Math.min(0.26,rpoTarget/100*0.9));
+  return 0;
+}
+function syntheticRpoConceptForRun(pl,slot){
+  const t=getIntentTags(pl)||{}, txt=playText(pl), scheme=t.runScheme||'';
+  if(scheme==='wide_zone'||/wide zone|outside zone|stretch/.test(txt))return slot%2?'Wide Zone + Now Screen RPO':'Zone + Smoke RPO';
+  if(scheme==='duo'||/duo/.test(txt))return slot%2?'Duo + Stick RPO':'Duo + Bubble RPO';
+  if(scheme==='power'||/power/.test(txt))return ['Power + Bubble RPO','Power + Hitch RPO','Power + Slant RPO'][slot%3];
+  if(scheme==='counter'||/counter|\bgt\b|\bgh\b|bash/.test(txt))return ['Counter Read + Slant RPO','Counter + Bubble RPO','Counter + Screen RPO'][slot%3];
+  if(scheme==='option_read'||/read|arc/.test(txt))return slot%2?'Arc Read + Flat RPO':'Zone Read + Gift Fade RPO';
+  if(scheme==='draw'||/draw/.test(txt))return slot%2?'Draw + Stick RPO':'QB Draw + Screen RPO';
+  return slot%3===0?'Inside Zone + Glance RPO':(slot%3===1?'Inside Zone + Bubble RPO':'Zone + Hitch RPO');
+}
+function rpoSuffixForConcept(concept){
+  const c=String(concept||'').toLowerCase();
+  if(c.includes('glance'))return ' + GLANCE RPO';
+  if(c.includes('bubble'))return ' + BUBBLE RPO';
+  if(c.includes('now')||c.includes('smoke')||c.includes('screen'))return ' + SCREEN RPO';
+  if(c.includes('stick'))return ' + STICK RPO';
+  if(c.includes('hitch'))return ' + HITCH RPO';
+  if(c.includes('slant'))return ' + SLANT RPO';
+  if(c.includes('flat')||c.includes('arrow'))return ' + FLAT RPO';
+  if(c.includes('fade'))return ' + GIFT FADE RPO';
+  if(c.includes('pop'))return ' + POP RPO';
+  return ' + ACCESS RPO';
+}
+function makeSyntheticRpo(pl,slot){
+  const concept=syntheticRpoConceptForRun(pl,slot);
+  const key=hashStr((pl.formation||'')+'|'+(pl.play||'')+'|'+concept+'|'+slot);
+  const runScheme=String(concept).includes('Wide Zone')?'wide_zone':String(concept).includes('Duo')?'duo':String(concept).includes('Power')?'power':String(concept).includes('Counter')||String(concept).includes('Bash')?'counter':String(concept).includes('Draw')?'draw':String(concept).includes('Arc')||String(concept).includes('Zone Read')?'option_read':'inside_zone';
+  const routeFamily=String(concept).includes('Stick')?'stick_spacing':(String(concept).includes('Slant')||String(concept).includes('Glance'))?'slant':String(concept).includes('Fade')?'verts_seams':'rpo_access';
+  return Object.assign({},pl,{id:900000000+(key%99999999),play:String(pl.play||'RUN').replace(/\s+RPO.*$/,'')+rpoSuffixForConcept(concept),family:'option_rpo',concept,motion:Math.max(Number(pl.motion)||0,1),hasMotion:true,_syntheticRpo:true,intent:Object.assign({},pl.intent||{}, {playType:'rpo',runScheme,passStructure:'rpo_access',series:'RPO Access Series',actionFamily:'RPO Access',primaryStress:routeFamily==='verts_seams'?'safety_insert_conflict':'apex_conflict',conflictDefender:routeFamily==='verts_seams'?'safety':'apex',routeFamily,readType:'key_defender',routeTiming:'quick',hasHot:'built_in',installConfidence:'repped'})});
+}
+function ensureRpoAccessQuota(book,scoredPool,target,tryAdd){
+  const pct=desiredRpoAccessPct();
+  if(!pct||pct<=0)return 0;
+  const desired=Math.max(Math.min(target,8),Math.round(target*pct));
+  let current=book.filter(isTrueRpoAccessPlay).length, added=0;
+  if(current>=desired)return 0;
+  const real=(scoredPool||[]).filter(x=>isTrueRpoAccessPlay(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
+  for(const {pl} of real){
+    if(current>=desired||book.length>=target)break;
+    if(tryAdd(pl)){current++;added++;}
+  }
+  if(current>=desired||book.length>=target)return added;
+  const runBase=(scoredPool||[]).filter(x=>!isTrueRpoAccessPlay(x.pl)&&!isTrueOptionRun(x.pl)&&isRunFamily(x.pl.family)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
+  let slot=0;
+  for(const {pl} of runBase){
+    if(current>=desired||book.length>=target)break;
+    const synth=makeSyntheticRpo(pl,slot++);
+    if(tryAdd(synth)){current++;added++;}
+  }
+  return added;
+}
+
+function restoreRpoAccessQuotaAfterTrim(book,scoredPool,target){
+  const pct=desiredRpoAccessPct();
+  if(!pct||pct<=0)return book;
+  const desired=Math.max(Math.min(target,8),Math.round(target*pct));
+  let out=uniquePlayArray(book||[]).slice(0,target);
+  let current=out.filter(isTrueRpoAccessPlay).length;
+  if(current>=desired)return out;
+  const used=new Set(out.map(playUniqueKey));
+  const scoreOf=scoreLookupFromPool(scoredPool||[]);
+  const formCounts=()=>out.reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
+  function removeOneNonRpo(){
+    const counts=formCounts();
+    let idx=-1,worst=Infinity;
+    for(let i=0;i<out.length;i++){
+      if(isTrueRpoAccessPlay(out[i]))continue;
+      if((counts[out[i].formation]||0)<=FORMATION_MIN_PACKAGE_PLAYS)continue;
+      const sc=scoreOf.get(playUniqueKey(out[i]))||0;
+      if(sc<worst){worst=sc;idx=i;}
+    }
+    if(idx<0){
+      for(let i=out.length-1;i>=0;i--){if(!isTrueRpoAccessPlay(out[i])){idx=i;break;}}
+    }
+    if(idx<0)return false;
+    used.delete(playUniqueKey(out[idx])); out.splice(idx,1); return true;
+  }
+  function addCandidate(pl){
+    const k=playUniqueKey(pl);
+    if(used.has(k))return false;
+    if(!formationTypeAllowedByUser(pl.formation)||!formationMeetsPackageCoverage(pl.formation)||!personnelAllowedByUser(pl))return false;
+    while(out.length>=target){ if(!removeOneNonRpo())break; }
+    if(out.length>=target)return false;
+    out.push(pl); used.add(k); current++; return true;
+  }
+  const real=(scoredPool||[]).filter(x=>isTrueRpoAccessPlay(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
+  for(const {pl} of real){ if(current>=desired)break; addCandidate(pl); }
+  if(current>=desired)return uniquePlayArray(out).slice(0,target);
+  const runBase=(scoredPool||[]).filter(x=>!isTrueRpoAccessPlay(x.pl)&&!isTrueOptionRun(x.pl)&&isRunFamily(x.pl.family)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
+  let slot=0;
+  for(const {pl} of runBase){
+    if(current>=desired)break;
+    addCandidate(makeSyntheticRpo(pl,slot++));
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+
 function generatePlaybook(){
   const p=philosophy;
   // base family mix is neutral; system templates, core concepts, and sliders now drive identity.
@@ -5287,6 +5488,10 @@ function generatePlaybook(){
     return true;
   }
 
+  // v15.7: source/system RPO profiles get an actual RPO/access quota before rails
+  // and normal family quotas can fill the best formations with non-RPO calls.
+  ensureRpoAccessQuota(book,scoredFiltered,target,tryAdd);
+
   // Hard system rail seeds: selected source-backed systems must actually appear in the book.
   // This happens before normal quotas, then the remaining book fills by mix/score.
   addSystemRailSeeds(scoredFiltered,target,tryAdd);
@@ -5354,11 +5559,14 @@ function generatePlaybook(){
 
   const finalScoredPool=scored.filter(x=>formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>b.s-a.s);
   book=enforceFormationMixMargin(book,finalScoredPool,target);
-  book=enforceFormationHardRules(book,finalScoredPool,target);
+  // v15.7: RPO-heavy systems already build from validated selected formations.
+  // Skip the expensive repair pass when an RPO quota is active so synthetic access tags are not stripped or stalled.
+  book=desiredRpoAccessPct()>0 ? uniquePlayArray(book).slice(0,target) : enforceFormationHardRules(book,finalScoredPool,target);
+  book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
-    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},surfaceMix:{...(p.surfaceMix||DEFAULT_SURFACE_MIX)},formationCoverageMin:p.formationCoverageMin,size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
+    meta:{generated:Date.now(),identity:'system',system:p.system||'none',systemLabel:labelSystem(p.system||'none'),systemProfile:systemSummaryForSave(p.system||'none'),systemStrength:p.systemStrength,personnelGate:p.personnelGate||'strict',persMix:{...(p.persMix||DEFAULT_PERS_MIX)},formMix:{...(p.formMix||DEFAULT_FORM_MIX)},surfaceMix:{...(p.surfaceMix||DEFAULT_SURFACE_MIX)},formationCoverageMin:p.formationCoverageMin,size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax,rpoTargetPct:desiredRpoAccessPct(),rpoCount:finalBook.filter(isTrueRpoAccessPlay).length},
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion,targetTags:conceptTargetTagList(pl).slice(0,28)})),
     audibles:buildAudibles(finalBook)
   };
@@ -8740,7 +8948,8 @@ function inferMotion(form,play){
 function normalizeFamily(family, play){
   const f=cleanCell(family).toLowerCase().replace(/[\s-]+/g,'_');
   const p=cleanCell(play).toLowerCase();
-  // v15.6: RPO/access tags must win before bubble/now screen gets bucketed as a plain screen.
+  // v15.7: RPO/access tags must win before bubble/now screen gets bucketed as a plain screen.
+  if(classifyRpoCoreConcept(play,family,'','')) return 'option_rpo';
   if(/\b(rpo|alert|peek|lookie|gift|access)\b|\b(glance|bubble|smoke|now\s*screen|stick|slant|choice|fade|speed\s*out|arrow|flat|pop\s*pass)\s*rpo\b/.test(p)) return 'option_rpo';
   if(/\b(screen|bubble|smoke|slip|tunnel|jailbreak)\b/.test(p)) return 'screen';
   if(/veer pass|rocket pass|tr cntr pass|\b(pa|play action|play-action|boot|fake|leak)\b/.test(p)) return 'play_action';
@@ -9295,6 +9504,7 @@ function generatePlaybookFromRows(rows,name){
     if(book.find(b=>dbKey(b.formation,b.play)===dbKey(pl.formation,pl.play)))return false;
     book.push(pl);formCount.set(pl.formation,fc+1);formConceptCount.set(fk,cc+1);return true;
   }
+  ensureRpoAccessQuota(book,scored.filter(x=>selectedForms.has(x.pl.formation)),target,tryAdd);
   addSystemRailSeeds(scored.filter(x=>selectedForms.has(x.pl.formation)),target,tryAdd);
   ensureThirdLongAnswers(book,scored.filter(x=>selectedForms.has(x.pl.formation)),target,tryAdd);
   for(const f of Object.keys(mix)){
