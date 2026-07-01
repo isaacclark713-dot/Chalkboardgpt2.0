@@ -520,6 +520,7 @@
           <select id="ph-system">
             <option value="none">Custom sliders only — no system profile</option>
             <option value="shanahan_wide_zone">Kyle Shanahan — WZ/YAC play-action</option>
+            <option value="capital_motion_read_pro">Capital Motion-Read Pro — modernized RG3 Washington</option>
             <option value="rvo_reliable_violent">RVO — Reliable Violent Offense</option>
             <option value="debesse_spread_option">DeBesse — shotgun triple spread option</option>
             <option value="wake_slow_mesh_veer_shoot">Wake Slow Mesh — Veer-and-Shoot RPO</option>
@@ -4417,6 +4418,43 @@ BUILT_IN_OFFENSE_SYSTEMS.kenny_wheaton_midline_veer={
   tagPenalties:[{tag:'shotgun_spread_surface',label:'shotgun spread drift',m:.18},{tag:'static_spread_dropback',label:'dropback spread drift',m:.24},{tag:'rpo_access',label:'modern RPO drift',m:.18},{tag:'double_wing_surface',label:'Double Wing drift',m:.20},{tag:'empty',label:'empty drift',m:.08}], genCap:3.10, gameCap:1.56
 };
 
+
+BUILT_IN_OFFENSE_SYSTEMS.capital_motion_read_pro={
+  label:'Capital Motion-Read Pro / Modernized RG3 Washington', shortLabel:'Capital MRP', source:'User-defined Modernized RG3 Washington profile', sourceBacked:true,
+  summary:'Modernized 2012 Washington RG3 offense: Shanahan pro-style wide zone and keeper DNA, pistol/read-option stress, heavy motion, RPO access, and man-coverage hunting from bunch, stack, condensed, and motion-to-empty pictures.',
+  philosophy:'Make the defense wrong before and after the snap. Motion identifies man/zone, changes the run strength, creates free releases, and gives the QB defined run/pass answers without turning the system into a QB-hit marathon.',
+  runIdentity:'Pistol wide zone and zone-read are the foundation. The QB is the extra-gap threat, but the best version makes the defense defend him every snap while limiting true designed QB carries. Wide zone, inside zone read, split/arc zone, duo read, counter read, GT bash, crack toss, pin-pull toss, speed/load option, and QB draw/counter form the run menu.',
+  passIdentity:'Movement throws, defined reads, RPO access throws, man-beaters, condensed-formation explosives, boot/keeper flood, Y leak, drift/glance, mesh/rub, choice, Y-cross, sail, dagger, slot fade, switch verticals, and post-wheel off run-action pictures.',
+  coreFormations:['Pistol 2x2 / 3x1','Pistol Wing / Y-Off','Pistol Bunch / Strong / Weak / Diamond','Gun 2x2 / 3x1','Gun Trips TE / Bunch / Stack','Gun Tight Doubles / Nub Trips','Singleback Wing / Tight / Bunch','Under-center 21 Strong/Weak','I-Wing','Pony 20','12 condensed','13 heavy PA','Motion to empty / back to backfield'],
+  preferredPersonnel:['11','12','21','20','13','22'],
+  motionShift:'Motion is the engine: jet, orbit, return, short, fast, tear, yo-yo, trade, TE wing trade, H-back slice/arc bluff, empty-to-backfield, backfield-to-empty, and WR-into-backfield motions reveal coverage, stress communication, change strength, and build RPO access.',
+  baseConcepts:['Outside Zone / Stretch','Inside Zone','Read Option','Arc Read','Split Zone','Duo','Counter','Power Read','Bash Read','QB Counter','Draw','Speed Option','Boot / Play Action','Flood','Y Cross','Mesh','Stick','Snag','Slants','Choice','Dagger','Sail','Glance','Screen'],
+  constraintConcepts:['Split Zone','Arc Read','Counter','Boot / Play Action','Y Leak','Reverse','Throwback Screen','Bubble Access','Now Screen','Glance','Load Option','Mesh','Bunch Rub','Wheel','Return Motion Option','Slot Fade'],
+  shotConcepts:['Wide Zone PA Yankee','Pistol Boot Post-Cross','Keeper Flood Shot','Orbit PA Wheel','Jet Motion Post-Wheel','Slot Fade off Bubble','Switch Verticals from Bunch','Leak off Split Zone','Deep Cross off Arc Read','Glance-and-Go','Post-Dig Max Protect','Sail Wheel','Dagger off Play-Action'],
+  screensRpos:['Bubble Access','Now Screen','Screen','Tunnel','Jailbreak','RB Swing','Orbit Swing','TE Delay','Slip Screen','Smoke Screen','Slant RPO','Glance RPO','Stick RPO','Choice RPO','Fade RPO','Speed Out RPO','Pop Pass','Arrow RPO'],
+  playActionFamily:['Wide Zone Boot','Wide Zone Keeper','Keeper Flood','Keeper Cross','Drift','Glance','Y Leak','TE Slide','Split Zone Pop','Arc Read Boot','Counter Boot','Bash Play-Action','Pin-Pull Boot','Max Protect Yankee'],
+  bestAudibles:['Man → Mesh / Bunch Rub / Motion Wheel / Slant-Flat / RB Option / QB Draw','Cover 0 → Fast motion flat / Bubble / Slant / Fade / Mesh sit / QB draw / Screen','One-high → Glance RPO / Post-wheel / Slot fade / Crossers / QB read game','Two-high → Wide zone / Duo / QB draw / Stick / Snag / Apex RPO','Loaded box → Now screen / Bubble / Gift fade / Quick out / Glance / Boot away / Empty check','Light box → Inside zone / Duo / QB read / Counter / GT bash','Blitz → Hot slant / Swing screen / TE pop / RB option / Mesh / QB escape draw / Boot away'],
+  scriptQuestions:['Do they follow motion with a defender?','Do they bump motion or spin the safety?','Who has RG3 on zone read?','Does the edge crash or slow-play?','Do linebackers fast-flow on wide zone?','Does the nickel fit the run?','Can they pass off bunch/stack releases?','Are they Cover 1, Cover 0, match quarters, or spot-drop?','Do they pressure motion?','Do they check out of man when the back goes empty?','Does the safety trigger on run action?','Can the backside safety handle glance/post?','Can their DE chase boot?','Are they tackling screens well?','Are they forcing the QB to hand off or keep?'],
+  defensesStressed:['man coverage','Cover 1','Cover 0','fast-flow linebackers','aggressive edges','nickel defenses forced to fit 12/21','static fronts','poor motion communication','single-high safety rotation','apex/overhang conflict players'],
+  defensesStruggles:['disciplined match quarters','bear / tite fronts','simulated pressure','mush-rush edges','elite man corners who tackle','long-yardage dropback situations','teams that pass off motion without revealing leverage'],
+  sequencingRules:['Use motion before answers; do not call the perfect play blindly.','If they chase motion, attack man with Mesh, rubs, wheel, bunch switch, RB option, QB draw, and slant-flat.','If they bump motion, snap during communication with wide zone, now screen, bubble, fast motion flat, weak-side run, or glance RPO.','If the edge crashes, punish with QB keep, arc read, load option, boot, or pop pass.','If linebackers fast-flow, hit counter, split zone, boot, leak, throwback, or reverse.','If safeties fit the run, throw glance, post, deep over, seam, Yankee, or slot fade.','Protect the QB with conflict, not volume; the defense must feel the QB run without the QB carrying it 20 times.'],
+  selfScoutGuardrails:['Motion usage should live around 70–85% of snaps.','At-snap motion should live around 35–55%.','Pistol usage should live around 45–65%.','Under-center usage should stay 20–35% unless the game demands otherwise.','Designed QB run should be 5–8 true calls per game plus scrambles.','RPO usage should live around 20–30%.','Play-action usage should live around 25–35%.','Screens should appear 5–8 times per game.','Bunch/stack should appear 25–40%.','Same formation + same concept should never exceed 15%.','Do not overuse the same motion + same play two drives in a row.','Limit dropback pass without run fake unless trailing.','Stay out of third-and-long.','Do not become too cute: motion is the tool, not the offense.'],
+  rpBand:[45,58], motionPreset:90, sizeHint:300, systemStrengthPreset:91,
+  persMixPreset:{'11':36,'12':24,'21':18,'20':12,'10':3,'13':3,'22':3,'23':0,'30':1},
+  formMixPreset:{shotgun:32,singleback:13,pistol:34,i_form:8,flexbone:0,wingbone:0,double_wing:0,empty:4,under_center:5,other:4},
+  formTypeBoosts:{pistol:1.34,shotgun:1.18,singleback:1.12,i_form:1.08,under_center:1.04,empty:1.02,other:.95,flexbone:.34,wingbone:.42,double_wing:.24},
+  conceptTargetsPreset:{'Outside Zone / Stretch':14,'Read Option':10,'Inside Zone':8,'Boot / Play Action':10,'Arc Read':5,'Duo':5,'Counter':7,'Power Read':4,'Bash Read':4,'QB Counter':3,'Draw':3,'Speed Option':3,'Flood':6,'Y Cross':5,'Mesh':6,'Stick':5,'Snag':4,'Slants':5,'Choice':4,'Glance':6,'Screen':5,'Dagger':3,'Sail':3,'Slot Fade':2,'Wheel':2},
+  conceptBoosts:{'Outside Zone / Stretch':1.30,'Read Option':1.30,'Inside Zone':1.16,'Arc Read':1.20,'Duo':1.10,'Counter':1.20,'Power Read':1.14,'Bash Read':1.16,'QB Counter':1.12,'QB Power Read':1.10,'Draw':1.10,'Speed Option':1.12,'Load Option':1.10,'Boot / Play Action':1.28,'Flood':1.18,'Y Cross':1.16,'Mesh':1.20,'Stick':1.12,'Snag':1.10,'Slants':1.12,'Choice':1.14,'Glance':1.18,'Screen':1.12,'Dagger':1.08,'Sail':1.10,'Verticals / Four Verticals':1.06,'Post':1.08,'Wheel':1.12,'Slot Fade':1.12,'Now Screen':1.12,'Bubble Access':1.12,'Pop Pass':1.08},
+  familyBoosts:{run:1.08,option_rpo:1.22,play_action:1.18,screen:1.08,pass:1.04},
+  surfaceBoosts:{pistol:1.20,condensed:1.16,bunch:1.16,stack:1.14,wing:1.14,y_off:1.14,tight:1.10,trips:1.08,empty:1.04,nub:1.06,spread:1.05,unbalanced:1.05},
+  motionBoosts:{motion:1.18,jet:1.18,orbit:1.18,return:1.14,fast:1.12,short:1.10,shift_trade:1.14,shift:1.10,trade:1.10,formation_disguise:1.12,add_gap:1.14,widen_force:1.12,eye_candy:1.08},
+  persBoosts:{'11':1.14,'12':1.14,'21':1.12,'20':1.12,'13':1.05,'22':1.04,'10':1.02},
+  tagBoosts:[
+    {tag:'capital_motion_read_core',label:'RG3/Shanahan motion-read core',m:1.24},{tag:'capital_pistol_surface',label:'pistol/read-pro surface',m:1.18},{tag:'capital_motion_man_hunter',label:'motion man-coverage hunter',m:1.18},{tag:'capital_rpo_access',label:'RPO/access built in',m:1.16},{tag:'capital_qb_run_conflict',label:'QB run conflict without overuse',m:1.14},{tag:'capital_wide_zone_pa',label:'wide-zone keeper/PA conflict',m:1.16},{tag:'capital_fast_flow_answer',label:'answer for fast-flow LBs',m:1.12},{tag:'motion_shift',label:'motion/shift coverage ID',m:1.08},{tag:'condensed_surface',label:'condensed/bunch release stress',m:1.08}
+  ],
+  tagPenalties:[{tag:'capital_static_dropback',label:'static dropback without run/motion conflict',m:.58},{tag:'capital_no_motion_no_conflict',label:'no motion/read/RPO conflict',m:.78},{tag:'flexbone_surface',label:'Flexbone drift',m:.35},{tag:'double_wing_surface',label:'Double Wing drift',m:.28}], genCap:2.95, gameCap:1.52
+};
+
 const LS_OFF_SYS='callsheet_offense_systems_v1';
 let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
 function allOffenseSystems(){return {...BUILT_IN_OFFENSE_SYSTEMS,...(_customOffenseSystems||{})};}
@@ -4426,6 +4464,7 @@ function attachV15SurfacePresets(){
   const B=BUILT_IN_OFFENSE_SYSTEMS;
   const set=(k,mix,cover=25)=>{if(!B[k])return; B[k].surfaceMixPreset=mix; B[k].formationCoverageMinPreset=cover;};
   set('shanahan_wide_zone',{wide:10,condensed:28,bunch_stack:10,trips_3man:5,quads_4man:0,attached_te_wing:28,nub:4,unbalanced:5,two_back:8,three_back:0,empty_surface:1,other_surface:1},28);
+  set('capital_motion_read_pro',{wide:16,condensed:18,bunch_stack:16,trips_3man:11,quads_4man:1,attached_te_wing:17,nub:2,unbalanced:3,two_back:10,three_back:2,empty_surface:3,other_surface:1},30);
   set('rvo_reliable_violent',{wide:10,condensed:24,bunch_stack:8,trips_3man:7,quads_4man:0,attached_te_wing:22,nub:4,unbalanced:5,two_back:18,three_back:0,empty_surface:1,other_surface:1},28);
   set('debesse_spread_option',{wide:25,condensed:5,bunch_stack:2,trips_3man:10,quads_4man:0,attached_te_wing:5,nub:2,unbalanced:5,two_back:28,three_back:16,empty_surface:1,other_surface:1},30);
   set('wake_slow_mesh_veer_shoot',{wide:45,condensed:5,bunch_stack:4,trips_3man:20,quads_4man:4,attached_te_wing:5,nub:2,unbalanced:0,two_back:1,three_back:0,empty_surface:8,other_surface:6},30);
@@ -4450,12 +4489,21 @@ function offSysText(pl){
 }
 function offSysHas(text,arr){return arr.some(x=>text.includes(x));}
 function offSysTagMatch(pl,tag){
-  const text=offSysText(pl); const t=(typeof intentSafe==='function')?(intentSafe(pl)||{}):{}; const c=(pl&&pl.concept)||''; const f=(pl&&pl.family)||''; const pers=String((pl&&pl.pers)||'');
+  const text=offSysText(pl); const t=(typeof intentSafe==='function')?(intentSafe(pl)||{}):{}; const c=(pl&&pl.concept)||''; const f=(pl&&pl.family)||''; const pers=String((pl&&pl.pers)||''); const ftype=inferFormationType(pl&&pl.formation);
   switch(tag){
 
     case 'rvo_core': return ['Outside Zone / Stretch','Duo','Counter','Inside Zone','Boot / Play Action','Y Cross','Flood','Sail','Glance','Bang Post','Stick','Spacing','Mesh'].includes(c)||offSysHas(text,['wide zone','outside zone','duo','split zone','counter','insert','iso','lead zone','boot','keeper','y cross','flood','sail','glance','bang post']);
     case 'air_raid_core': return ['Mesh','Verticals / Four Verticals','All Curl','Y Stick','Y Corner','Y Cross','Shallow','H Wheel','Screen','Quick Game','Hitch','Curls / Curl Flats'].includes(c)||offSysHas(text,['mesh','four verts','4 verts','all curl','y stick','y corner','y cross','shallow','h wheel','h-wheel','screen','hitch']);
     case 'air_raid_spread': return ['spread','trips','empty'].includes(t.surface)||['10','11','20'].includes(pers)||offSysHas(text,['ace','trips','trey','blue','green','open','empty','spread','wide split','doubles']);
+    case 'capital_motion_read_core': return ['Outside Zone / Stretch','Inside Zone','Read Option','Arc Read','Duo','Counter','Power Read','Bash Read','QB Counter','Draw','Speed Option','Boot / Play Action','Flood','Y Cross','Mesh','Stick','Snag','Slants','Choice','Glance','Screen'].includes(c)||offSysHas(text,['capital motion','rg3','washington','pistol','wide zone','outside zone','zone read','read option','arc read','split zone','duo read','counter read','gt bash','qb draw','qb counter','keeper flood','boot']);
+    case 'capital_pistol_surface': return ftype==='pistol'||offSysHas(text,['pistol','diamond','pistol wing','pistol bunch','pistol strong','pistol weak','pistol y off','pistol y-off']);
+    case 'capital_motion_man_hunter': return offSysHas(text,['motion','orbit','jet','return','fast motion','short motion','yo-yo','tear','bunch','stack','rub','pick','mesh','choice','wheel','slot fade','switch release','switch vertical','slant flat','man beater','attacks man'])||['Mesh','Choice','Slants','Wheel','Slot Fade'].includes(c);
+    case 'capital_rpo_access': return t.passStructure==='rpo_access'||['Glance','Slants','Stick','Screen','Now Screen','Bubble Access','Pop Pass'].includes(c)||offSysHas(text,['rpo','glance','bubble','now screen','stick rpo','choice rpo','gift fade','access','apex','overhang','pop pass','arrow rpo','speed out']);
+    case 'capital_qb_run_conflict': return ['Read Option','Arc Read','Power Read','Bash Read','QB Counter','QB Power Read','Draw','Speed Option','Load Option'].includes(c)||offSysHas(text,['rg3','qb run','quarterback run','zone read','read option','arc read','load option','speed option','qb draw','qb counter','qb power','bash','gt bash','extra gap']);
+    case 'capital_wide_zone_pa': return ['Outside Zone / Stretch','Boot / Play Action','Flood','Y Cross','Sail','Glance','Wheel','Post'].includes(c)||offSysHas(text,['wide zone','outside zone','stretch','boot','keeper','naked','y leak','drift','glance','deep over','yankee','flood','sail','post wheel','leak off split zone']);
+    case 'capital_fast_flow_answer': return ['Counter','Bash Read','QB Counter','Trap','Boot / Play Action','Draw','Screen'].includes(c)||offSysHas(text,['fast flow','fast-flow','linebacker flow','counter','gt counter','gh counter','split zone','slice','windback','boot','keeper','leak','throwback','reverse','trap','wham','qb draw']);
+    case 'capital_static_dropback': return f==='pass' && !(pl&&pl.motion>=1) && !offSysHas(text,['rpo','access','boot','keeper','play action','pa ','screen','quick','hot','rub','mesh','bunch','stack']);
+    case 'capital_no_motion_no_conflict': return !(pl&&pl.motion>=1) && !offSysHas(text,['motion','shift','jet','orbit','rpo','read','option','boot','keeper','play action','pa ','screen','bubble','glance']);
     case 'wide_zone': return c==='Outside Zone / Stretch'||t.runScheme==='wide_zone'||offSysHas(text,['outside zone','wide zone','stretch']);
     case 'keeper_boot': return c==='Boot / Play Action'||t.passStructure==='boot'||offSysHas(text,['boot','keeper','naked','waggle','leak','slide','drift']);
     case 'play_action_cross': return f==='play_action'||offSysHas(text,['play action','pa ','y cross','high cross','drift','flood','sail','crosser','mesh','levels','yankee']);
@@ -4650,6 +4698,7 @@ function systemRailFormationMatch(form,systemKey){
     case 'harbaugh_power_west_coast': return /i\s*form|strong\s*i|weak\s*i|singleback|ace|deuce|pistol|\bgun\b|full\s*house|power\s*i|wing|tight|y\s*off/.test(f);
     case 'erhardt_perkins': return /singleback|ace|i\s*form|strong\s*i|weak\s*i|\bgun\b|empty|trips|bunch|doubles|y\s*off|tight/.test(f);
     case 'shanahan_wide_zone': return /i\s*form|strong\s*i|singleback|wing|y\s*off|bunch|tight|ace|deuce|gun\s+wing/.test(f);
+    case 'capital_motion_read_pro': return /pistol|diamond|strong|weak|wing|y\s*off|y-off|bunch|stack|tight|nub|trips|trey|trio|doubles|\bgun\b|shotgun|empty|singleback|ace|deuce|i\s*form|under|pony|20|21/.test(f);
     default: return false;
   }
 }
@@ -4680,6 +4729,16 @@ function applySystemFormationRails(formRanked, allForms, maxForms){
 function systemRailSeedPlans(systemKey,target){
 
 
+
+  if(systemKey==='capital_motion_read_pro'){
+    return [
+      {label:'Capital wide-zone/read core',re:/wide zone|outside zone|stretch|zone read|read option|inside zone|split zone|arc read|duo|bash|gt bash/i,n:Math.max(30,Math.round(target*.25))},
+      {label:'Capital motion/RPO access',re:/bubble|now|glance|slant|stick|choice|rpo|access|gift|smoke|motion|orbit|jet|fast motion/i,n:Math.max(22,Math.round(target*.18))},
+      {label:'Capital keeper/play-action family',re:/boot|keeper|play action|pa |flood|y cross|sail|deep over|yankee|leak|drift|glance|throwback/i,n:Math.max(22,Math.round(target*.18))},
+      {label:'Capital man-beater menu',re:/mesh|rub|pick|bunch|stack|wheel|choice|slot fade|slant flat|switch vert|post wheel/i,n:Math.max(18,Math.round(target*.15))},
+      {label:'Capital fast-flow constraints',re:/counter|gt|gh|bash|trap|wham|split zone|slice|reverse|throwback|qb draw|qb counter|speed option|load option|crack toss|pin pull/i,n:Math.max(18,Math.round(target*.15))}
+    ];
+  }
 
   if(systemKey==='wake_slow_mesh_veer_shoot'){
     return [
@@ -4821,7 +4880,7 @@ function renderSystemOptions(){
   sel.innerHTML='';
   const add=(value,label,parent=sel)=>{const o=el('option');o.value=value;o.textContent=label;parent.appendChild(o);};
   add('none','Custom sliders only — no system profile');
-  ['shanahan_wide_zone','rvo_reliable_violent','debesse_spread_option','wake_slow_mesh_veer_shoot','gus_malzahn_hunh','kenny_wheaton_midline_veer','paul_johnson_flexbone','art_briles_spread','mike_leach_air_raid','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
+  ['shanahan_wide_zone','capital_motion_read_pro','rvo_reliable_violent','debesse_spread_option','wake_slow_mesh_veer_shoot','gus_malzahn_hunh','kenny_wheaton_midline_veer','paul_johnson_flexbone','art_briles_spread','mike_leach_air_raid','peyton_manning_moore','harbaugh_power_west_coast','erhardt_perkins'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label));
   const customKeys=Object.keys(_customOffenseSystems||{});
   if(customKeys.length){const og=el('optgroup');og.label='Imported profiles';customKeys.forEach(k=>add(k,_customOffenseSystems[k].label||k,og));sel.appendChild(og);}
   const og=el('optgroup');og.label='Starter templates';['wide_zone_boot','modern_west_coast','spread_power_rpo','spread_tempo_inside_zone'].forEach(k=>add(k,BUILT_IN_OFFENSE_SYSTEMS[k].label,og));sel.appendChild(og);

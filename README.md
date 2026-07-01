@@ -1,16 +1,16 @@
-# Call Sheet — Coach Brain v15.4
+# Call Sheet — Coach Brain v15.5
 
-Patch release from v15.3.
+GitHub Pages-ready upload package.
 
-## Fix
-- Fixed the Generate Base Playbook loading flow that was incorrectly showing “Generate failed.”
-- The loading message still appears after clicking Generate.
-- The button still disables during generation.
-- After generation completes, the app automatically opens the Build List tab.
+## Update
+- Added **Capital Motion-Read Pro / Modernized RG3 Washington** as a built-in offensive system profile.
+- Profile includes RG3/Washington 2012 DNA, pistol wide zone, read-option, motion/RPO man-coverage hunting, keeper/play-action, fast-flow answers, formation/personnel presets, concept weights, surface presets, rail seeds, and scoring tags.
+- Keeps the v15.4 OC upgrades: failure diagnosis, defensive memory, and game-management scoring.
 
 ## Deploy to GitHub Pages
 Upload all files in this folder to your repository root:
 - `index.html`
 - `.nojekyll`
-- `global_unique_plays.csv`
-- `global_unique_plays.json`
+- `README.md`
+
+Then enable GitHub Pages for the repository branch/root.
