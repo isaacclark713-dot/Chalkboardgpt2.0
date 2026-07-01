@@ -1425,6 +1425,8 @@ const RPO_CORE_CONCEPTS=[
   'Slant RPO','Glance RPO','Stick RPO','Bubble RPO','Screen RPO','Swing RPO','Hitch RPO','Choice RPO','Now Screen RPO','Fade RPO','Speed Out RPO','Pop Pass RPO','Arrow RPO','Flat RPO'
 ];
 const RPO_CORE_SET=new Set(RPO_CORE_CONCEPTS);
+const RPO_CLASSIFICATION_EXTRA_CONCEPTS=['Duo + Smoke RPO','Zone + Screen RPO','Snag RPO','Post RPO','Counter Alert RPO','QB Draw RPO','QB Power RPO'];
+RPO_CLASSIFICATION_EXTRA_CONCEPTS.forEach(c=>{ if(!RPO_CORE_SET.has(c)){ RPO_CORE_CONCEPTS.push(c); RPO_CORE_SET.add(c); } });
 function isGranularRpoConcept(concept){return RPO_CORE_SET.has(String(concept||''));}
 function normalizeRpoText(play){return String(play||'').toLowerCase().replace(/[-_/]+/g,' ').replace(/\s+/g,' ').trim();}
 function rpoTextFacts(play,family,formation,legacyConcept){
@@ -1432,31 +1434,36 @@ function rpoTextFacts(play,family,formation,legacyConcept){
   const explicit=/\b(rpo|alert|peek|lookie|gift|access|attached|tagged|tag|walk)\b/.test(p)||/\bzone\s+alert\b|\bread\s+alert\b/.test(p)||/rpo|access/.test(legacy);
   const optionOnly=/\b(triple\s+option|speed\s+option|load\s+option|midline|inside\s+veer|read\s+option|zone\s+read|power\s+read|inverted\s+veer|bash|shovel\s+option|qb\s+slot\s+option)\b/.test(p) && !explicit;
   const run={
-    inside:/inside\s*zone|\biz\b|\bzone\b|hb\s*zone|zone\s+wk|zone\s+weak|slam|blast|base/.test(p),
-    wide:/wide\s*zone|outside\s*zone|stretch/.test(p),
     split:/split\s*zone|zone\s*split|slice|sift/.test(p),
-    duo:/\bduo\b/.test(p),
+    duo:/\bbduo\b|\bduo\b|hb\s*duo/.test(p),
+    wide:/wide\s*zone|outside\s*zone|stretch/.test(p),
+    inside:/inside\s*zone|\biz\b|\bzone\b|hb\s*zone|zone\s+wk|zone\s+weak|slam|blast|base/.test(p),
     power:/\bpower\b|power\s*o|qb\s*power/.test(p),
     counter:/counter|\bgt\b|\bgh\b/.test(p),
     bash:/bash|inverted\s*veer/.test(p),
     arc:/arc\s*read|\barc\b/.test(p),
-    read:/zone\s*read|read\s*option|qb\s*read|read\s+cntr/.test(p),
-    draw:/draw/.test(p),
+    read:/zone\s*read|read\s*option|qb\s*read|read\s+cntr|\bread\b/.test(p),
+    draw:/qb\s*draw|draw/.test(p),
     buck:/buck/.test(p),
     trap:/trap/.test(p)
   };
   const access={
-    glance:/glance|lookie|walk\s+glance|peek\s+post|alert\s+post|duo\s+alert\s+post/.test(p),
+    post:/\bpost\b/.test(p) && /\b(rpo|alert|peek|lookie|gift|access)\b/.test(p),
+    glance:/glance|lookie|walk\s+glance|peek\s+post|alert\s+post|duo\s+alert\s+post|bang\s+post/.test(p),
     slant:/slant/.test(p),
     bubble:/bubble/.test(p),
-    screen:/screen|wr\s*screen|z\s*screen|slot\s*screen|smoke|x\s*smoke|now\s*screen/.test(p),
+    smoke:/\bsmoke\b|x\s*smoke|z\s*smoke/.test(p),
+    screen:/screen|\bscrn\b|shield\s*scrn|shield\s*screen|wr\s*screen|z\s*screen|slot\s*screen|now\s*screen/.test(p),
     stick:/stick/.test(p),
     hitch:/hitch|hitches/.test(p),
     out:/\bout\b|speed\s*out|quick\s*out|alert\s*out|x\s*out/.test(p),
+    swing:/swing/.test(p),
+    arrow:/arrow/.test(p),
     flat:/flat|arrow|slide|swing|hb\s*flat|te\s*flat|y\s*flat|f\s*slide|y\s*slide|jab\s*flat/.test(p),
     pop:/pop|y\s*pop|te\s*pop/.test(p),
     fade:/fade|gift\s*fade/.test(p),
-    choice:/choice|option\s*route|snag|spot\s*wheel/.test(p),
+    snag:/snag/.test(p),
+    choice:/choice|option\s*route|spot\s*wheel/.test(p),
     drawStick:/draw\s+stick|stick\s+qb\s+draw/.test(p),
     shock:/shock|omaha|randy|dragon/.test(p)
   };
@@ -1470,47 +1477,56 @@ function rpoTextFacts(play,family,formation,legacyConcept){
 function classifyRpoCoreConcept(play,family,formation,legacyConcept){
   const x=rpoTextFacts(play,family,formation,legacyConcept), r=x.run, a=x.access;
   if(!x.p||!x.rpoish)return '';
+  const p=x.p;
+  const hasNamedAccess=a.post||a.glance||a.slant||a.bubble||a.smoke||a.screen||a.stick||a.hitch||a.out||a.flat||a.swing||a.arrow||a.pop||a.fade||a.snag||a.choice||a.shock;
 
-  // Named run + access pairings first.  These are the slider-facing concepts.
-  if((r.inside||r.read) && a.glance) return 'Inside Zone + Glance RPO';
-  if((r.inside||r.read) && a.bubble) return 'Inside Zone + Bubble RPO';
-  if((r.wide||/stretch/.test(x.p)) && (a.screen||a.bubble)) return 'Wide Zone + Now Screen RPO';
   if(r.duo && a.stick) return 'Duo + Stick RPO';
-  if(r.duo && a.glance) return 'Duo + Glance RPO';
-  if(r.duo && a.bubble) return 'Duo + Bubble RPO';
+  if(r.duo && (a.glance||a.post)) return 'Duo + Glance RPO';
+  if(r.duo && a.smoke) return 'Duo + Smoke RPO';
+  if(r.duo && (a.bubble||a.screen)) return 'Duo + Bubble RPO';
   if(r.split && a.pop) return 'Split Zone + Pop Pass RPO';
+  if(r.split && a.snag) return 'Snag RPO';
+  if(r.draw){
+    if(a.stick) return 'Draw + Stick RPO';
+    if(a.screen||a.smoke||a.bubble||a.flat||a.swing) return 'QB Draw + Screen RPO';
+    return 'QB Draw RPO';
+  }
   if((r.counter||r.bash) && a.slant) return 'Counter Read + Slant RPO';
-  if((r.bash||/gt\s*bash|counter\s*bash/.test(x.p)) && a.bubble) return 'GT Bash + Bubble RPO';
+  if((r.bash||/gt\s*bash|counter\s*bash/.test(p)) && a.bubble) return 'GT Bash + Bubble RPO';
   if((r.counter||r.buck) && a.bubble) return 'Counter + Bubble RPO';
-  if((r.counter||r.buck) && a.screen) return 'Counter + Screen RPO';
-  if((r.power||/alert\s+power|power\s+alert/.test(x.p)) && a.bubble) return 'Power + Bubble RPO';
+  if((r.counter||r.buck) && (a.screen||a.smoke)) return 'Counter + Screen RPO';
+  if((r.counter||r.buck) && !hasNamedAccess) return 'Counter Alert RPO';
+  if((r.power||/alert\s+power|power\s+alert/.test(p)) && a.bubble) return 'Power + Bubble RPO';
   if(r.power && a.hitch) return 'Power + Hitch RPO';
-  if(r.power && (a.slant||a.glance)) return 'Power + Slant RPO';
-  if(r.arc && (a.flat||a.out)) return 'Arc Read + Flat RPO';
+  if(r.power && (a.slant||a.glance||a.post)) return 'Power + Slant RPO';
+  if(r.power && !hasNamedAccess) return 'QB Power RPO';
+  if(r.arc && (a.flat||a.out||a.swing||a.arrow)) return 'Arc Read + Flat RPO';
   if((r.read||r.arc) && a.fade) return 'Zone Read + Gift Fade RPO';
-  if(r.draw && a.stick) return 'Draw + Stick RPO';
-  if(r.draw && (a.screen||a.bubble||a.flat)) return 'QB Draw + Screen RPO';
-  if((r.inside||r.read||/zone\s+alert/.test(x.p)) && a.hitch) return 'Zone + Hitch RPO';
-  if((r.inside||r.read||/zone\s+alert/.test(x.p)) && a.screen) return 'Zone + Smoke RPO';
+  if((r.wide||/stretch/.test(p)) && (a.screen||a.smoke||a.bubble)) return 'Wide Zone + Now Screen RPO';
+  if((r.inside||r.read||/zone\s+alert/.test(p)) && (a.glance||a.post)) return 'Inside Zone + Glance RPO';
+  if((r.inside||r.read||/zone\s+alert/.test(p)) && a.bubble) return 'Inside Zone + Bubble RPO';
+  if((r.inside||r.read||/zone\s+alert/.test(p)) && a.hitch) return 'Zone + Hitch RPO';
+  if((r.inside||r.read||/zone\s+alert/.test(p)) && a.smoke) return 'Zone + Smoke RPO';
+  if((r.inside||r.read||/zone\s+alert/.test(p)) && a.screen) return 'Zone + Screen RPO';
 
-  // Generic access families when the database name does not reveal the base run.
+  if(a.post) return 'Post RPO';
   if(a.glance) return 'Glance RPO';
   if(a.slant) return 'Slant RPO';
+  if(a.snag) return 'Snag RPO';
   if(a.stick) return 'Stick RPO';
   if(a.bubble) return 'Bubble RPO';
-  if(a.screen) return 'Screen RPO';
+  if(a.smoke||a.screen) return 'Screen RPO';
   if(a.hitch) return 'Hitch RPO';
   if(a.choice) return 'Choice RPO';
   if(a.fade) return 'Fade RPO';
   if(a.out) return 'Speed Out RPO';
   if(a.pop) return 'Pop Pass RPO';
-  if(a.flat){
-    if(/swing/.test(x.p))return 'Swing RPO';
-    if(/arrow/.test(x.p))return 'Arrow RPO';
-    return 'Flat RPO';
-  }
+  if(a.swing) return 'Swing RPO';
+  if(a.arrow) return 'Arrow RPO';
+  if(a.flat) return 'Flat RPO';
   if(a.shock) return 'Screen RPO';
-  if(/\brpo\b/.test(x.p)) return 'Bubble RPO';
+
+  if(/\brpo\b|\balert\b|\bpeek\b|\blookie\b|\bgift\b/.test(p)) return 'Option / RPO';
   return '';
 }
 
@@ -2767,6 +2783,22 @@ const CONCEPT_TARGET_GROUPS=[
   {title:'Pass Menu — dropback conversion and coverage answers',items:['Quick Game','Stick','Y Stick','Y Corner','Mesh','Shallow','H Wheel','Smash','Dag / Smash','Dagger','Levels','Seam Read','All Curl','Curls / Curl Flats','Spacing','Hitch','Choice','Deep Choice','Slot Fade','Switch Verticals','Smash Fade','Ghost','Tosser','INC','Drive','Verticals / Four Verticals','Go Routes']},
   {title:'Screen / Draw / 3rd-and-long answers',items:['Screen','Now Screen','Draw','Mesh','Levels','Drive','Y Cross','Curls / Curl Flats','Verticals / Four Verticals','Deep Choice']}
 ];
+// v15.8 regression fix: add generated RG3 labels to sliders, guides, and alias scoring.
+['Split Zone','Duo + Smoke RPO','Zone + Screen RPO','Snag RPO','Post RPO','Counter Alert RPO','QB Draw RPO','QB Power RPO'].forEach(c=>{if(!CORE_CONCEPT_TARGETS.includes(c))CORE_CONCEPT_TARGETS.push(c);});
+if(CONCEPT_TARGET_GROUPS&&CONCEPT_TARGET_GROUPS[0]&&!CONCEPT_TARGET_GROUPS[0].items.includes('Split Zone'))CONCEPT_TARGET_GROUPS[0].items.push('Split Zone');
+if(CONCEPT_TARGET_GROUPS&&CONCEPT_TARGET_GROUPS[2])['Duo + Smoke RPO','Zone + Screen RPO','Snag RPO','Post RPO','Counter Alert RPO','QB Draw RPO','QB Power RPO','Screen RPO','Swing RPO','Hitch RPO','Flat RPO'].forEach(c=>{if(!CONCEPT_TARGET_GROUPS[2].items.includes(c))CONCEPT_TARGET_GROUPS[2].items.push(c);});
+Object.assign(CONCEPT_TARGET_GUIDE,{'Split Zone':'split/slice zone constraint 5–14%','Duo + Smoke RPO':'duo + smoke access 2–6%','Zone + Screen RPO':'zone + screen access 3–8%','Snag RPO':'snag/access RPO 2–6%','Post RPO':'post/glance RPO 2–6%','Counter Alert RPO':'counter alert/access RPO 2–6%','QB Draw RPO':'QB draw RPO 2–6%','QB Power RPO':'QB power RPO 2–6%'});
+Object.assign(CONCEPT_TARGET_ALIASES,{
+ 'Split Zone':['core_split_zone','scheme_inside_zone','series_split_zone_series','intent_run_constraint','stress_lb_flow'],
+ 'Duo + Smoke RPO':['core_duo_smoke_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_duo','screen_smoke','stress_apex_conflict'],
+ 'Zone + Screen RPO':['core_zone_screen_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_inside_zone','screen_smoke','stress_space_perimeter'],
+ 'Snag RPO':['core_snag_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_stick_spacing','stress_apex_conflict'],
+ 'Post RPO':['core_post_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_slant','route_verts_seams','stress_safety_insert_conflict'],
+ 'Counter Alert RPO':['core_counter_alert_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_counter','stress_lb_flow','stress_apex_conflict'],
+ 'QB Draw RPO':['core_qb_draw_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_draw','stress_pass_rush'],
+ 'QB Power RPO':['core_qb_power_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_power','stress_extra_gap']
+});
+
 function structureHintForConcept(con){
   if(['Super Power','Wedge','Counter XX','6-G / G','Power Pass','Wing Leak','Waggle','TE Pop'].includes(con))return 'UC / Double Wing';
   if(['Triple Option','Inside Veer','Midline','Veer Pass','Rocket Toss','Counter Option'].includes(con))return 'Flexbone';
@@ -2987,6 +3019,12 @@ function conceptTargetTagSet(pl){
       if(c.includes('slant')||c.includes('glance'))tagAdd(tags,'route','slant');
       if(c.includes('stick'))tagAdd(tags,'route','stick_spacing');
       if(c.includes('fade'))tagAdd(tags,'route','verts_seams');
+      if(c.includes('split zone')){tagAdd(tags,'scheme','inside_zone');tagAdd(tags,'series','split_zone_series');tagAdd(tags,'stress','lb_flow');}
+      if(c.includes('smoke')||c.includes('screen'))tagAdd(tags,'screen','smoke');
+      if(c.includes('snag'))tagAdd(tags,'route','stick_spacing');
+      if(c.includes('post')){tagAdd(tags,'route','slant');tagAdd(tags,'route','verts_seams');}
+      if(c.includes('qb draw'))tagAdd(tags,'scheme','draw');
+      if(c.includes('qb power'))tagAdd(tags,'scheme','power');
     }
   }catch(e){}
   return tags;
@@ -4639,6 +4677,11 @@ BUILT_IN_OFFENSE_SYSTEMS.capital_motion_read_pro={
   ],
   tagPenalties:[{tag:'capital_static_dropback',label:'static dropback without run/motion conflict',m:.58},{tag:'capital_no_motion_no_conflict',label:'no motion/read/RPO conflict',m:.78},{tag:'flexbone_surface',label:'Flexbone drift',m:.35},{tag:'double_wing_surface',label:'Double Wing drift',m:.28}], genCap:2.95, gameCap:1.52
 };
+// v15.8 Capital MRP targets for fixed RPO/run labels.
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.capital_motion_read_pro.conceptTargetsPreset,{'Split Zone':5,'Duo + Smoke RPO':2,'Zone + Screen RPO':3,'Snag RPO':2,'Post RPO':2,'Counter Alert RPO':2,'QB Draw RPO':2,'QB Power RPO':2});
+Object.assign(BUILT_IN_OFFENSE_SYSTEMS.capital_motion_read_pro.conceptBoosts,{'Split Zone':1.16,'Duo + Smoke RPO':1.12,'Zone + Screen RPO':1.12,'Snag RPO':1.10,'Post RPO':1.10,'Counter Alert RPO':1.10,'QB Draw RPO':1.10,'QB Power RPO':1.10});
+['Duo + Smoke RPO','Zone + Screen RPO','Snag RPO','Post RPO','Counter Alert RPO','QB Draw RPO','QB Power RPO'].forEach(c=>{if(!BUILT_IN_OFFENSE_SYSTEMS.capital_motion_read_pro.screensRpos.includes(c))BUILT_IN_OFFENSE_SYSTEMS.capital_motion_read_pro.screensRpos.push(c);});
+
 
 const LS_OFF_SYS='callsheet_offense_systems_v1';
 let _customOffenseSystems=loadJSON(LS_OFF_SYS)||{};
@@ -8964,6 +9007,8 @@ function inferConcept(play, family){
   const fam=normalizeFamily(family, play);
   const rpoConcept=classifyRpoCoreConcept(play,family,'','');
   if(rpoConcept) return rpoConcept;
+  if(/split\s*zone|zone\s*split|slice|sift/.test(p)) return 'Split Zone';
+  if(/\bbduo\b|\bduo\b|hb\s*duo/.test(p)) return 'Duo';
   if(/slow\s*mesh|walk\s*mesh|delayed\s*rpo|mesh\s*rpo/.test(p)) return 'Slow Mesh RPO';
   if(/deep\s*choice/.test(p)) return 'Deep Choice';
   if(/slot\s*fade/.test(p)) return 'Slot Fade';
