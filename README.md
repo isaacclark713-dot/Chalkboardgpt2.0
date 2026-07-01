@@ -1,10 +1,7 @@
-# Coach Brain v15.8.3 Formation Depth Fix
+# Coach Brain v15.8.4 Wake Slow Mesh Identity Fix
 
-Fixes generated playbooks spreading across too many thin formations.
+Fixes Wake Slow Mesh / Veer-and-Shoot generation by keeping the system in Gun/Pistol/Empty spread formations and forcing visible Slow Mesh RPO identity in the generated book.
 
-Changes:
-- Caps source-system formation spread more tightly for large generated books.
-- Adds a final formation-depth pass: every kept formation must have at least five plays.
-- Late RPO quota repair now prefers formations already in the book instead of adding one-off RPO formations.
-- Runs formation legality after personnel/family repairs so those repairs cannot create 1–4 play formations.
-- Keeps v15.8.x RPO classification fixes.
+- Removes under-center Strong/Weak/Power-I/Maryland-style leftovers from Wake generated books.
+- Converts eligible generic RPO/access calls into visible WALK/SLOW MESH RPO calls.
+- Keeps RPO quota and formation-depth repair from v15.8.3.

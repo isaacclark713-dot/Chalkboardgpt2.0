@@ -3021,6 +3021,7 @@ function conceptTargetTagSet(pl){
       if(c.includes('slant')||c.includes('glance'))tagAdd(tags,'route','slant');
       if(c.includes('stick'))tagAdd(tags,'route','stick_spacing');
       if(c.includes('fade'))tagAdd(tags,'route','verts_seams');
+      if(c.includes('slow mesh')){tagAdd(tags,'action','slow_mesh');tagAdd(tags,'series','slow_mesh_series');tagAdd(tags,'read','mesh_point');tagAdd(tags,'stress','late_conflict');}
       if(c.includes('split zone')){tagAdd(tags,'scheme','inside_zone');tagAdd(tags,'series','split_zone_series');tagAdd(tags,'stress','lb_flow');}
       if(c.includes('smoke')||c.includes('screen'))tagAdd(tags,'screen','smoke');
       if(c.includes('snag'))tagAdd(tags,'route','stick_spacing');
@@ -5570,6 +5571,105 @@ function enforceFinalFormationDepth(book,scoredPool,target){
   return uniquePlayArray(out).slice(0,target);
 }
 
+// v15.8.4: Wake Slow Mesh / Veer-and-Shoot identity repair.
+// The RG3 formation-depth fix works, but Wake needs a different hard rail:
+// it must stay in Gun/Pistol/Empty spread worlds and the book must visibly
+// contain Slow Mesh RPO calls, not only generic RPO/access calls.
+function wakeSlowMeshSystemActive(){
+  return (philosophy&&philosophy.system)==='wake_slow_mesh_veer_shoot';
+}
+function wakeFormationAllowed(pl){
+  if(!pl)return true;
+  if(!wakeSlowMeshSystemActive())return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  // Wake/VnS can use odd Gun tags such as Go-Go, Tackle Over, or Unbalanced,
+  // but should not import old under-center Strong/Weak/Power-I/Maryland looks.
+  if(/^gun\b|^pistol\b|^empty\b/.test(f))return true;
+  return false;
+}
+function enforceWakeFormationRails(book,scoredPool,target){
+  if(!wakeSlowMeshSystemActive())return uniquePlayArray(book||[]).slice(0,target);
+  let out=uniquePlayArray(book||[]).filter(wakeFormationAllowed);
+  const used=new Set(out.map(playUniqueKey));
+  const pool=(scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&wakeFormationAllowed(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl))
+    .sort((a,b)=>(b.s||0)-(a.s||0));
+  for(const {pl} of pool){
+    if(out.length>=target)break;
+    const k=playUniqueKey(pl);
+    if(used.has(k))continue;
+    out.push(pl); used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function wakeSlowMeshEligible(pl){
+  if(!pl||!wakeSlowMeshSystemActive())return false;
+  if(!isTrueRpoAccessPlay(pl))return false;
+  if(isTrueOptionRun(pl))return false;
+  if(!wakeFormationAllowed(pl))return false;
+  const txt=playText(pl).toLowerCase();
+  const c=String(pl.concept||'').toLowerCase();
+  // Keep QB draw/power, counter/buck/GT, and pure screen RPOs as constraints.
+  // Slow Mesh should be the delayed inside-zone/duo mesh with an access/vertical tag.
+  if(/qb\s*draw|qb\s*power|draw\s*\+|power\s*\+|counter|buck|gt\b|bash/.test(txt+" "+c))return false;
+  if(/screen rpo|zone \+ screen|now screen|smoke/.test(c))return false;
+  return /flat rpo|slant rpo|glance rpo|post rpo|bubble rpo|inside zone \+ bubble|pop pass rpo|stick rpo|choice rpo|option \/ rpo|rpo/.test(c+" "+txt);
+}
+function wakeSlowMeshPlayName(pl,idx){
+  let name=String(pl&&pl.play||'').trim();
+  if(/\b(slow|walk)\s+mesh\b/i.test(name))return name;
+  // Preserve useful motion indicator while making the mesh identity visible.
+  if(/\bRPO\b/i.test(name))return name.replace(/\bRPO\b/i,(idx%2?'SLOW MESH RPO':'WALK MESH RPO'));
+  return (idx%2?'SLOW MESH ':'WALK MESH ')+name;
+}
+function withWakeSlowMeshConcept(pl,idx){
+  const copy={...pl};
+  copy.play=wakeSlowMeshPlayName(pl,idx);
+  copy.family='option_rpo';
+  copy.concept='Slow Mesh RPO';
+  return copy;
+}
+function enforceWakeSlowMeshIdentity(book,scoredPool,target){
+  if(!wakeSlowMeshSystemActive())return uniquePlayArray(book||[]).slice(0,target);
+  const desired=Math.max(48,Math.round((Number(target)||400)*0.18)); // 18% floor; profile slider asks for ~20%.
+  let out=uniquePlayArray(book||[]);
+  let current=out.filter(pl=>pl.concept==='Slow Mesh RPO'||/\b(slow|walk)\s+mesh\b/i.test(pl.play||'')).length;
+  if(current>=desired)return out.slice(0,target);
+  const usedForms=new Set(out.map(p=>p.formation));
+  const formCounts=out.reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
+  const indexes=out
+    .map((pl,i)=>({pl,i,score:(formCounts[pl.formation]||0)+(usedForms.has(pl.formation)?8:0)}))
+    .filter(x=>wakeSlowMeshEligible(x.pl))
+    .sort((a,b)=>b.score-a.score);
+  for(const x of indexes){
+    if(current>=desired)break;
+    out[x.i]=withWakeSlowMeshConcept(x.pl,current);
+    current++;
+  }
+  // If the selected book did not have enough eligible RPOs, add/replace from pool.
+  if(current<desired){
+    const pool=(scoredPool||[])
+      .map(x=>x&&x.pl?x:{pl:x,s:1})
+      .filter(x=>x&&x.pl&&wakeSlowMeshEligible(x.pl))
+      .sort((a,b)=>(b.s||0)-(a.s||0));
+    const used=new Set(out.map(playUniqueKey));
+    for(const {pl} of pool){
+      if(current>=desired)break;
+      const sm=withWakeSlowMeshConcept(pl,current);
+      const k=playUniqueKey(sm);
+      if(used.has(k))continue;
+      // Prefer replacing non-Wake illegal leftovers or generic low-value RPOs.
+      let repl=out.findIndex(p=>!wakeFormationAllowed(p)||p.concept==='Option / RPO'||p.concept==='HB Base / Zone'||p.concept==='Other / Unknown');
+      if(repl<0) repl=out.findIndex(p=>p.family==='run'&&!/inside zone|split zone|counter|power|draw/i.test(String(p.concept||'')));
+      if(repl<0||out.length<target){out.push(sm);} else {out[repl]=sm;}
+      used.add(k); current++;
+    }
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+
+
 
 function generatePlaybook(){
   const p=philosophy;
@@ -5793,10 +5893,14 @@ function generatePlaybook(){
   book=enforcePersonnelMixMargin(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceFormationMixMargin(book,finalScoredPool,target);
+  book=enforceWakeFormationRails(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=enforceWakeFormationRails(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
+  book=enforceWakeSlowMeshIdentity(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=enforceWakeSlowMeshIdentity(book,finalScoredPool,target);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
