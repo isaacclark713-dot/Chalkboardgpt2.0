@@ -3734,8 +3734,8 @@ ensurePhilosophyShape();
 
 // v14.9: run/pass defaults come from system presets or direct slider values.
 function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',defStyle:'',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,scriptState:null,twoMin:null};}
-function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
-function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){return d;}}
+function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){console.warn('loadJSON failed for key',k,e);return null;}}
+function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){console.warn('loadNum failed for key',k,e);return d;}}
 function compactIntentForSave(intent){
   if(!intent||typeof intent!=='object')return null;
   const out={};
@@ -4864,14 +4864,14 @@ function addSystemRailSeeds(scoredList,target,tryAdd){
 }
 function offenseSystemPlanHtml(){
   const sys=activeOffenseSystem(); if(!sys||sys===BUILT_IN_OFFENSE_SYSTEMS.none)return '';
-  const chips=(arr,cls='')=>(arr||[]).slice(0,8).map(x=>`<span class="chip ${cls}">${x}</span>`).join(' ');
-  const boost=(sys.tagBoosts||[]).slice(0,6).map(b=>`<span class="chip">+ ${b.label}</span>`).join(' ');
-  const pens=(sys.tagPenalties||[]).slice(0,3).map(b=>`<span class="chip bad">↓ ${b.label}</span>`).join(' ');
-  const rules=(sys.sequencingRules||[]).slice(0,4).map(x=>`<li>${x}</li>`).join('');
+  const chips=(arr,cls='')=>(arr||[]).slice(0,8).map(x=>`<span class="chip ${cls}">${esc(x)}</span>`).join(' ');
+  const boost=(sys.tagBoosts||[]).slice(0,6).map(b=>`<span class="chip">+ ${esc(b.label)}</span>`).join(' ');
+  const pens=(sys.tagPenalties||[]).slice(0,3).map(b=>`<span class="chip bad">↓ ${esc(b.label)}</span>`).join(' ');
+  const rules=(sys.sequencingRules||[]).slice(0,4).map(x=>`<li>${esc(x)}</li>`).join('');
   const strength=(philosophy&&philosophy.systemStrength!=null)?Number(philosophy.systemStrength):75;
   const hardLabel=strength>=85?'hard scheme rail':strength>=60?'strong scheme rail':'light scheme nudge';
-  const forms=sys.formMixPreset?Object.entries(sys.formMixPreset).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`<span class="chip">${FORM_TYPE_LABEL[k]||k} ${v}%</span>`).join(' '):'';
-  return `<b>${sys.label}</b> <span class="hint">${sys.sourceBacked?'source-backed':'starter'} · ${hardLabel} · ${strength}%</span><br><span class="hint">${sys.summary||''}</span><div style="margin-top:8px"><b>Core:</b> ${chips(sys.baseConcepts)}<br><b>Personnel:</b> ${chips(sys.preferredPersonnel)}<br><b>Surfaces:</b> ${chips(sys.coreFormations)}${forms?`<br><b>Alignment preset:</b> ${forms}`:''}</div><div style="margin-top:8px">${boost}${pens?'<br>'+pens:''}</div>${rules?`<div class="hint" style="margin-top:8px"><b>Sequencing rules:</b><ul style="margin:4px 0 0 18px;padding:0">${rules}</ul></div>`:''}`;
+  const forms=sys.formMixPreset?Object.entries(sys.formMixPreset).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`<span class="chip">${esc(FORM_TYPE_LABEL[k]||k)} ${v}%</span>`).join(' '):'';
+  return `<b>${esc(sys.label)}</b> <span class="hint">${sys.sourceBacked?'source-backed':'starter'} · ${hardLabel} · ${strength}%</span><br><span class="hint">${esc(sys.summary||'')}</span><div style="margin-top:8px"><b>Core:</b> ${chips(sys.baseConcepts)}<br><b>Personnel:</b> ${chips(sys.preferredPersonnel)}<br><b>Surfaces:</b> ${chips(sys.coreFormations)}${forms?`<br><b>Alignment preset:</b> ${forms}`:''}</div><div style="margin-top:8px">${boost}${pens?'<br>'+pens:''}</div>${rules?`<div class="hint" style="margin-top:8px"><b>Sequencing rules:</b><ul style="margin:4px 0 0 18px;padding:0">${rules}</ul></div>`:''}`;
 }
 function renderOffenseSystemPlan(){const box=$('#off-system-plan');if(!box)return;const html=offenseSystemPlanHtml();if(!html){box.style.display='none';box.innerHTML='';return;}box.style.display='block';box.innerHTML=html;}
 function renderSystemOptions(){
@@ -6178,6 +6178,7 @@ function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))
    ============================================================ */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 function el(t,c,txt){const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function persPill(p){const s=el('span','pill pers',p);return s;}
 function famPill(f){f=String(f||'unknown');const s=el('span','pill '+f,f.replace('_',' '));return s;}
 function intentOrFamPill(pl){return playIntentPill(pl);}
@@ -6711,9 +6712,9 @@ function renderBuildList(){
   const nameEl=$('#bl-form-name'); const badgeEl=$('#bl-form-badge');
   const prevBtn=$('#bl-form-prev'); const nextBtn=$('#bl-form-next');
   if(filter==='__ALL__'){
-    nameEl.innerHTML='All formations<span class="fn-badge" id="bl-form-badge">'+playbook?.plays.length||0+'</span>';
+    nameEl.innerHTML='All formations<span class="fn-badge">'+(playbook?.plays.length||0)+'</span>';
   } else {
-    nameEl.innerHTML=filter+'<span class="fn-badge" id="bl-form-badge">'+rows.length+'</span>';
+    nameEl.innerHTML=filter+'<span class="fn-badge">'+rows.length+'</span>';
   }
   if(prevBtn){prevBtn.disabled=(forms.length===0||(blFormIdx<=0&&blFormIdx!==-1));} // can't go before All
   // Actually: All = -1, then 0..n-1. Prev from 0 goes to -1(All), prev from -1 is disabled.
@@ -8239,7 +8240,7 @@ function renderIntentStats(rows){
   (rows||[]).forEach(p=>{const t=getIntentTags(p); const k=playIntentKey(p); if(k==='option_run')counts.option++; else if(counts[t.playType]!=null) counts[t.playType]++;});
   [['Visible',rows.length],['Run',counts.run],['Option',counts.option],['Pass',counts.pass],['PA/Boot',counts.play_action],['RPO Access',counts.rpo],['Screen',counts.screen],['Draw',counts.draw],['Edited',counts.edited]].forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));wrap.appendChild(c);});
 }
-function makeIntentSel(formation,play,field,current){
+function makeIntentFieldSel(formation,play,field,current){
   const sel=el('select','intent-sel');
   const opts=INTENT_OPTIONS[field]||['auto'];
   opts.forEach(v=>{const o=el('option');o.value=v;o.textContent=intentOptionLabel(v);sel.appendChild(o);});
@@ -8271,7 +8272,7 @@ function renderIntentTable(){
     tr.appendChild(el('td',null,p.play));
     tr.appendChild(el('td',null,p.concept));
     ['surface','motionPurpose','runScheme','passStructure','series','conflictDefender','primaryStress','routeFamily','readType','routeTiming','beatsCoverage','requiresProtection','hasHot','installConfidence'].forEach(field=>{
-      const td=el('td'); td.appendChild(makeIntentSel(p.formation,p.play,field,t[field])); tr.appendChild(td);
+      const td=el('td'); td.appendChild(makeIntentFieldSel(p.formation,p.play,field,t[field])); tr.appendChild(td);
     });
     const ed=el('td','intent-edited-cell');
     ed.innerHTML=_intentOverrides[k]?'<span class="intent-badge">edited</span>':'<span class="intent-auto">auto</span>';
