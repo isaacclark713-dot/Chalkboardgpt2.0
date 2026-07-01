@@ -1561,6 +1561,11 @@ function classifyCoreConcept(play,family,legacyConcept,formation){
   if(/power\s*pass/.test(p)) return 'Power Pass';
   if(/wing\s*leak/.test(p)) return 'Wing Leak';
   if(/\bwaggle\b/.test(p)) return 'Waggle';
+  // v15.8.9: DeBesse option-family corrections must happen before Dart/generic Read Option.
+  if(/midline\s+read\s+option|midline\s+read|read\s+midline/.test(p)) return 'Midline';
+  if(/counter\s+.*read\s+option|counter\s+read\s+option|read\s+.*counter/.test(p)) return 'Counter Option';
+  if(/\b(y|te|escort|lead)\s+lead\s+read\s+opt|\b(y|te|escort|lead)\s+lead\s+read\s+option|lead\s+read\s+option|lead\s+read\s+opt/.test(p)) return 'Load Option';
+  if(/\btr\s*option\b|triple\s+option|tr\s+opt/.test(p)) return 'Triple Option';
   if(/zone\s*triple|triple\s*zone|gun\s*triple|pistol\s*triple/.test(p)) return 'Zone Triple';
   if(/outside\s*veer/.test(p)) return 'Outside Veer';
   if(/arc\s*read|arc\s*option/.test(p)) return 'Arc Read';
@@ -1575,6 +1580,11 @@ function classifyCoreConcept(play,family,legacyConcept,formation){
   if(/flexbone/.test(f) && /midline/.test(p)) return 'Midline';
   if(/flexbone/.test(f) && /rocket/.test(p)) return 'Rocket Toss';
   if(/flexbone/.test(f) && /counter/.test(p) && /option/.test(p)) return 'Counter Option';
+  // v15.8.9: DeBesse shotgun triple cleanup. Keep midline/lead/counter/triple from collapsing into generic Read Option.
+  if(/midline\s+read\s+option|midline\s+read|read\s+midline/i.test(play||'')) return 'Midline';
+  if(/counter\s+.*read\s+option|counter\s+read\s+option|read\s+.*counter/i.test(play||'')) return 'Counter Option';
+  if(/\b(y|te|escort|lead)\s+lead\s+read\s+opt|\b(y|te|escort|lead)\s+lead\s+read\s+option|lead\s+read\s+option|lead\s+read\s+opt/i.test(play||'')) return 'Load Option';
+  if(/\btr\s*option\b|triple\s+option|tr\s+opt/i.test(play||'')) return 'Triple Option';
   if(/speed\s*option/i.test(play||'')) return 'Speed Option';
   if(/load\s*option/i.test(play||'')) return 'Load Option';
   if(/zone\s*read|read\s*option|qb\s*read/i.test(play||'')) return 'Read Option';
@@ -5497,6 +5507,21 @@ function restoreRpoAccessQuotaAfterTrim(book,scoredPool,target){
 // with at least 5 plays, then top up from those same formations. If the book
 // is short, add a new formation only as a complete 5-play package.
 
+
+function repairDebesseLeadReadOptionLabels(book){
+  return (book||[]).map(pl=>{
+    if(!(typeof debesseLeadReadIsPlainReadOptionName==='function' && debesseLeadReadIsPlainReadOptionName(pl&&pl.play))) return pl;
+    const out={...pl};
+    out.family='run';
+    out.concept='Read Option';
+    if(Array.isArray(out.targetTags)){
+      const tags=new Set(out.targetTags.filter(t=>!/core_load_option|core_counter_option|core_triple_option/.test(String(t))));
+      ['action_option_run','core_read_option','intent_option_run','pass_none','route_none','scheme_option_read','series_option_series','role_base_option_assignment_football','stress_assignment_conflict','conflict_read_key'].forEach(t=>tags.add(t));
+      out.targetTags=[...tags].sort();
+    }
+    return out;
+  });
+}
 function repairQuickBasePullRunLabels(book){
   return (book||[]).map(pl=>{
     if(!(typeof isQuickBasePullRunName==='function' && isQuickBasePullRunName(pl&&pl.play))) return pl;
@@ -5813,6 +5838,161 @@ function enforceManningMooreRails(book,scoredPool,target){
 }
 
 
+// v15.8.9: Bob DeBesse / Shotgun Triple Spread Option rails.
+// This system should be gun/pistol/flexbone, heavy 20/21/30, and option-run first.
+// It should not import Power-I / Strong / Weak under-center packages or generic one-back 12-personnel drift.
+
+// v15.8.10: DeBesse Lead Read correction.
+// Coach correction: LEAD READ OPTION is still a Read Option.
+// Only TE LEAD READ / LOAD OPTION language should be Load Option.
+function debesseLeadReadIsPlainReadOptionName(play){
+  const p=String(play||'').toLowerCase();
+  return /\blead\s+read\s+opt(ion)?\b/.test(p) && !/\bte\s+lead\b/.test(p) && !/\bload\s+option\b/.test(p);
+}
+function debesseSystemActive(){
+  return (philosophy&&philosophy.system)==='debesse_spread_option';
+}
+function debesseFormationAllowed(pl){
+  if(!pl)return true;
+  if(!debesseSystemActive())return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  return /^gun\b|^pistol\b|^flexbone\b/.test(f);
+}
+function debesseInferredPersonnel(pl){
+  const f=String(pl&&pl.formation||'').toLowerCase();
+  const p=String(pl&&pl.play||'').toLowerCase();
+  if(/full\s+house|full\s+diamond|diamond|3rb|three\s*back/.test(f))return '30';
+  if(/split\s+slot|gun\s+split|split\s+backs|go\s+go|deuce|doubles\s+hb|wide\s+full\s+house/.test(f))return '20';
+  if(/wingback|wing\s+slot|wing\s+trips|wing\s+doubles|y\s+off|normal\s+y|trips\s+y|u\s+off|nub|te\b/.test(f))return '21';
+  if(/^pistol\b/.test(f))return '30';
+  if(/^flexbone\b/.test(f))return '30';
+  if(/^gun\s+(doubles|spread|trips)\b/.test(f))return '10';
+  return String(pl&&pl.pers||'10');
+}
+function debesseConceptRepair(play,family,formation){
+  const txt=String(play||'');
+  if(/midline\s+read\s+option|midline\s+read|read\s+midline/i.test(txt))return 'Midline';
+  if(/counter\s+.*read\s+option|counter\s+read\s+option|read\s+.*counter/i.test(txt))return 'Counter Option';
+  if(/\b(y|te|escort|lead)\s+lead\s+read\s+opt|\b(y|te|escort|lead)\s+lead\s+read\s+option|lead\s+read\s+option|lead\s+read\s+opt/i.test(txt))return 'Load Option';
+  if(/\btr\s*option\b|triple\s+option|tr\s+opt/i.test(txt))return 'Triple Option';
+  if(/inside\s+veer|veer\s+option/i.test(txt))return 'Inside Veer';
+  return inferConcept(txt,family);
+}
+function cloneWithDebesseTags(pl){
+  const out={...pl};
+  out.pers=debesseInferredPersonnel(out);
+  out.family=normalizeFamily(out.family,out.play);
+  out.concept=debesseConceptRepair(out.play,out.family,out.formation);
+  // DeBesse is not a pass-game book; keep access RPOs small and option concepts as run.
+  if(/midline|lead\s+read|read\s+option|tr\s+option|triple\s+option|speed\s+option|load\s+option|power\s+read|bash|veer/i.test(out.play||'')){
+    if(!/\brpo\b|alert|peek|gift|access/i.test(out.play||'')) out.family='run';
+  }
+  try{
+    if(typeof conceptTargetTagSet==='function') out.targetTags=[...conceptTargetTagSet(out)].sort();
+  }catch(e){}
+  return out;
+}
+function debesseOptionScore(pl){
+  const c=String(pl&&pl.concept||'');
+  const txt=String(pl&&pl.play||'').toLowerCase();
+  let score=0;
+  if(['Zone Triple','Triple Option','Inside Veer','Outside Veer','Midline','Read Option','Arc Read','Speed Option','Load Option','Power Read','QB Power Read','Bash Read','QB Counter','Counter Option','Dart'].includes(c))score+=12;
+  if(/triple|tr\s+option|midline|veer|read\s+option|lead\s+read|load\s+option|speed\s+option|power\s+read|bash|arc|qb\s+counter|counter\s+read|dart/.test(txt))score+=10;
+  if(['Inside Zone','Split Zone','Counter','Trap','Dive','Dive / Give','Rocket Toss','Sweep','Counter XX'].includes(c))score+=5;
+  if(String(pl&&pl.family||'')==='pass')score-=16;
+  if(String(pl&&pl.family||'')==='play_action')score+=1;
+  if(String(pl&&pl.family||'')==='option_rpo')score-=2; // access is a constraint, not the menu base.
+  if(c==='Other / Unknown'||c==='HB Base / Zone')score-=8;
+  return score;
+}
+function debessePoolScore(x){
+  const raw=x&&x.pl?x.pl:x;
+  if(!raw||!debesseFormationAllowed(raw))return -9999;
+  const pl=cloneWithDebesseTags(raw);
+  let s=Number((x&&x.s)||1);
+  const pers=String(pl.pers||'');
+  if(pers==='20')s+=90;
+  else if(pers==='21')s+=78;
+  else if(pers==='30')s+=70;
+  else if(pers==='11')s+=24;
+  else if(pers==='10')s+=20;
+  else if(pers==='12')s-=60;
+  const f=String(pl.formation||'').toLowerCase();
+  if(/^gun\b/.test(f))s+=38;
+  if(/^pistol\b/.test(f))s+=34;
+  if(/^flexbone\b/.test(f))s+=16;
+  if(/full\s+house|diamond|3rb/.test(f))s+=34;
+  if(/split|deuce|wing|y\s+off|offset|go\s+go|doubles\s+hb/.test(f))s+=26;
+  s+=debesseOptionScore(pl)*8;
+  if(/power\s+i|strong\s|weak\s|goal\s+line|singleback/i.test(pl.formation||''))s-=500;
+  return s;
+}
+function enforceDebesseRails(book,scoredPool,target){
+  if(!debesseSystemActive())return uniquePlayArray(book||[]).slice(0,target);
+  const desired={'20':Math.round(target*.35),'21':Math.round(target*.25),'30':Math.round(target*.15),'11':Math.round(target*.15),'10':Math.round(target*.05),'12':Math.round(target*.05)};
+  const maxRpo=Math.round(target*.10);
+  const minOption=Math.round(target*.42);
+  const pool=(scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&debesseFormationAllowed(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .sort((a,b)=>debessePoolScore(b)-debessePoolScore(a));
+  const selected=[];
+  const used=new Set();
+  const counts={};
+  let rpoCount=0, optionCount=0;
+  function isOptionBase(pl){return debesseOptionScore(pl)>=80 || /triple|tr\s+option|midline|veer|read\s+option|lead\s+read|load\s+option|speed\s+option|power\s+read|bash|counter\s+read|qb\s+counter|dart/i.test(String(pl&&pl.play||''));}
+  function tryAdd(raw,relaxPers=false,relaxRpo=false){
+    if(!raw||!debesseFormationAllowed(raw))return false;
+    const pl=cloneWithDebesseTags(raw);
+    const k=playUniqueKey(pl);
+    if(used.has(k))return false;
+    const pers=String(pl.pers||'');
+    if(!relaxPers && desired[pers]!=null && (counts[pers]||0)>=desired[pers])return false;
+    if(!relaxPers && desired[pers]==null)return false;
+    const isRpo=String(pl.family||'')==='option_rpo'||isTrueRpoAccessPlay(pl);
+    if(isRpo && !relaxRpo && rpoCount>=maxRpo)return false;
+    selected.push(pl); used.add(k); counts[pers]=(counts[pers]||0)+1;
+    if(isRpo)rpoCount++;
+    if(isOptionBase(pl))optionCount++;
+    return true;
+  }
+  // Keep the strongest legal option plays from the existing book.
+  uniquePlayArray(book||[])
+    .filter(debesseFormationAllowed)
+    .sort((a,b)=>debessePoolScore(b)-debessePoolScore(a))
+    .forEach(pl=>{if(selected.length<target)tryAdd(pl,false,false);});
+  // Fill personnel buckets with best legal plays.
+  ['20','21','30','11','10','12'].forEach(pers=>{
+    for(const {pl} of pool){
+      if(selected.length>=target)break;
+      if(String(debesseInferredPersonnel(pl))!==pers)continue;
+      tryAdd(pl,false,false);
+    }
+  });
+  // If option volume is low, prioritize base option concepts before filling constraints.
+  if(optionCount<minOption){
+    for(const {pl} of pool){
+      if(selected.length>=target || optionCount>=minOption)break;
+      const clean=cloneWithDebesseTags(pl);
+      if(isOptionBase(clean))tryAdd(clean,true,false);
+    }
+  }
+  for(const {pl} of pool){
+    if(selected.length>=target)break;
+    tryAdd(pl,true,false);
+  }
+  for(const {pl} of pool){
+    if(selected.length>=target)break;
+    tryAdd(pl,true,true);
+  }
+  return uniquePlayArray(selected).slice(0,target);
+}
+function repairDebesseFinalLabels(book){
+  if(!debesseSystemActive())return uniquePlayArray(book||[]);
+  return uniquePlayArray(book||[]).filter(debesseFormationAllowed).map(cloneWithDebesseTags);
+}
+
+
 
 
 function generatePlaybook(){
@@ -6039,17 +6219,22 @@ function generatePlaybook(){
   book=enforceFormationMixMargin(book,finalScoredPool,target);
   book=enforceWakeFormationRails(book,finalScoredPool,target);
   book=enforceManningMooreRails(book,finalScoredPool,target);
+  book=enforceDebesseRails(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=enforceWakeFormationRails(book,finalScoredPool,target);
   book=enforceManningMooreRails(book,finalScoredPool,target);
+  book=enforceDebesseRails(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   book=enforceWakeSlowMeshIdentity(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=enforceWakeSlowMeshIdentity(book,finalScoredPool,target);
   book=enforceManningMooreRails(book,finalScoredPool,target);
+  book=enforceDebesseRails(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairQuickBasePullRunLabels(book);
+  book=repairDebesseLeadReadOptionLabels(book);
+  book=repairDebesseFinalLabels(book);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
@@ -9474,6 +9659,8 @@ function normalizeFamily(family, play){
 }
 function inferConcept(play, family){
   const p=cleanCell(play).toLowerCase();
+  if(typeof debesseLeadReadIsPlainReadOptionName==='function' && debesseLeadReadIsPlainReadOptionName(play)) return 'Read Option';
+
   if(typeof isQuickBasePullRunName==='function' && isQuickBasePullRunName(play)) return 'Power / Power O';
 
   const fam=normalizeFamily(family, play);
@@ -9525,6 +9712,11 @@ function inferConcept(play, family){
   if(/power\s*pass/.test(p)) return 'Power Pass';
   if(/wing\s*leak/.test(p)) return 'Wing Leak';
   if(/\bwaggle\b/.test(p)) return 'Waggle';
+  // v15.8.9: DeBesse option-family corrections must happen before Dart/generic Read Option.
+  if(/midline\s+read\s+option|midline\s+read|read\s+midline/.test(p)) return 'Midline';
+  if(/counter\s+.*read\s+option|counter\s+read\s+option|read\s+.*counter/.test(p)) return 'Counter Option';
+  if(/\b(y|te|escort|lead)\s+lead\s+read\s+opt|\b(y|te|escort|lead)\s+lead\s+read\s+option|lead\s+read\s+option|lead\s+read\s+opt/.test(p)) return 'Load Option';
+  if(/\btr\s*option\b|triple\s+option|tr\s+opt/.test(p)) return 'Triple Option';
   if(/zone\s*triple|triple\s*zone|gun\s*triple|pistol\s*triple/.test(p)) return 'Zone Triple';
   if(/outside\s*veer/.test(p)) return 'Outside Veer';
   if(/arc\s*read|arc\s*option/.test(p)) return 'Arc Read';
