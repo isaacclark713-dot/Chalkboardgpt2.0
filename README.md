@@ -1,5 +1,3 @@
-# Coach Brain v15.8.1 RPO Classification Fix
+# Coach Brain v15.8.2 RG3 Mix Repair
 
-Hotfix for v15.8: restores app loading, tab clicks, and playbook generation by moving the RPO alias patch after CONCEPT_TARGET_ALIASES is defined.
-
-Keeps the v15.8 RPO classification fixes for Split Zone, Duo, Post RPO, Snag RPO, Counter Alert RPO, QB Draw RPO, and related RPO labels.
+Fixes RG3 generated playbook regression: RPO quantity was correct, but personnel/family mix could become too 12-personnel and run-heavy. Also catches TRIPLE OPT/READ OPT as option runs instead of RPOs, and improves Zone WK / Iso classifications.

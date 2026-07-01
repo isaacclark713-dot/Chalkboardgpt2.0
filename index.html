@@ -1432,7 +1432,7 @@ function normalizeRpoText(play){return String(play||'').toLowerCase().replace(/[
 function rpoTextFacts(play,family,formation,legacyConcept){
   const p=normalizeRpoText(play), fam=String(family||'').toLowerCase(), legacy=String(legacyConcept||'').toLowerCase(), form=String(formation||'').toLowerCase();
   const explicit=/\b(rpo|alert|peek|lookie|gift|access|attached|tagged|tag|walk)\b/.test(p)||/\bzone\s+alert\b|\bread\s+alert\b/.test(p)||/rpo|access/.test(legacy);
-  const optionOnly=/\b(triple\s+option|speed\s+option|load\s+option|midline|inside\s+veer|read\s+option|zone\s+read|power\s+read|inverted\s+veer|bash|shovel\s+option|qb\s+slot\s+option)\b/.test(p) && !explicit;
+  const optionOnly=/\b(triple\s+(option|opt)|speed\s+(option|opt)|load\s+(option|opt)|counter\s+(option|opt)|read\s+(option|opt)|zone\s+read|power\s+read|gt\s+read\s+(option|opt)|inverted\s+veer|midline|inside\s+veer|bash|shovel\s+(option|opt)|qb\s+slot\s+(option|opt))\b/.test(p) && !explicit;
   const run={
     split:/split\s*zone|zone\s*split|slice|sift/.test(p),
     duo:/\bbduo\b|\bduo\b|hb\s*duo/.test(p),
@@ -1445,7 +1445,8 @@ function rpoTextFacts(play,family,formation,legacyConcept){
     read:/zone\s*read|read\s*option|qb\s*read|read\s+cntr|\bread\b/.test(p),
     draw:/qb\s*draw|draw/.test(p),
     buck:/buck/.test(p),
-    trap:/trap/.test(p)
+    trap:/trap/.test(p),
+    dive:/\bdive\b|\biso\b|insert/.test(p)
   };
   const access={
     post:/\bpost\b/.test(p) && /\b(rpo|alert|peek|lookie|gift|access)\b/.test(p),
@@ -1463,7 +1464,7 @@ function rpoTextFacts(play,family,formation,legacyConcept){
     pop:/pop|y\s*pop|te\s*pop/.test(p),
     fade:/fade|gift\s*fade/.test(p),
     snag:/snag/.test(p),
-    choice:/choice|option\s*route|spot\s*wheel/.test(p),
+    choice:/choice|option\s*route|spot\b|snag|spot\s*wheel/.test(p),
     drawStick:/draw\s+stick|stick\s+qb\s+draw/.test(p),
     shock:/shock|omaha|randy|dragon/.test(p)
   };
@@ -3242,6 +3243,84 @@ function enforceFormationMixMargin(book,pool,target){
   }
   return out.slice(0,target);
 }
+
+// v15.8.2: Final mix repair. Formation rails alone can overselect one grouping/family.
+// These passes keep system identity honest after RPO quota and formation balancing.
+function quotaMapFromRaw(rawMap,keys,target){
+  const active=keys.filter(k=>Number((rawMap&&rawMap[k])||0)>0);
+  const total=active.reduce((sum,k)=>sum+Number(rawMap[k]||0),0);
+  const out={}; keys.forEach(k=>out[k]=0);
+  if(!active.length||!total)return out;
+  let floorSum=0, parts=[];
+  active.forEach(k=>{const exact=target*Number(rawMap[k]||0)/total;const q=Math.floor(exact);out[k]=q;floorSum+=q;parts.push([k,exact-q]);});
+  let left=target-floorSum;
+  parts.sort((a,b)=>b[1]-a[1]);
+  for(let i=0;i<left;i++)out[parts[i%parts.length][0]]++;
+  return out;
+}
+function finalRepairAddCandidate(out,used,scored,predicate){
+  for(const x of scored){
+    const pl=x.pl||x, k=playUniqueKey(pl);
+    if(used.has(k))continue;
+    if(!predicate(pl,x))continue;
+    if(!formationTypeAllowedByUser(pl.formation)||!formationMeetsPackageCoverage(pl.formation)||!personnelAllowedByUser(pl))continue;
+    out.push(pl); used.add(k); return true;
+  }
+  return false;
+}
+function finalRepairRemoveIndex(out,scoreOf,predicate,protectPredicate){
+  let best=-1,bestScore=Infinity;
+  for(let i=0;i<out.length;i++){
+    const pl=out[i];
+    if(protectPredicate&&protectPredicate(pl))continue;
+    if(!predicate(pl))continue;
+    const score=scoreOf.get(playUniqueKey(pl))||0;
+    if(score<bestScore){bestScore=score;best=i;}
+  }
+  return best;
+}
+function enforceFamilyMixMargin(book,pool,target,mix){
+  let out=uniquePlayArray(book).filter(pl=>formationTypeAllowedByUser(pl.formation)&&formationMeetsPackageCoverage(pl.formation)&&personnelAllowedByUser(pl));
+  const scored=(pool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
+  if(!scored.length)return out.slice(0,target);
+  const fams=['run','option_rpo','play_action','pass','screen'], raw={};
+  fams.forEach(f=>raw[f]=Number((mix&&mix[f])||0));
+  const rpoPct=desiredRpoAccessPct();
+  if(rpoPct>0){raw.option_rpo=Math.max(raw.option_rpo||0,rpoPct);const runPassTarget=((philosophy.rpMin+philosophy.rpMax)/2)/100;raw.run=Math.max(0.01,runPassTarget-rpoPct);}
+  const quotas=quotaMapFromRaw(raw,fams,target), margin=Math.max(3,Math.ceil(target*0.05));
+  const scoreOf=new Map(scored.map(x=>[playUniqueKey(x.pl),x.s||0])), used=new Set(out.map(playUniqueKey));
+  const count=()=>{const c={};fams.forEach(f=>c[f]=0);out.forEach(pl=>{c[pl.family]=(c[pl.family]||0)+1;});return c;};
+  function removeOver(exceptFam){
+    const c=count(); let over=fams.filter(f=>f!==exceptFam&&(c[f]||0)>(quotas[f]||0)+margin);
+    if(!over.length)over=fams.filter(f=>f!==exceptFam&&(c[f]||0)>(quotas[f]||0));
+    const idx=finalRepairRemoveIndex(out,scoreOf,pl=>over.includes(pl.family),pl=>isTrueRpoAccessPlay(pl)&&exceptFam!=='option_rpo');
+    if(idx>=0){used.delete(playUniqueKey(out[idx]));out.splice(idx,1);return true;} return false;
+  }
+  fams.forEach(f=>{let safety=0;while((count()[f]||0)<Math.max(0,(quotas[f]||0)-margin)&&safety++<target){if(out.length>=target&&!removeOver(f))break;if(!finalRepairAddCandidate(out,used,scored,pl=>pl.family===f))break;}});
+  while(out.length>target){const c=count();const over=fams.filter(f=>(c[f]||0)>(quotas[f]||0)).sort((a,b)=>(c[b]-(quotas[b]||0))-(c[a]-(quotas[a]||0)));const idx=finalRepairRemoveIndex(out,scoreOf,pl=>over.includes(pl.family),pl=>isTrueRpoAccessPlay(pl)&&(count().option_rpo||0)<=Math.ceil(target*desiredRpoAccessPct()));if(idx<0)break;used.delete(playUniqueKey(out[idx]));out.splice(idx,1);}
+  return uniquePlayArray(out).slice(0,target);
+}
+function enforcePersonnelMixMargin(book,pool,target){
+  let out=uniquePlayArray(book).filter(pl=>formationTypeAllowedByUser(pl.formation)&&formationMeetsPackageCoverage(pl.formation)&&personnelAllowedByUser(pl));
+  const scored=(pool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
+  if(!scored.length)return out.slice(0,target);
+  const pm=philosophy.persMix||DEFAULT_PERS_MIX;
+  const groups=ALL_PERS.filter(g=>Number(pm[g]||0)>0&&scored.some(x=>x.pl.pers===g));
+  if(groups.length<2)return out.slice(0,target);
+  const quotas=quotaMapFromRaw(pm,groups,target), margin=Math.max(4,Math.ceil(target*0.06));
+  const scoreOf=new Map(scored.map(x=>[playUniqueKey(x.pl),x.s||0])), used=new Set(out.map(playUniqueKey));
+  const count=()=>{const c={};groups.forEach(g=>c[g]=0);out.forEach(pl=>{c[pl.pers]=(c[pl.pers]||0)+1;});return c;};
+  function removeOver(exceptPers){
+    const c=count();let over=groups.filter(g=>g!==exceptPers&&(c[g]||0)>(quotas[g]||0)+margin);
+    if(!over.length)over=groups.filter(g=>g!==exceptPers&&(c[g]||0)>(quotas[g]||0));
+    const idx=finalRepairRemoveIndex(out,scoreOf,pl=>over.includes(pl.pers),pl=>isTrueRpoAccessPlay(pl)&&(count().option_rpo||0)<=Math.ceil(target*desiredRpoAccessPct()));
+    if(idx>=0){used.delete(playUniqueKey(out[idx]));out.splice(idx,1);return true;} return false;
+  }
+  groups.forEach(g=>{let safety=0;while((count()[g]||0)<Math.max(0,(quotas[g]||0)-margin)&&safety++<target){if(out.length>=target&&!removeOver(g))break;if(!finalRepairAddCandidate(out,used,scored,pl=>pl.pers===g))break;}});
+  while(out.length>target){const c=count();const over=groups.filter(g=>(c[g]||0)>(quotas[g]||0)).sort((a,b)=>(c[b]-(quotas[b]||0))-(c[a]-(quotas[a]||0)));const idx=finalRepairRemoveIndex(out,scoreOf,pl=>over.includes(pl.pers),pl=>isTrueRpoAccessPlay(pl)&&(count().option_rpo||0)<=Math.ceil(target*desiredRpoAccessPct()));if(idx<0)break;used.delete(playUniqueKey(out[idx]));out.splice(idx,1);}
+  return uniquePlayArray(out).slice(0,target);
+}
+
 
 // v15.2 — Hard formation menu rules. A selected formation must carry a real
 // call sheet package, not just one or two high-scoring plays. Every formation
@@ -5606,6 +5685,10 @@ function generatePlaybook(){
   // v15.7: RPO-heavy systems already build from validated selected formations.
   // Skip the expensive repair pass when an RPO quota is active so synthetic access tags are not stripped or stalled.
   book=desiredRpoAccessPct()>0 ? uniquePlayArray(book).slice(0,target) : enforceFormationHardRules(book,finalScoredPool,target);
+  book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
+  book=enforceFamilyMixMargin(book,finalScoredPool,target,mix);
+  book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
+  book=enforcePersonnelMixMargin(book,finalScoredPool,target);
   book=restoreRpoAccessQuotaAfterTrim(book,finalScoredPool,target);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
@@ -8998,7 +9081,7 @@ function normalizeFamily(family, play){
   if(/\b(screen|bubble|smoke|slip|tunnel|jailbreak)\b/.test(p)) return 'screen';
   if(/veer pass|rocket pass|tr cntr pass|\b(pa|play action|play-action|boot|fake|leak)\b/.test(p)) return 'play_action';
   // v14.12: read/speed/load/veer/midline options are runs; RPO/access tags are separate.
-  if(/\b(inside\s*veer|midline|mid\s*line|triple\s*option|tr\s*option|counter\s*option|speed\s*option|load\s*option|zone\s*read|read\s*option|power\s*read|inverted\s*veer|bash|veer\b|pitch\s*read)\b/.test(p)) return 'run';
+  if(/\b(inside\s*veer|midline|mid\s*line|triple\s*(option|opt)|tr\s*(option|opt)|counter\s*(option|opt)|speed\s*(option|opt)|load\s*(option|opt)|zone\s*read|read\s*(option|opt)|gt\s*read\s*(option|opt)|power\s*read|inverted\s*veer|bash|veer\b|pitch\s*read)\b/.test(p)) return 'run';
   if(['run','pass','play_action','option_rpo','screen','unknown'].includes(f)) return f;
   if(/\b(zone|duo|power|counter|trap|dive|iso|toss|sweep|draw|base|stretch|option)\b/.test(p)) return 'run';
   return 'pass';
@@ -9010,6 +9093,8 @@ function inferConcept(play, family){
   if(rpoConcept) return rpoConcept;
   if(/split\s*zone|zone\s*split|slice|sift/.test(p)) return 'Split Zone';
   if(/\bbduo\b|\bduo\b|hb\s*duo/.test(p)) return 'Duo';
+  if(/\biso\b|insert/.test(p)) return 'Dive';
+  if(/\b(zone\s*wk|zone\s*weak|hb\s*zone\s*wk|h\s*zone\s*wk)\b/.test(p)) return 'Inside Zone';
   if(/slow\s*mesh|walk\s*mesh|delayed\s*rpo|mesh\s*rpo/.test(p)) return 'Slow Mesh RPO';
   if(/deep\s*choice/.test(p)) return 'Deep Choice';
   if(/slot\s*fade/.test(p)) return 'Slot Fade';
