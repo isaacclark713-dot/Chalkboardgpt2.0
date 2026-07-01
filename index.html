@@ -2788,16 +2788,6 @@ const CONCEPT_TARGET_GROUPS=[
 if(CONCEPT_TARGET_GROUPS&&CONCEPT_TARGET_GROUPS[0]&&!CONCEPT_TARGET_GROUPS[0].items.includes('Split Zone'))CONCEPT_TARGET_GROUPS[0].items.push('Split Zone');
 if(CONCEPT_TARGET_GROUPS&&CONCEPT_TARGET_GROUPS[2])['Duo + Smoke RPO','Zone + Screen RPO','Snag RPO','Post RPO','Counter Alert RPO','QB Draw RPO','QB Power RPO','Screen RPO','Swing RPO','Hitch RPO','Flat RPO'].forEach(c=>{if(!CONCEPT_TARGET_GROUPS[2].items.includes(c))CONCEPT_TARGET_GROUPS[2].items.push(c);});
 Object.assign(CONCEPT_TARGET_GUIDE,{'Split Zone':'split/slice zone constraint 5–14%','Duo + Smoke RPO':'duo + smoke access 2–6%','Zone + Screen RPO':'zone + screen access 3–8%','Snag RPO':'snag/access RPO 2–6%','Post RPO':'post/glance RPO 2–6%','Counter Alert RPO':'counter alert/access RPO 2–6%','QB Draw RPO':'QB draw RPO 2–6%','QB Power RPO':'QB power RPO 2–6%'});
-Object.assign(CONCEPT_TARGET_ALIASES,{
- 'Split Zone':['core_split_zone','scheme_inside_zone','series_split_zone_series','intent_run_constraint','stress_lb_flow'],
- 'Duo + Smoke RPO':['core_duo_smoke_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_duo','screen_smoke','stress_apex_conflict'],
- 'Zone + Screen RPO':['core_zone_screen_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_inside_zone','screen_smoke','stress_space_perimeter'],
- 'Snag RPO':['core_snag_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_stick_spacing','stress_apex_conflict'],
- 'Post RPO':['core_post_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_slant','route_verts_seams','stress_safety_insert_conflict'],
- 'Counter Alert RPO':['core_counter_alert_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_counter','stress_lb_flow','stress_apex_conflict'],
- 'QB Draw RPO':['core_qb_draw_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_draw','stress_pass_rush'],
- 'QB Power RPO':['core_qb_power_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_power','stress_extra_gap']
-});
 
 function structureHintForConcept(con){
   if(['Super Power','Wedge','Counter XX','6-G / G','Power Pass','Wing Leak','Waggle','TE Pop'].includes(con))return 'UC / Double Wing';
@@ -2937,6 +2927,17 @@ const CONCEPT_TARGET_ALIASES={
   'INC':['core_inc','intent_dropback_pass','route_dagger_dig'],
   'Drive':['core_drive','intent_dropback_pass','route_mesh_shallow']
 };
+Object.assign(CONCEPT_TARGET_ALIASES,{
+ 'Split Zone':['core_split_zone','scheme_inside_zone','series_split_zone_series','intent_run_constraint','stress_lb_flow'],
+ 'Duo + Smoke RPO':['core_duo_smoke_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_duo','screen_smoke','stress_apex_conflict'],
+ 'Zone + Screen RPO':['core_zone_screen_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_inside_zone','screen_smoke','stress_space_perimeter'],
+ 'Snag RPO':['core_snag_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_stick_spacing','stress_apex_conflict'],
+ 'Post RPO':['core_post_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','route_slant','route_verts_seams','stress_safety_insert_conflict'],
+ 'Counter Alert RPO':['core_counter_alert_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_counter','stress_lb_flow','stress_apex_conflict'],
+ 'QB Draw RPO':['core_qb_draw_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_draw','stress_pass_rush'],
+ 'QB Power RPO':['core_qb_power_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_power','stress_extra_gap']
+});
+
 Object.assign(CONCEPT_TARGET_ALIASES,{
   'Inside Zone + Glance RPO':['core_inside_zone_glance_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_inside_zone','route_rpo_access','route_slant','stress_apex_conflict','conflict_apex'],
   'Inside Zone + Bubble RPO':['core_inside_zone_bubble_rpo','intent_rpo_access','pass_rpo_access','series_rpo_access_series','scheme_inside_zone','route_rpo_access','screen_bubble','stress_apex_conflict','stress_space_perimeter','conflict_apex'],
