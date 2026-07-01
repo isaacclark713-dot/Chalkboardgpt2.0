@@ -1590,7 +1590,7 @@ function classifyCoreConcept(play,family,legacyConcept,formation){
 // expand compact rows into objects  (motion: 0=none, 1=disguise formation, 2=true pre-snap movement)
 const PLAYS = DB.rows.map((r,i)=>{
   const formation=FORMS[r[0]], play=r[1], legacyConcept=CONCEPTS[r[3]];
-  let family=FAMS[r[2]];
+  let family=normalizeFamily(FAMS[r[2]],play);
   if(isFakeTossName(play)) family='play_action';
   // v15.7: true RPO/access names must override old DB family guesses before concept/intent tags are built.
   if(classifyRpoCoreConcept(play,family,formation,legacyConcept)) family='option_rpo';
@@ -3007,6 +3007,9 @@ function conceptTargetTagSet(pl){
     tagAdd(tags,'route',t.routeFamily);
     tagAdd(tags,'read',t.readType);
     tagAdd(tags,'coverage',t.beatsCoverage);
+    if(String(pl.concept||'')==='Slow Mesh RPO'){
+      tagAdd(tags,'action','slow_mesh'); tagAdd(tags,'series','slow_mesh_series'); tagAdd(tags,'read','mesh_point'); tagAdd(tags,'stress','late_conflict'); tagAdd(tags,'role','slow_mesh_conflict_answer');
+    }
     tagAdd(tags,'protection',t.requiresProtection);
     if(typeof isGranularRpoConcept==='function' && isGranularRpoConcept(pl.concept)){
       tagAdd(tags,'rpo',pl.concept); tagAdd(tags,'pass','rpo_access'); tagAdd(tags,'series','RPO Access Series'); tagAdd(tags,'intent','rpo_access');
@@ -9289,6 +9292,9 @@ function normalizeFamily(family, play){
   // v15.7: RPO/access tags must win before bubble/now screen gets bucketed as a plain screen.
   if(classifyRpoCoreConcept(play,family,'','')) return 'option_rpo';
   if(/\b(rpo|alert|peek|lookie|gift|access)\b|\b(glance|bubble|smoke|now\s*screen|stick|slant|choice|fade|speed\s*out|arrow|flat|pop\s*pass)\s*rpo\b/.test(p)) return 'option_rpo';
+  // v15.8.5: route-word names in the raw DB sometimes carry a run family.
+  // Do not let those become HB Base / Zone or run balance noise.
+  if(/\b(comebacks?|verticals?|seams?|dbl\s*out|double\s*out|sluggo|wheel|spacing|mesh|smash|choice|stick|curl\s+post|post\s+curl|slot\s+outside|slot\s+out)\b/.test(p) && !/\b(outside\s*zone|wide\s*zone|mid\s*zone|inside\s*zone|zone\s*split|split\s*zone)\b/.test(p)) return 'pass';
   if(/\b(screen|bubble|smoke|slip|tunnel|jailbreak)\b/.test(p)) return 'screen';
   if(/veer pass|rocket pass|tr cntr pass|\b(pa|play action|play-action|boot|fake|leak)\b/.test(p)) return 'play_action';
   // v14.12: read/speed/load/veer/midline options are runs; RPO/access tags are separate.
@@ -9304,6 +9310,16 @@ function inferConcept(play, family){
   if(rpoConcept) return rpoConcept;
   if(/split\s*zone|zone\s*split|slice|sift/.test(p)) return 'Split Zone';
   if(/\bbduo\b|\bduo\b|hb\s*duo/.test(p)) return 'Duo';
+  // v15.8.5: raw DB cleanups exposed by Wake test v2.
+  if(/\b(outside\s+comebacks?|comebacks?)\b/.test(p)) return 'Curls / Curl Flats';
+  if(/\b(slot\s+outside|slot\s+out)\b/.test(p)) return 'Quick Game';
+  if(/\b(verticals?|seams?|dbl\s*out|double\s*out)\b/.test(p)) return 'Verticals / Four Verticals';
+  if(/\bfork\b/.test(p)) return 'Post';
+  if(/\b(fb\s+inside)\b/.test(p)) return 'Dive';
+  if(/\b(qb\s+blast|jet\s+qb\s+blast|mtn\s+qb\s+blast)\b/.test(p)) return 'Power / Power O';
+  if(/\b(qb\s+zone)\b/.test(p)) return 'Inside Zone';
+  if(/\b(45\s+quick\s+base|hb\s+quick\s+base|quick\s+base)\b/.test(p)) return 'Inside Zone';
+  if(/\b(hb\s+base|mid\s+zone|same\s+side\s+zone|pass\s+fk\s+zone|redzone\s+up|blast)\b/.test(p)) return 'Inside Zone';
   if(/\biso\b|insert/.test(p)) return 'Dive';
   if(/wide\s*zone|outside\s*zone|stretch/.test(p)) return 'Outside Zone / Stretch';
   if(/\b(zone\s*wk|zone\s*weak|hb\s*zone\s*wk|h\s*zone\s*wk)\b/.test(p)) return 'Inside Zone';

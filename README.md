@@ -1,7 +1,3 @@
-# Coach Brain v15.8.4 Wake Slow Mesh Identity Fix
+# Coach Brain v15.8.5 Wake Cleanup Fix
 
-Fixes Wake Slow Mesh / Veer-and-Shoot generation by keeping the system in Gun/Pistol/Empty spread formations and forcing visible Slow Mesh RPO identity in the generated book.
-
-- Removes under-center Strong/Weak/Power-I/Maryland-style leftovers from Wake generated books.
-- Converts eligible generic RPO/access calls into visible WALK/SLOW MESH RPO calls.
-- Keeps RPO quota and formation-depth repair from v15.8.3.
+Fixes cleanups exposed by Wake Slow Mesh generated version 2: Slow Mesh tags, run/pass family cleanup, and generic HB Base / Zone cleanup.
