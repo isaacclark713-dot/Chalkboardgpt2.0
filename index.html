@@ -699,6 +699,7 @@
       <div class="statchips" id="pb-stats"></div>
       <div class="btnbar">
         <button class="btn primary sm" id="btn-pb-download">⤓ Download playbook</button>
+        <button class="btn secondary sm" id="btn-pb-pdf">⤓ Download formation PDF</button>
         <button class="btn ghost sm" id="btn-load">↻ Reload saved</button>
         <button class="btn ghost sm" id="btn-pb-tojump">→ Send to In-Game</button>
         <button class="btn danger sm" id="btn-clear-pb">✕ Clear saved book</button>
@@ -6345,6 +6346,372 @@ function enforceRg3HardFormationMenu(book,scoredPool,target){
 }
 
 
+
+// v15.8.18: Grimes RVO / Reliable Violent Offense identity rail.
+// RVO should be a no-RPO, physical multiple pro-spread run/play-action system:
+// 12/21/22/11 personnel, wide zone / duo / split zone / counter / power, and
+// enough dropback/quick-game answers by formation for real situations.
+function rvoSystemActive(){
+  if(typeof window!=='undefined' && window.__COACH_BRAIN_TEST_SYSTEM==='rvo_reliable_violent') return true;
+  return (philosophy&&philosophy.system)==='rvo_reliable_violent';
+}
+function rvoFormationAllowed(pl){
+  if(!pl || !rvoSystemActive()) return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  if(/^(goal\s*line|maryland|power\s*i)\b/.test(f)) return false;
+  if(/^gun\b|^pistol\b|^singleback\b|^i\s*form\b|^strong\s*i\b|^weak\s*i\b|^strong\b|^weak\b|^empty\b/.test(f)) return true;
+  return false;
+}
+function rvoIsRpo(pl){
+  return !!pl && (String(pl.family||'')==='option_rpo' || /\brpo\b/i.test(String(pl.play||'')) || /\brpo\b/i.test(String(pl.concept||'')));
+}
+function rvoFormationType(pl){
+  const f=String((pl&&pl.formation)||'').toLowerCase();
+  if(/^gun\b/.test(f)) return 'shotgun';
+  if(/^pistol\b/.test(f)) return 'pistol';
+  if(/^singleback\b/.test(f)) return 'singleback';
+  if(/^i\s*form\b|^strong\s*i\b|^weak\s*i\b|^strong\b|^weak\b/.test(f)) return 'i_form';
+  if(/\bempty\b/.test(f)) return 'empty';
+  return 'other';
+}
+function rvoExpectedPersonnelFromFormation(formation,currentPers){
+  const f=String(formation||'').toLowerCase().trim();
+  if(!f) return currentPers||'12';
+  if(/\bempty\b/.test(f)) return '10';
+  if(/^strong\s*i\b|^weak\s*i\b/.test(f)) return /\b(close|jumbo|heavy)\b/.test(f)?'22':'21';
+  if(/^strong\b|^weak\b/.test(f)) return /\b(close|jumbo|heavy)\b/.test(f)?'22':'21';
+  if(/^i\s*form\b/.test(f)) return /\b(slot)\b/.test(f)?'20':(/\b(wing|close|heavy|jumbo)\b/.test(f)?'22':'21');
+  if(/^singleback\b/.test(f)){
+    if(/\b(pair|heavy|trio|3te)\b/.test(f)) return '13';
+    return '12';
+  }
+  if(/^pistol\b/.test(f)){
+    if(/\bsplit\s+y\s+slot\b/.test(f)) return '21';
+    if(/\b(diamond|full\s*house|3rb)\b/.test(f)) return '30';
+    if(/\b(dbl\s*tight|double\s*tight|wing\s+slot|wing\s+slot\s+over|wingback|wing\s+tight|tight\s+u|deuce|bunch\s*te|wing)\b/.test(f)) return '12';
+    return currentPers||'11';
+  }
+  if(/^gun\b/.test(f)){
+    if(/\bsplit\s+y\s+(slot|off)\b/.test(f)) return '21';
+    if(/\b(split|split\s+slot|pony|2rb|two\s*back)\b/.test(f)) return '20';
+    if(/\b(dbl\s*tight|double\s*tight|deuce|bunch\s*te|tight\s+y|wingback|wing\s+slot|wing\s+tight|tight\s+z|normal\s+y\s*off|y\s*off|wing|bunch\s+te)\b/.test(f)) return '12';
+    return /\b(doubles|trips|spread|empty)\b/.test(f)?'11':(currentPers||'12');
+  }
+  return currentPers||'12';
+}
+function rvoRepairPersonnel(pl){
+  if(!pl || !rvoSystemActive()) return pl;
+  const out={...pl};
+  out.pers=rvoExpectedPersonnelFromFormation(out.formation,out.pers);
+  if(Array.isArray(out.targetTags)){
+    const tags=new Set(out.targetTags.filter(t=>!/^pers_\d+/.test(String(t))));
+    tags.add('pers_'+out.pers);
+    out.targetTags=[...tags].sort();
+  }
+  return out;
+}
+function rvoRepairConceptLabels(pl){
+  if(!pl || !rvoSystemActive()) return pl;
+  let out=rvoRepairPersonnel(pl);
+  const t=String(out.play||'').toLowerCase();
+  // RVO has rpoTargetPct 0. Remove RPO labels and classify the run side when a raw call leaks.
+  if(rvoIsRpo(out)){
+    out.family='run';
+    if(/\bcounter\b/.test(t)) out.concept='Counter';
+    else if(/\bduo\b/.test(t)) out.concept='Duo';
+    else if(/\bpower|blast|quick\s+base\b/.test(t)) out.concept='Power / Power O';
+    else if(/\bstretch|outside\s+zone|wide\s+zone\b/.test(t)) out.concept='Outside Zone / Stretch';
+    else out.concept='Inside Zone';
+  }
+  if(/\bquick\s+toss\b/.test(t)){
+    out.family='run';
+    out.concept='Sweep';
+  }
+  if(/\b(45\s+)?quick\s+base\b/.test(t)){
+    out.family='run';
+    out.concept='Power / Power O';
+  }
+  if(/\b(pa|boot|keeper|naked|rollout|leak)\b/.test(t) && !/\brpo\b/.test(t)){
+    if(out.family!=='screen') out.family='play_action';
+    if(out.concept==='Other / Unknown'||out.concept==='HB Base / Zone'||out.concept==='Inside Zone') out.concept=/flood|sail|leak/.test(t)?'Flood':'Boot / Play Action';
+  }
+  if(/\b(y\s*cross|crossers|post\s+cross|deep\s+cross|pa\s+cross)\b/.test(t)){
+    out.concept='Y Cross';
+    if(/\bpa\b|boot|keeper|naked|rollout/.test(t)) out.family='play_action';
+  }
+  return out;
+}
+function rvoIsTrueDropbackPass(pl){
+  if(!pl || !rvoSystemActive()) return false;
+  if(rvoIsRpo(pl)) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return String(pl.family||'')==='pass' && !/\b(pa|play\s*action|boot|keeper|naked|rollout|rpo)\b/.test(t);
+}
+function rvoIsPlayAction(pl){
+  if(!pl || rvoIsRpo(pl)) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return String(pl.family||'')==='play_action' || /\b(pa|boot|keeper|naked|rollout|leak|y\s*cross|flood|sail)\b/.test(t);
+}
+function rvoCoreRun(pl){
+  if(!pl) return false;
+  const c=String(pl.concept||'');
+  return ['Outside Zone / Stretch','Duo','Inside Zone','Split Zone','Counter','Power / Power O','Trap','Buck Sweep','Sweep','Dive'].includes(c);
+}
+function rvoLegalPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&rvoFormationAllowed(x.pl)&&!rvoIsRpo(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .map(x=>({pl:rvoRepairConceptLabels(x.pl),s:x.s||0}))
+    .filter(x=>personnelAllowedByUser(x.pl))
+    .sort((a,b)=>(b.s||0)-(a.s||0));
+}
+function rvoCounts(arr){
+  return (arr||[]).reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
+}
+function rvoRemoveOne(out,used,protectPred){
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const counts=rvoCounts(out);
+  let idx=-1;
+  for(let i=out.length-1;i>=0;i--){
+    if(protectPred&&protectPred(out[i])) continue;
+    if((counts[out[i].formation]||0)<=min) continue;
+    // Trim generic inside-zone/run from overfull formations first.
+    if(String(out[i].family||'')==='run' && String(out[i].concept||'')==='Inside Zone'){idx=i;break;}
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      if((counts[out[i].formation]||0)<=min) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0) return false;
+  used.delete(playUniqueKey(out[idx]));
+  out.splice(idx,1);
+  return true;
+}
+function rvoAddOrReplace(out,used,pl,target,protectPred){
+  if(!pl || !rvoFormationAllowed(pl) || rvoIsRpo(pl)) return false;
+  const next=rvoRepairConceptLabels(pl);
+  const k=playUniqueKey(next);
+  if(used.has(k)) return false;
+  while(out.length>=target){
+    if(!rvoRemoveOne(out,used,protectPred)) break;
+  }
+  if(out.length>=target) return false;
+  out.push(next); used.add(k);
+  return true;
+}
+function rvoEnforcePredicateQuota(out,pool,target,desired,currentPred,candidatePred,protectPred){
+  out=uniquePlayArray(out||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p));
+  let used=new Set(out.map(playUniqueKey));
+  let current=out.filter(currentPred).length;
+  if(current>=desired) return out.slice(0,target);
+  const existingForms=new Set(out.map(p=>p.formation));
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl)||!existingForms.has(pl.formation)) continue;
+    if(rvoAddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  if(current>=desired) return uniquePlayArray(out).slice(0,target);
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const forms=[...new Set(pool.filter(x=>candidatePred(x.pl)).map(x=>x.pl.formation))].filter(f=>!existingForms.has(f));
+  for(const form of forms){
+    if(current>=desired) break;
+    const pack=[]; const seen=new Set();
+    for(const {pl} of pool){
+      if(pl.formation!==form||!candidatePred(pl)) continue;
+      const k=playUniqueKey(pl);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); pack.push(pl);
+      if(pack.length>=min) break;
+    }
+    if(pack.length<min) continue;
+    for(const pl of pack){
+      if(current>=desired) break;
+      if(rvoAddOrReplace(out,used,pl,target,protectPred)) current++;
+    }
+  }
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl)) continue;
+    if(rvoAddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function rvoRebuildAfterFiltering(out,pool,target){
+  out=uniquePlayArray(out||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p));
+  const used=new Set(out.map(playUniqueKey));
+  for(const {pl} of pool){
+    if(out.length>=target) break;
+    const k=playUniqueKey(pl);
+    if(used.has(k)) continue;
+    out.push(pl); used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function enforceRvoReliableViolentIdentity(book,scoredPool,target){
+  if(!rvoSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  const pool=rvoLegalPool(scoredPool);
+  let out=rvoRebuildAfterFiltering(book,pool,tgt);
+  const desired21=Math.max(60,Math.round(tgt*.18));
+  const desired22=Math.max(24,Math.round(tgt*.07));
+  const desiredSingleback=Math.max(58,Math.round(tgt*.16));
+  const desiredPistol=Math.max(40,Math.round(tgt*.11));
+  const desiredI=Math.max(65,Math.round(tgt*.18));
+  const desiredPA=Math.max(55,Math.round(tgt*.15));
+  const protect=p=>rvoCoreRun(p)||rvoIsPlayAction(p)||rvoIsTrueDropbackPass(p);
+  out=rvoEnforcePredicateQuota(out,pool,tgt,desired21,p=>p.pers==='21',p=>p.pers==='21',protect);
+  out=rvoEnforcePredicateQuota(out,pool,tgt,desired22,p=>p.pers==='22',p=>p.pers==='22',protect);
+  out=rvoEnforcePredicateQuota(out,pool,tgt,desiredSingleback,p=>rvoFormationType(p)==='singleback',p=>rvoFormationType(p)==='singleback',protect);
+  out=rvoEnforcePredicateQuota(out,pool,tgt,desiredPistol,p=>rvoFormationType(p)==='pistol',p=>rvoFormationType(p)==='pistol',protect);
+  out=rvoEnforcePredicateQuota(out,pool,tgt,desiredI,p=>rvoFormationType(p)==='i_form',p=>rvoFormationType(p)==='i_form',protect);
+  out=rvoEnforcePredicateQuota(out,pool,tgt,desiredPA,rvoIsPlayAction,rvoIsPlayAction,p=>rvoCoreRun(p)||rvoIsTrueDropbackPass(p));
+  return uniquePlayArray(out).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p)).slice(0,tgt);
+}
+function rvoSameFormationDropbackPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&rvoFormationAllowed(x.pl)&&!rvoIsRpo(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .map(x=>({pl:rvoRepairConceptLabels(x.pl),s:x.s||0}))
+    .filter(x=>personnelAllowedByUser(x.pl)&&rvoIsTrueDropbackPass(x.pl))
+    .sort((a,b)=>(b.s||0)-(a.s||0));
+}
+function enforceRvoFormationMenu(book,scoredPool,target){
+  if(!rvoSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  let out=uniquePlayArray(book||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p)).slice(0,tgt);
+  const used=new Set(out.map(playUniqueKey));
+  const pool=rvoSameFormationDropbackPool(scoredPool);
+  const byForm={};
+  for(const {pl} of pool)(byForm[pl.formation]||(byForm[pl.formation]=[])).push(pl);
+  const forms=[...new Set(out.map(p=>p.formation))];
+  for(const form of forms){
+    const ps=out.filter(p=>p.formation===form);
+    if(ps.length<(FORMATION_MIN_PACKAGE_PLAYS||5)) continue;
+    if(ps.some(rvoIsTrueDropbackPass)) continue;
+    const cands=byForm[form]||[];
+    const cand=cands.find(p=>!used.has(playUniqueKey(p)));
+    if(!cand) continue;
+    const counts=rvoCounts(out);
+    let idx=-1;
+    const priorities=[
+      p=>String(p.family||'')==='run' && String(p.concept||'')==='Inside Zone',
+      p=>String(p.family||'')==='run',
+      p=>String(p.family||'')==='play_action',
+      p=>!rvoIsTrueDropbackPass(p)
+    ];
+    for(const pred of priorities){
+      for(let i=out.length-1;i>=0;i--){
+        if(out[i].formation===form && pred(out[i])){idx=i;break;}
+      }
+      if(idx>=0) break;
+    }
+    if(idx<0) continue;
+    used.delete(playUniqueKey(out[idx]));
+    out[idx]=cand;
+    used.add(playUniqueKey(cand));
+  }
+  return uniquePlayArray(out).slice(0,tgt);
+}
+// v15.8.19: Hard RVO formation menu cleanup.
+// If a no-dropback formation remains after same-formation repair, remove it
+// and backfill with complete packages from formations that do have a true pass.
+function enforceRvoHardFormationMenu(book,scoredPool,target){
+  if(!rvoSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  let out=uniquePlayArray(book||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p)).slice(0,tgt);
+  let used=new Set(out.map(playUniqueKey));
+  const pool=rvoLegalPool(scoredPool).filter(x=>x&&x.pl&&rvoFormationAllowed(x.pl)&&!rvoIsRpo(x.pl));
+  function byForm(arr){
+    const m={};
+    for(const p of arr)(m[p.formation]||(m[p.formation]=[])).push(p);
+    return m;
+  }
+  function zeroDropForms(arr){
+    return Object.entries(byForm(arr)).filter(([f,ps])=>ps.length>=min && !ps.some(rvoIsTrueDropbackPass)).map(([f,ps])=>({formation:f,count:ps.length}));
+  }
+  function packageForForm(form,packageSize){
+    const seen=new Set(); const all=[];
+    for(const {pl} of pool){
+      if(pl.formation!==form) continue;
+      const k=playUniqueKey(pl);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); all.push(pl);
+    }
+    if(all.length<min || !all.some(rvoIsTrueDropbackPass)) return null;
+    const drop=all.find(rvoIsTrueDropbackPass);
+    const pa=all.filter(rvoIsPlayAction).filter(p=>playUniqueKey(p)!==playUniqueKey(drop));
+    const run=all.filter(p=>String(p.family||'')==='run' && playUniqueKey(p)!==playUniqueKey(drop));
+    const rest=all.filter(p=>![drop,...pa,...run].map(playUniqueKey).includes(playUniqueKey(p)));
+    const pack=[drop,...pa,...run,...rest].slice(0,Math.max(min,Number(packageSize)||min));
+    return pack.length>=min?pack:null;
+  }
+  for(const z of zeroDropForms(out)){
+    for(const p of out.filter(p=>p.formation===z.formation)) used.delete(playUniqueKey(p));
+    out=out.filter(p=>p.formation!==z.formation);
+    const existingForms=new Set(out.map(p=>p.formation));
+    const forms=[...new Set(pool.map(x=>x.pl.formation))]
+      .filter(f=>!existingForms.has(f))
+      .sort((a,b)=>{
+        const score=f=>{
+          const ps=pool.filter(x=>x.pl.formation===f).map(x=>x.pl);
+          let sc=0;
+          if(ps.some(p=>rvoFormationType(p)==='singleback')) sc+=30;
+          if(ps.some(p=>rvoFormationType(p)==='i_form')) sc+=25;
+          if(ps.some(p=>rvoFormationType(p)==='pistol')) sc+=15;
+          if(ps.some(rvoIsPlayAction)) sc+=15;
+          if(ps.some(rvoCoreRun)) sc+=10;
+          return sc;
+        };
+        return score(b)-score(a);
+      });
+    let added=false;
+    for(const f of forms){
+      const pack=packageForForm(f,z.count);
+      if(!pack) continue;
+      for(const p of pack){
+        if(out.length>=tgt) break;
+        const k=playUniqueKey(p);
+        if(used.has(k)) continue;
+        out.push(p); used.add(k);
+      }
+      added=true; break;
+    }
+    if(!added){
+      const completeForms=new Set(Object.entries(byForm(out)).filter(([f,ps])=>ps.some(rvoIsTrueDropbackPass)).map(([f])=>f));
+      for(const {pl} of pool){
+        if(out.length>=tgt) break;
+        if(!completeForms.has(pl.formation)) continue;
+        const k=playUniqueKey(pl);
+        if(used.has(k)) continue;
+        out.push(pl); used.add(k);
+      }
+    }
+  }
+  const completeForms=new Set(Object.entries(byForm(out)).filter(([f,ps])=>ps.some(rvoIsTrueDropbackPass)).map(([f])=>f));
+  for(const {pl} of pool){
+    if(out.length>=tgt) break;
+    if(!completeForms.has(pl.formation)) continue;
+    const k=playUniqueKey(pl);
+    if(used.has(k)) continue;
+    out.push(pl); used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,tgt);
+}
+
+function repairRvoReliableViolentLabels(book){
+  if(!rvoSystemActive()) return book||[];
+  return (book||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p));
+}
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -7065,6 +7432,11 @@ function generatePlaybook(){
   book=enforceRg3HardFormationMenu(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairRg3PersonnelLabels(book);
+  book=enforceRvoReliableViolentIdentity(book,finalScoredPool,target);
+  book=enforceRvoFormationMenu(book,finalScoredPool,target);
+  book=enforceRvoHardFormationMenu(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=repairRvoReliableViolentLabels(book);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
@@ -8366,6 +8738,163 @@ function downloadPlaybookBackup(){
   document.body.appendChild(a);a.click();a.remove();
   toast('Playbook backup downloaded: '+name);
 }
+
+// v15.8.20: Formation-sectioned PDF export.
+// Generates a text PDF directly in-browser, no external PDF library required.
+// It is meant as a coach-printable formation menu: each formation section shows
+// personnel, family counts, and every play in that formation.
+function pdfAsciiSafe(value){
+  return String(value==null?'':value)
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function pdfEscapeText(value){
+  return pdfAsciiSafe(value).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+}
+function pdfWrapText(text,maxChars){
+  text=pdfAsciiSafe(text);
+  if(text.length<=maxChars) return [text];
+  const words=text.split(/\s+/);
+  const lines=[];
+  let line='';
+  words.forEach(w=>{
+    if(!line){line=w;return;}
+    if((line+' '+w).length<=maxChars) line+=' '+w;
+    else{lines.push(line);line=w;}
+  });
+  if(line) lines.push(line);
+  return lines.length?lines:[''];
+}
+function pdfMotionLabel(m){
+  return Number(m)===2?'Motion/Shift':Number(m)===1?'Motion':'Static';
+}
+function pdfGroupPlaybookByFormation(pb){
+  const plays=(pb&&pb.plays)||[];
+  const order=[];
+  const groups={};
+  plays.forEach(p=>{
+    const f=String(p.formation||'Unknown Formation');
+    if(!groups[f]){groups[f]=[];order.push(f);}
+    groups[f].push(p);
+  });
+  return order.map(f=>({formation:f,plays:groups[f]}));
+}
+function pdfFamilyRank(f){
+  return {run:1,option_rpo:2,play_action:3,pass:4,screen:5}[String(f||'')]||9;
+}
+function buildFormationSectionedPdfBlob(pb){
+  if(!pb||!pb.plays||!pb.plays.length) throw new Error('No playbook plays to export.');
+  const W=612,H=792,M=36;
+  const bottom=40;
+  const linesPerPage=[];
+  let page=[];
+  let y=H-M;
+  const pages=[];
+  function newPage(){
+    if(page.length) pages.push(page);
+    page=[];
+    y=H-M;
+  }
+  function ensure(space){
+    if(y-space<bottom) newPage();
+  }
+  function addLine(text,size,bold,indent){
+    size=size||9;
+    indent=indent||0;
+    ensure(size+5);
+    page.push({text:pdfAsciiSafe(text),size,bold:!!bold,x:M+indent,y});
+    y-=size+4;
+  }
+  function addWrapped(text,size,bold,indent,maxChars){
+    const lines=pdfWrapText(text,maxChars||96);
+    lines.forEach((ln,i)=>addLine(ln,size,!!bold&&i===0,indent));
+  }
+  const meta=(pb.meta||{});
+  const title=pdfAsciiSafe(meta.systemLabel||meta.system||'Coach Brain Playbook');
+  const generated=new Date().toLocaleString();
+  addLine(title,16,true,0);
+  addLine('Formation-Sectioned Playbook',12,true,0);
+  addLine('Exported: '+generated+' | Plays: '+pb.plays.length,8,false,0);
+  if(meta.systemLabel||meta.identity||meta.size){
+    addWrapped('System: '+(meta.systemLabel||meta.system||'')+' | Identity: '+(meta.identity||'')+' | Target size: '+(meta.size||pb.plays.length),8,false,0,100);
+  }
+  y-=8;
+  const groups=pdfGroupPlaybookByFormation(pb);
+  groups.forEach((g,idx)=>{
+    const plays=g.plays.slice().sort((a,b)=>{
+      const fr=pdfFamilyRank(a.family)-pdfFamilyRank(b.family);
+      if(fr) return fr;
+      return String(a.play||'').localeCompare(String(b.play||''));
+    });
+    const fam={}; const pers={};
+    plays.forEach(p=>{fam[p.family]=(fam[p.family]||0)+1;pers[p.pers]=(pers[p.pers]||0)+1;});
+    const famText=Object.entries(fam).sort((a,b)=>pdfFamilyRank(a[0])-pdfFamilyRank(b[0])).map(x=>x[0]+': '+x[1]).join(' | ');
+    const persText=Object.entries(pers).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(x=>x[0]+': '+x[1]).join(' | ');
+    ensure(46);
+    if(idx>0) y-=4;
+    addLine(g.formation+'  ('+plays.length+' plays)',12,true,0);
+    addWrapped('Personnel: '+(persText||'-')+' | Families: '+(famText||'-'),8,false,8,100);
+    plays.forEach((p,i)=>{
+      const prefix=String(i+1).padStart(2,'0')+'. ';
+      const line=prefix+'['+pdfAsciiSafe(p.family||'')+'] '+pdfAsciiSafe(p.play||'')+' - '+pdfAsciiSafe(p.concept||'')+' | '+pdfAsciiSafe(p.pers||'')+' | '+pdfMotionLabel(p.motion);
+      addWrapped(line,8,false,12,106);
+    });
+  });
+  if(page.length) pages.push(page);
+  const objects=[];
+  function obj(s){objects.push(s);return objects.length;}
+  const catalog=obj('<< /Type /Catalog /Pages 2 0 R >>');
+  const kids=[];
+  const pageObjs=[];
+  const contentObjs=[];
+  // Reserve pages root at object 2 and fonts at 3/4.
+  objects.push(null);
+  obj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  obj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+  pages.forEach((items,pi)=>{
+    const content=items.map(it=>'BT /'+(it.bold?'F2':'F1')+' '+it.size+' Tf '+it.x+' '+it.y+' Td ('+pdfEscapeText(it.text)+') Tj ET').join('\n');
+    const cnum=obj('<< /Length '+content.length+' >>\nstream\n'+content+'\nendstream');
+    const pnum=obj('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+cnum+' 0 R >>');
+    kids.push(pnum+' 0 R');
+    pageObjs.push(pnum); contentObjs.push(cnum);
+  });
+  objects[1]='<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+pages.length+' >>';
+  let pdf='%PDF-1.4\n';
+  const offsets=[0];
+  objects.forEach((body,i)=>{
+    offsets[i+1]=pdf.length;
+    pdf+=(i+1)+' 0 obj\n'+body+'\nendobj\n';
+  });
+  const xref=pdf.length;
+  pdf+='xref\n0 '+(objects.length+1)+'\n0000000000 65535 f \n';
+  for(let i=1;i<=objects.length;i++){
+    pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+  }
+  pdf+='trailer\n<< /Size '+(objects.length+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+  return new Blob([pdf],{type:'application/pdf'});
+}
+function downloadFormationSectionedPdf(){
+  if(!playbook||!playbook.plays||!playbook.plays.length){toast('No playbook to export as PDF');return;}
+  try{
+    const blob=buildFormationSectionedPdfBlob(playbook);
+    const date=new Date().toISOString().slice(0,10);
+    const sys=pdfAsciiSafe((playbook.meta&&playbook.meta.system)||'playbook').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'playbook';
+    const name='callsheet_by_formation_'+sys+'_'+date+'.pdf';
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    a.remove();
+    toast('Formation PDF downloaded: '+name);
+  }catch(err){
+    console.error(err);
+    toast('Could not create formation PDF');
+  }
+}
+
 
 function loadPlaybookBackup(file){
   const reader=new FileReader();
@@ -11695,6 +12224,7 @@ $('#btn-reset-ph').addEventListener('click',()=>{
 
 // base playbook tab
 $('#btn-pb-download').addEventListener('click',()=>downloadPlaybookBackup());
+$('#btn-pb-pdf').addEventListener('click',()=>downloadFormationSectionedPdf());
 $('#btn-load').addEventListener('click',()=>{playbook=loadJSON(LS.pb);renderPlaybook();toast(playbook?'Reloaded saved book':'No saved book');});
 $('#btn-clear-pb').addEventListener('click',()=>{
   if(!confirm('Clear the saved base playbook? In-game tracking will also reset.'))return;

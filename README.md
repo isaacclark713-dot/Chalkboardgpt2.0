@@ -1,8 +1,9 @@
-# Coach Brain v15.8.17 RG3 Wing Slot / Split Y Slot Personnel Fix
+# Coach Brain v15.8.20 Formation PDF Export
 
-Coach correction for Capital Motion-Read Pro / Modernized RG3 Washington personnel inference.
+Adds a new playbook download option.
 
-- Wing Slot formations now infer as 12 personnel.
-- Split Y Slot formations now infer as 21 personnel.
-- Keeps v15.8.16 hard formation-menu rule: every kept RG3 formation must have a true dropback answer.
-- Preserves Shanahan, Briles, DeBesse, Wake, Manning, and Generate hotfixes.
+- Adds a Download formation PDF button beside the JSON playbook backup.
+- PDF is grouped by formation.
+- Each formation section includes personnel counts, family counts, and every play.
+- Built-in offline PDF generation; no external library required.
+- Preserves v15.8.19 RVO fix, RG3 formation menu fix, Shanahan, Briles, DeBesse, Wake, Manning, and Generate hotfixes.
