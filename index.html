@@ -5536,6 +5536,42 @@ function repairQuickBasePullRunLabels(book){
     return out;
   });
 }
+
+// v15.8.11: Art Briles / Baylor wide-split spread formation rails.
+// Coach correction: Go Go sets are a different offensive family and should not
+// leak into the Briles wide-split spread book.
+function artBrilesSystemActive(){
+  if(typeof window!=='undefined' && window.__COACH_BRAIN_TEST_SYSTEM==='art_briles_spread') return true;
+  return (philosophy&&philosophy.system)==='art_briles_spread';
+}
+function artBrilesFormationAllowed(pl){
+  if(!pl || !artBrilesSystemActive()) return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  if(/\bgo\s*go\b/.test(f)) return false;
+  if(/^(strong|weak|power\s*i|i\s*form|goal\s*line|maryland)\b/.test(f)) return false;
+  if(/^gun\b/.test(f) || /^pistol\b/.test(f) || /^empty\b/.test(f)) return true;
+  return false;
+}
+function enforceArtBrilesFormationRails(book,scoredPool,target){
+  if(!artBrilesSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  let out=uniquePlayArray(book||[]).filter(artBrilesFormationAllowed);
+  const used=new Set(out.map(playUniqueKey));
+  const pool=(scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&artBrilesFormationAllowed(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl))
+    .sort((a,b)=>((out.some(p=>p.formation===b.pl.formation)?100000:0)+(b.s||0))-((out.some(p=>p.formation===a.pl.formation)?100000:0)+(a.s||0)));
+  for(const {pl} of pool){
+    if(out.length>=target) break;
+    const k=playUniqueKey(pl);
+    if(used.has(k)) continue;
+    out.push(pl);
+    used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function repairArtBrilesGoGoLeakage(book,scoredPool,target){
+  return enforceArtBrilesFormationRails(book,scoredPool,target);
+}
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -6235,6 +6271,11 @@ function generatePlaybook(){
   book=repairQuickBasePullRunLabels(book);
   book=repairDebesseLeadReadOptionLabels(book);
   book=repairDebesseFinalLabels(book);
+  book=repairArtBrilesGoGoLeakage(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=repairArtBrilesGoGoLeakage(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=repairArtBrilesGoGoLeakage(book,finalScoredPool,target);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={

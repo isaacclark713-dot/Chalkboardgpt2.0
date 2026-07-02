@@ -1,9 +1,9 @@
-# Coach Brain v15.8.10 DeBesse Lead Read Fix
+# Coach Brain v15.8.11 Art Briles No-Go-Go Fix
 
-Coach correction: Lead Read Option is a Read Option, not Load Option.
+Coach correction: Go Go sets do not belong in the Art Briles / Baylor wide-split spread system.
 
-- LEAD READ OPTION -> Read Option
-- Y LEAD READ OPTION -> Read Option
-- ESCORT LEAD READ OPTION -> Read Option
-- TE LEAD READ OPT remains Load Option
-- Keeps v15.8.9 DeBesse formation/personnel rails and v15.8.8 Generate hotfix.
+- Removes Gun Go Go formations from Art Briles generated books.
+- Removes Strong/Weak/Power-I/Goal-Line leakage from Art Briles generated books.
+- Keeps Art Briles in Gun / Empty / small Pistol spread worlds.
+- Runs formation-depth repair after the Briles rail.
+- Preserves v15.8.10 DeBesse lead-read correction and earlier Generate hotfix.
