@@ -6708,6 +6708,108 @@ function enforceRvoHardFormationMenu(book,scoredPool,target){
   return uniquePlayArray(out).slice(0,tgt);
 }
 
+// v15.8.21: RVO play-action feature rail.
+// RVO is not an RPO offense, but it absolutely should feature play-action.
+// The run menu is meant to create boot/flood/Y-cross/leak/shot answers.
+function rvoPlayActionFeatureScore(pl,baseScore){
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  let score=Number(baseScore)||0;
+  if(/\b(pa|play\s*action|boot|keeper|naked|rollout|leak)\b/.test(t)) score+=80;
+  if(/\b(flood|y\s*cross|cross|sail|wheel|post|seam|vertical|verts|shot|deep|scissors|leak)\b/.test(t)) score+=35;
+  if(/\b(power|counter|duo|wide\s+zone|outside\s+zone|stretch|split\s+zone)\b/.test(t)) score+=18;
+  if(/\brpo\b/.test(t)) score-=200;
+  return score;
+}
+function rvoPlayActionPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&rvoFormationAllowed(x.pl)&&!rvoIsRpo(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .map(x=>({pl:rvoRepairConceptLabels(x.pl),s:x.s||0}))
+    .filter(x=>personnelAllowedByUser(x.pl)&&rvoIsPlayAction(x.pl))
+    .sort((a,b)=>rvoPlayActionFeatureScore(b.pl,b.s)-rvoPlayActionFeatureScore(a.pl,a.s));
+}
+function rvoChoosePaReplacementIndex(out,formation){
+  const counts=rvoCounts(out);
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const idxs=[];
+  for(let i=0;i<out.length;i++) if(out[i].formation===formation) idxs.push(i);
+  const priorities=[
+    p=>String(p.family||'')==='run' && String(p.concept||'')==='Inside Zone',
+    p=>String(p.family||'')==='run' && !['Outside Zone / Stretch','Duo','Counter','Power / Power O','Split Zone'].includes(String(p.concept||'')),
+    p=>String(p.family||'')==='run',
+    p=>rvoIsTrueDropbackPass(p),
+    p=>!rvoIsPlayAction(p)
+  ];
+  for(const pred of priorities){
+    for(let j=idxs.length-1;j>=0;j--){
+      const i=idxs[j];
+      if((counts[out[i].formation]||0)<=min && out.length>Number(philosophy&&philosophy.size||400)) continue;
+      if(pred(out[i])) return i;
+    }
+  }
+  return -1;
+}
+function enforceRvoPlayActionFeature(book,scoredPool,target){
+  if(!rvoSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  let out=uniquePlayArray(book||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p)).slice(0,tgt);
+  let used=new Set(out.map(playUniqueKey));
+  const pool=rvoPlayActionPool(scoredPool);
+  const byForm={};
+  for(const {pl} of pool)(byForm[pl.formation]||(byForm[pl.formation]=[])).push(pl);
+  // Step 1: every kept formation should try to have a PA answer if same-formation PA exists.
+  for(const form of [...new Set(out.map(p=>p.formation))]){
+    const ps=out.filter(p=>p.formation===form);
+    if(ps.length<(FORMATION_MIN_PACKAGE_PLAYS||5)) continue;
+    if(ps.some(rvoIsPlayAction)) continue;
+    const cand=(byForm[form]||[]).find(p=>!used.has(playUniqueKey(p)));
+    if(!cand) continue;
+    const idx=rvoChoosePaReplacementIndex(out,form);
+    if(idx<0) continue;
+    used.delete(playUniqueKey(out[idx]));
+    out[idx]=cand;
+    used.add(playUniqueKey(cand));
+  }
+  // Step 2: feature PA as a true system constraint, not a token sprinkle.
+  const desiredPa=Math.max(76,Math.round(tgt*.20));
+  let current=out.filter(rvoIsPlayAction).length;
+  const existingForms=new Set(out.map(p=>p.formation));
+  // Prefer existing formations first.
+  for(const {pl} of pool){
+    if(current>=desiredPa) break;
+    if(!existingForms.has(pl.formation)) continue;
+    if(rvoAddOrReplace(out,used,pl,tgt,p=>rvoIsPlayAction(p)||rvoCoreRun(p))) current++;
+  }
+  // Then add only complete packages from new formations that also have PA.
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const forms=[...new Set(pool.map(x=>x.pl.formation))].filter(f=>!existingForms.has(f));
+  for(const form of forms){
+    if(current>=desiredPa) break;
+    const pack=[];
+    const seen=new Set();
+    const candidates=pool.filter(x=>x.pl.formation===form).map(x=>x.pl);
+    if(!candidates.some(rvoIsPlayAction)) continue;
+    for(const p of candidates){
+      const k=playUniqueKey(p);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); pack.push(p);
+      if(pack.length>=min) break;
+    }
+    if(pack.length<min) continue;
+    for(const p of pack){
+      if(current>=desiredPa) break;
+      if(rvoAddOrReplace(out,used,p,tgt,q=>rvoIsPlayAction(q)||rvoCoreRun(q))) current++;
+    }
+  }
+  // Final top-up fallback into any PA candidate.
+  for(const {pl} of pool){
+    if(current>=desiredPa) break;
+    if(rvoAddOrReplace(out,used,pl,tgt,p=>rvoIsPlayAction(p)||rvoCoreRun(p))) current++;
+  }
+  return uniquePlayArray(out).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p)).slice(0,tgt);
+}
+
+
 function repairRvoReliableViolentLabels(book){
   if(!rvoSystemActive()) return book||[];
   return (book||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p));
@@ -7434,6 +7536,7 @@ function generatePlaybook(){
   book=repairRg3PersonnelLabels(book);
   book=enforceRvoReliableViolentIdentity(book,finalScoredPool,target);
   book=enforceRvoFormationMenu(book,finalScoredPool,target);
+  book=enforceRvoPlayActionFeature(book,finalScoredPool,target);
   book=enforceRvoHardFormationMenu(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairRvoReliableViolentLabels(book);
