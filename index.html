@@ -5986,16 +5986,22 @@ function rg3ExpectedPersonnelFromFormation(formation,currentPers){
     return '11';
   }
   if(/^pistol\b/.test(f)){
+    // v15.8.17 coach correction: Wing Slot = 12 personnel.
+    // Split Y Slot = 21 personnel.
+    if(/\bsplit\s+y\s+slot\b/.test(f)) return '21';
     if(/\b(diamond|full\s*house|3rb)\b/.test(f)) return '30';
     if(/\b(dbl\s*tight|double\s*tight)\b/.test(f)) return '13';
-    if(/\b(wingback\s+tight|wing\s+tight|tight\s+u|deuce|bunch\s*te)\b/.test(f)) return '12';
-    if(/\b(y\s*off|wing|wing\s+slot|wing\s+slot\s+over)\b/.test(f)) return '11';
+    if(/\b(wing\s+slot|wing\s+slot\s+over|wingback\s+tight|wing\s+tight|tight\s+u|deuce|bunch\s*te)\b/.test(f)) return '12';
+    if(/\b(y\s*off|wing)\b/.test(f)) return '11';
     return currentPers||'11';
   }
   if(/^gun\b/.test(f)){
+    // v15.8.17 coach correction: Wing Slot = 12 personnel.
+    // Split Y Slot = 21 personnel.
+    if(/\bsplit\s+y\s+slot\b/.test(f)) return '21';
     if(/\b(split|split\s+slot|pony|2rb|two\s*back)\b/.test(f)) return '20';
-    if(/\b(dbl\s*tight|double\s*tight|deuce|bunch\s*te|wingback)\b/.test(f)) return '12';
-    if(/\b(y\s*off|wing|wing\s+slot|wing\s+trips|flex\s+y\s*off|normal\s+y\s*off)\b/.test(f)) return '11';
+    if(/\b(dbl\s*tight|double\s*tight|deuce|bunch\s*te|wingback|wing\s+slot|wing\s+slot\s+offset|wing\s+slot\s+wk)\b/.test(f)) return '12';
+    if(/\b(y\s*off|wing|wing\s+trips|flex\s+y\s*off|normal\s+y\s*off)\b/.test(f)) return '11';
     return /\b(doubles|trips|spread|empty)\b/.test(f)?'10':(currentPers||'11');
   }
   return currentPers||'11';

@@ -1,9 +1,8 @@
-# Coach Brain v15.8.16 RG3 Hard Formation Menu Fix
+# Coach Brain v15.8.17 RG3 Wing Slot / Split Y Slot Personnel Fix
 
-Hardens the Capital Motion-Read Pro / Modernized RG3 Washington formation menu rule.
+Coach correction for Capital Motion-Read Pro / Modernized RG3 Washington personnel inference.
 
-- Keeps v15.8.14 personnel corrections.
-- Keeps v15.8.15 same-formation dropback repair.
-- If a formation still cannot carry a true dropback pass, removes it and backfills with a complete formation package that can.
-- Keeps the 5-play formation-depth repair.
+- Wing Slot formations now infer as 12 personnel.
+- Split Y Slot formations now infer as 21 personnel.
+- Keeps v15.8.16 hard formation-menu rule: every kept RG3 formation must have a true dropback answer.
 - Preserves Shanahan, Briles, DeBesse, Wake, Manning, and Generate hotfixes.
