@@ -5954,6 +5954,214 @@ function enforceShanahanWideZoneYacIdentity(book,scoredPool,target){
   );
   return uniquePlayArray(out).map(shanahanRepairConceptLabels).filter(p=>shanahanFormationAllowed(p)&&!shanahanIsRpo(p)).slice(0,tgt);
 }
+
+// v15.8.14: Capital Motion-Read Pro / Modernized RG3 Washington personnel + goal rail.
+// Fixes formation personnel labels first, then keeps the generated book closer to
+// RG3 goals: pistol/read-option, RPO access, 11/12/20/21 balance, motion, and PA/YAC.
+function rg3SystemActive(){
+  if(typeof window!=='undefined' && window.__COACH_BRAIN_TEST_SYSTEM==='capital_motion_read_pro') return true;
+  return (philosophy&&philosophy.system)==='capital_motion_read_pro';
+}
+function rg3FormationAllowed(pl){
+  if(!pl || !rg3SystemActive()) return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  // Keep the RG3 worlds: gun, pistol, singleback, I/Strong/Weak 21 packages.
+  // Remove heavy-system leakage that does not fit the Modernized RG3 profile.
+  if(/^(power\s*i|goal\s*line|maryland)\b/.test(f)) return false;
+  if(/^gun\b|^pistol\b|^singleback\b|^empty\b|^i\s*form\b|^strong\s*i\b|^weak\s*i\b|^strong\b|^weak\b/.test(f)) return true;
+  return false;
+}
+function rg3ExpectedPersonnelFromFormation(formation,currentPers){
+  const f=String(formation||'').toLowerCase().trim();
+  if(!f) return currentPers||'11';
+  if(/\bempty\b/.test(f)) return '10';
+  if(/^pistol\s+open\s+flex\b/.test(f)) return '10';
+  if(/^i\s*form\s+slot\b/.test(f)) return '20';
+  if(/^i\s*form\b/.test(f)) return /\b(slot)\b/.test(f)?'20':(/\b(wing|heavy|jumbo|close)\b/.test(f)?'22':'21');
+  if(/^strong\s*i\b|^weak\s*i\b/.test(f)) return /\b(close|jumbo|heavy)\b/.test(f)?'22':'21';
+  if(/^strong\b|^weak\b/.test(f)) return '21';
+  if(/^singleback\b/.test(f)){
+    if(/\b(pair|heavy|trio|3te)\b/.test(f)) return '13';
+    if(/\b(deuce|wing|bunch\s*te|tight|te)\b/.test(f)) return '12';
+    return '11';
+  }
+  if(/^pistol\b/.test(f)){
+    if(/\b(diamond|full\s*house|3rb)\b/.test(f)) return '30';
+    if(/\b(dbl\s*tight|double\s*tight)\b/.test(f)) return '13';
+    if(/\b(wingback\s+tight|wing\s+tight|tight\s+u|deuce|bunch\s*te)\b/.test(f)) return '12';
+    if(/\b(y\s*off|wing|wing\s+slot|wing\s+slot\s+over)\b/.test(f)) return '11';
+    return currentPers||'11';
+  }
+  if(/^gun\b/.test(f)){
+    if(/\b(split|split\s+slot|pony|2rb|two\s*back)\b/.test(f)) return '20';
+    if(/\b(dbl\s*tight|double\s*tight|deuce|bunch\s*te|wingback)\b/.test(f)) return '12';
+    if(/\b(y\s*off|wing|wing\s+slot|wing\s+trips|flex\s+y\s*off|normal\s+y\s*off)\b/.test(f)) return '11';
+    return /\b(doubles|trips|spread|empty)\b/.test(f)?'10':(currentPers||'11');
+  }
+  return currentPers||'11';
+}
+function rg3RepairPersonnel(pl){
+  if(!pl || !rg3SystemActive()) return pl;
+  const out={...pl};
+  out.pers=rg3ExpectedPersonnelFromFormation(out.formation,out.pers);
+  if(Array.isArray(out.targetTags)){
+    const tags=new Set(out.targetTags.filter(t=>!/^pers_\d+/.test(String(t))));
+    tags.add('pers_'+out.pers);
+    out.targetTags=[...tags].sort();
+  }
+  return out;
+}
+function rg3RepairConceptLabels(pl){
+  if(!pl || !rg3SystemActive()) return pl;
+  let out=rg3RepairPersonnel(pl);
+  const t=String(out.play||'').toLowerCase();
+  if(/\b(hb\s+zone|hb\s+base|jet\s+hb\s+zone|lead\s+zone|wr\s+zone|zone\s+wk)\b/.test(t) && !/\bwide\s+zone|outside\s+zone|stretch\b/.test(t)){
+    out.concept='Inside Zone';
+    out.family=out.family||'run';
+  }
+  if(/\bwide\s+zone|outside\s+zone|stretch\b/.test(t)){
+    out.concept='Outside Zone / Stretch';
+  }
+  if(/\b(pa|boot|keeper|naked|rollout|slide)\b/.test(t) && !/\brpo\b/.test(t)){
+    if(out.family!=='screen') out.family='play_action';
+    if(out.concept==='Other / Unknown'||out.concept==='HB Base / Zone') out.concept='Boot / Play Action';
+  }
+  return out;
+}
+function rg3IsRpo(pl){
+  return !!pl && (String(pl.family||'')==='option_rpo' || /\brpo\b/i.test(String(pl.play||'')) || /\brpo\b/i.test(String(pl.concept||'')));
+}
+function rg3IsPlayAction(pl){
+  if(!pl || rg3IsRpo(pl)) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return String(pl.family||'')==='play_action' || /\b(pa|boot|keeper|naked|rollout|slide|leak|throwback|y\s*cross|flood|sail)\b/.test(t);
+}
+function rg3IsPistol(pl){ return !!pl && /^pistol\b/i.test(String(pl.formation||'')); }
+function rg3IsBunchStack(pl){ return !!pl && /\b(bunch|stack)\b/i.test(String(pl.formation||'')); }
+function rg3LegalPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&rg3FormationAllowed(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .map(x=>({pl:rg3RepairConceptLabels(x.pl),s:x.s||0}))
+    .filter(x=>personnelAllowedByUser(x.pl))
+    .sort((a,b)=>(b.s||0)-(a.s||0));
+}
+function rg3Counts(arr){
+  return (arr||[]).reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
+}
+function rg3RemoveOne(out,used,protectPred){
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const counts=rg3Counts(out);
+  let idx=-1;
+  for(let i=out.length-1;i>=0;i--){
+    if(protectPred&&protectPred(out[i])) continue;
+    if((counts[out[i].formation]||0)<=min) continue;
+    // Prefer trimming generic duplicate inside-zone/run from overfull forms.
+    if(String(out[i].family||'')==='run' && !/read option|option|power read|bash|speed option|load option/i.test(String(out[i].concept||''))){idx=i;break;}
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      if((counts[out[i].formation]||0)<=min) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0) return false;
+  used.delete(playUniqueKey(out[idx]));
+  out.splice(idx,1);
+  return true;
+}
+function rg3AddOrReplace(out,used,pl,target,protectPred){
+  if(!pl || !rg3FormationAllowed(pl)) return false;
+  const next=rg3RepairConceptLabels(pl);
+  const k=playUniqueKey(next);
+  if(used.has(k)) return false;
+  while(out.length>=target){
+    if(!rg3RemoveOne(out,used,protectPred)) break;
+  }
+  if(out.length>=target) return false;
+  out.push(next); used.add(k);
+  return true;
+}
+function rg3EnforcePredicateQuota(out,pool,target,desired,currentPred,candidatePred,protectPred){
+  out=uniquePlayArray(out||[]).map(rg3RepairConceptLabels).filter(rg3FormationAllowed);
+  let used=new Set(out.map(playUniqueKey));
+  let current=out.filter(currentPred).length;
+  if(current>=desired) return out.slice(0,target);
+  const existingForms=new Set(out.map(p=>p.formation));
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl) || !existingForms.has(pl.formation)) continue;
+    if(rg3AddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  if(current>=desired) return uniquePlayArray(out).slice(0,target);
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const forms=[...new Set(pool.filter(x=>candidatePred(x.pl)).map(x=>x.pl.formation))]
+    .filter(f=>!existingForms.has(f));
+  for(const form of forms){
+    if(current>=desired) break;
+    const pack=[]; const seen=new Set();
+    for(const {pl} of pool){
+      if(pl.formation!==form || !candidatePred(pl)) continue;
+      const k=playUniqueKey(pl);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); pack.push(pl);
+      if(pack.length>=min) break;
+    }
+    if(pack.length<min) continue;
+    for(const pl of pack){
+      if(current>=desired) break;
+      if(rg3AddOrReplace(out,used,pl,target,protectPred)) current++;
+    }
+  }
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl)) continue;
+    if(rg3AddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function rg3RebuildAfterFiltering(out,pool,target){
+  out=uniquePlayArray(out||[]).map(rg3RepairConceptLabels).filter(rg3FormationAllowed);
+  const used=new Set(out.map(playUniqueKey));
+  for(const {pl} of pool){
+    if(out.length>=target) break;
+    const k=playUniqueKey(pl);
+    if(used.has(k)) continue;
+    out.push(pl); used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function enforceRg3PersonnelAndGoals(book,scoredPool,target){
+  if(!rg3SystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  const pool=rg3LegalPool(scoredPool);
+  let out=rg3RebuildAfterFiltering(book,pool,tgt);
+  // Correct personnel first. These are softer floors, not exact locks, because
+  // the raw DB does not have unlimited true 20/21 RG3 inventory.
+  const desired21=Math.max(48,Math.round(tgt*.14));
+  const desired20=Math.max(28,Math.round(tgt*.08));
+  const desiredPistol=Math.max(145,Math.round(tgt*.38));
+  const desiredPA=Math.max(60,Math.round(tgt*.18));
+  const desiredBunchStack=Math.max(45,Math.round(tgt*.12));
+  const protect=p=>rg3IsRpo(p)||rg3IsPistol(p)||rg3IsPlayAction(p)||rg3IsBunchStack(p);
+  out=rg3EnforcePredicateQuota(out,pool,tgt,desired21,p=>p.pers==='21',p=>p.pers==='21',protect);
+  out=rg3EnforcePredicateQuota(out,pool,tgt,desired20,p=>p.pers==='20',p=>p.pers==='20',protect);
+  out=rg3EnforcePredicateQuota(out,pool,tgt,desiredPistol,rg3IsPistol,rg3IsPistol,p=>rg3IsRpo(p)||rg3IsPlayAction(p));
+  out=rg3EnforcePredicateQuota(out,pool,tgt,desiredPA,rg3IsPlayAction,rg3IsPlayAction,p=>rg3IsRpo(p)||rg3IsPistol(p));
+  out=rg3EnforcePredicateQuota(out,pool,tgt,desiredBunchStack,rg3IsBunchStack,rg3IsBunchStack,p=>rg3IsRpo(p)||rg3IsPistol(p)||rg3IsPlayAction(p));
+  return uniquePlayArray(out).map(rg3RepairConceptLabels).filter(rg3FormationAllowed).slice(0,tgt);
+}
+function repairRg3PersonnelLabels(book){
+  if(!rg3SystemActive()) return book||[];
+  return (book||[]).map(rg3RepairConceptLabels).filter(rg3FormationAllowed);
+}
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -6667,6 +6875,9 @@ function generatePlaybook(){
   if(typeof shanahanSystemActive==='function' && shanahanSystemActive()){
     book=uniquePlayArray(book).map(shanahanRepairConceptLabels).filter(p=>shanahanFormationAllowed(p)&&!shanahanIsRpo(p));
   }
+  book=enforceRg3PersonnelAndGoals(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=repairRg3PersonnelLabels(book);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={

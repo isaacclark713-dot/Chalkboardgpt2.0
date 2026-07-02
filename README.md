@@ -1,12 +1,9 @@
-# Coach Brain v15.8.13 Shanahan WZ-YAC Fix
+# Coach Brain v15.8.14 RG3 Personnel/Goal Fix
 
-Fixes Kyle Shanahan / WZ-YAC Play-Action generation.
+Fixes Capital Motion-Read Pro / Modernized RG3 Washington generation.
 
-- Removes RPO leakage because the Shanahan profile has rpoTargetPct 0.
-- Blocks generic Goal Line / Maryland leakage from the base Shanahan book.
-- Fixes Strong I / Weak I / I Form personnel as 21/22 instead of 11.
-- Forces more Outside Zone / Stretch.
-- Forces more play-action/YAC concepts.
-- Normalizes Shanahan crossers as Y Cross.
-- Keeps the final formation-depth repair after the Shanahan identity rail.
-- Preserves Briles Wide/Choice fix, DeBesse Lead Read fix, and Generate hotfix.
+- Corrects personnel labels by formation: Y-off/wing-slot mostly 11, Deuce/Dbl Tight 12/13, Strong/Weak/I looks 21/22, I Slot 20.
+- Blocks Power-I / Goal-Line / Maryland leakage from RG3 generated books.
+- Adds RG3 identity floors for 20/21 personnel, pistol, play-action, and bunch/stack.
+- Keeps RPO access quota and formation-depth repair.
+- Preserves Shanahan, Briles, DeBesse, Wake, Manning, and Generate hotfixes.
