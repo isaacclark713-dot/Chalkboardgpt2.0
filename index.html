@@ -6814,6 +6814,477 @@ function repairRvoReliableViolentLabels(book){
   if(!rvoSystemActive()) return book||[];
   return (book||[]).map(rvoRepairConceptLabels).filter(p=>rvoFormationAllowed(p)&&!rvoIsRpo(p));
 }
+
+// v15.8.22: Jim Harbaugh / Power West Coast Multiple identity rail.
+// Harbaugh should be a multiple pro-style West Coast book: 21/12/22/11/13,
+// I/Singleback/Gun/Pistol pictures, physical power/zone/counter/trap,
+// play-action, quick timing passes, and no RPO leakage.
+function harbaughSystemActive(){
+  if(typeof window!=='undefined' && window.__COACH_BRAIN_TEST_SYSTEM==='harbaugh_power_west_coast') return true;
+  return (philosophy&&philosophy.system)==='harbaugh_power_west_coast';
+}
+function harbaughFormationAllowed(pl){
+  if(!pl || !harbaughSystemActive()) return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  if(/^(goal\s*line|maryland|power\s*i)\b/.test(f)) return false;
+  if(/^gun\b|^pistol\b|^singleback\b|^i\s*form\b|^strong\s*i\b|^weak\s*i\b|^strong\b|^weak\b|^empty\b/.test(f)) return true;
+  return false;
+}
+function harbaughFormationType(pl){
+  const f=String((pl&&pl.formation)||'').toLowerCase();
+  if(/^gun\b/.test(f)) return 'shotgun';
+  if(/^pistol\b/.test(f)) return 'pistol';
+  if(/^singleback\b/.test(f)) return 'singleback';
+  if(/^i\s*form\b|^strong\s*i\b|^weak\s*i\b|^strong\b|^weak\b/.test(f)) return 'i_form';
+  if(/\bempty\b/.test(f)) return 'empty';
+  return 'other';
+}
+function harbaughIsRpo(pl){
+  return !!pl && (String(pl.family||'')==='option_rpo' || /\brpo\b/i.test(String(pl.play||'')) || /\brpo\b/i.test(String(pl.concept||'')));
+}
+function harbaughExpectedPersonnelFromFormation(formation,currentPers){
+  const f=String(formation||'').toLowerCase().trim();
+  if(!f) return currentPers||'12';
+  if(/\bempty\b/.test(f)) return '10';
+  if(/^strong\s*i\b|^weak\s*i\b/.test(f)) return /\b(close|jumbo|heavy)\b/.test(f)?'22':'21';
+  if(/^strong\b|^weak\b/.test(f)) return /\b(close|jumbo|heavy)\b/.test(f)?'22':'21';
+  if(/^i\s*form\b/.test(f)) return /\b(slot)\b/.test(f)?'20':(/\b(wing|close|heavy|jumbo|over)\b/.test(f)?'22':'21');
+  if(/^singleback\b/.test(f)){
+    if(/\b(pair|heavy|trio|3te)\b/.test(f)) return '13';
+    if(/\b(deuce|wing|wing\s+slot|bunch|ace|tight|te)\b/.test(f)) return '12';
+    return '11';
+  }
+  if(/^pistol\b/.test(f)){
+    if(/\bsplit\s+y\s+slot\b/.test(f)) return '21';
+    if(/\b(diamond|full\s*house|3rb)\b/.test(f)) return '30';
+    if(/\b(dbl\s*tight|double\s*tight|wing\s+slot|wing\s+slot\s+over|wingback|wing\s+tight|tight\s+u|deuce|bunch\s*te|wing)\b/.test(f)) return '12';
+    return currentPers||'11';
+  }
+  if(/^gun\b/.test(f)){
+    if(/\bsplit\s+y\s+(slot|off)\b/.test(f)) return '21';
+    if(/\b(split|split\s+slot|pony|2rb|two\s*back)\b/.test(f)) return '20';
+    if(/\b(dbl\s*tight|double\s*tight|deuce|bunch\s*te|tight\s+y|wingback|wing\s+slot|wing\s+tight|tight\s+z|normal\s+y\s*off|y\s*off|wing|bunch\s+te)\b/.test(f)) return '12';
+    return /\b(doubles|trips|spread|empty)\b/.test(f)?'11':(currentPers||'12');
+  }
+  return currentPers||'12';
+}
+function harbaughRepairPersonnel(pl){
+  if(!pl || !harbaughSystemActive()) return pl;
+  const out={...pl};
+  out.pers=harbaughExpectedPersonnelFromFormation(out.formation,out.pers);
+  if(Array.isArray(out.targetTags)){
+    const tags=new Set(out.targetTags.filter(t=>!/^pers_\d+/.test(String(t))));
+    tags.add('pers_'+out.pers);
+    out.targetTags=[...tags].sort();
+  }
+  return out;
+}
+function harbaughRepairConceptLabels(pl){
+  if(!pl || !harbaughSystemActive()) return pl;
+  let out=harbaughRepairPersonnel(pl);
+  const t=String(out.play||'').toLowerCase();
+  if(harbaughIsRpo(out)){
+    out.family='run';
+    if(/\bcounter\b/.test(t)) out.concept='Counter';
+    else if(/\bduo\b/.test(t)) out.concept='Duo';
+    else if(/\bpower|blast|quick\s+base\b/.test(t)) out.concept='Power / Power O';
+    else if(/\bstretch|outside\s+zone|wide\s+zone\b/.test(t)) out.concept='Outside Zone / Stretch';
+    else out.concept='Inside Zone';
+  }
+  // Keep Harbaugh from turning into a spread option book. QB-run threat is a
+  // small changeup, not the generated-book identity.
+  if(/\b(load|triple|speed)\s+option\b/i.test(String(out.concept||'')) || /\bload\s+option|triple\s+option|speed\s+option\b/.test(t)){
+    out.family='run';
+    out.concept=/power/.test(t)?'Power / Power O':/\bcounter\b/.test(t)?'Counter':'Inside Zone';
+  }
+  if(/\b(pa|play\s*action|boot|keeper|naked|rollout|leak)\b/.test(t) && !/\brpo\b/.test(t)){
+    if(out.family!=='screen') out.family='play_action';
+    if(out.concept==='Other / Unknown'||out.concept==='HB Base / Zone'||out.concept==='Inside Zone') out.concept=/flood|sail|leak/.test(t)?'Flood':'Boot / Play Action';
+  }
+  if(/\b(y\s*cross|crossers|post\s+cross|deep\s+cross|pa\s+cross)\b/.test(t)){
+    out.concept='Y Cross';
+    if(/\bpa\b|boot|keeper|naked|rollout/.test(t)) out.family='play_action';
+  }
+  if(/\bquick\s+toss\b/.test(t)){
+    out.family='run';
+    out.concept='Sweep';
+  }
+  return out;
+}
+function harbaughIsTrueDropbackPass(pl){
+  if(!pl || !harbaughSystemActive()) return false;
+  if(harbaughIsRpo(pl)) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return String(pl.family||'')==='pass' && !/\b(pa|play\s*action|boot|keeper|naked|rollout|rpo)\b/.test(t);
+}
+function harbaughIsPlayAction(pl){
+  if(!pl || harbaughIsRpo(pl)) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return String(pl.family||'')==='play_action' || /\b(pa|boot|keeper|naked|rollout|leak|y\s*cross|flood|sail)\b/.test(t);
+}
+function harbaughCoreRun(pl){
+  if(!pl) return false;
+  const c=String(pl.concept||'');
+  return ['Power / Power O','Inside Zone','Outside Zone / Stretch','Counter','Trap','Split Zone','Duo','Sweep','Buck Sweep','Dive'].includes(c);
+}
+function harbaughQuickWco(pl){
+  if(!pl || !harbaughIsTrueDropbackPass(pl)) return false;
+  const c=String(pl.concept||'');
+  return ['Slants','Stick','Mesh','Shallow','Spot','Spacing','Curls / Curl Flats','Drive','Y Corner','Bench / Corner Strike'].includes(c);
+}
+function harbaughLegalPool(scoredPool){
+  // v15.8.23: merge scored pool with full DB fallback so Harbaugh can actually
+  // reach Singleback/I/Pistol inventory when the scorer over-narrows to Gun Y-off.
+  const merged=[];
+  const seen=new Set();
+  (scoredPool||[]).forEach(x=>{
+    const item=x&&x.pl?x:{pl:x,s:1};
+    if(!item||!item.pl) return;
+    const k=playUniqueKey(item.pl);
+    if(seen.has(k)) return;
+    seen.add(k); merged.push(item);
+  });
+  if(typeof PLAYS!=='undefined' && Array.isArray(PLAYS)){
+    PLAYS.forEach(pl=>{
+      const k=playUniqueKey(pl);
+      if(seen.has(k)) return;
+      seen.add(k); merged.push({pl,s:0});
+    });
+  }
+  return merged
+    .filter(x=>x&&x.pl&&harbaughFormationAllowed(x.pl)&&!harbaughIsRpo(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .map(x=>({pl:harbaughRepairConceptLabels(x.pl),s:x.s||0}))
+    .filter(x=>personnelAllowedByUser(x.pl))
+    .sort((a,b)=>{
+      const score=x=>{
+        const p=x.pl; let sc=Number(x.s)||0;
+        const typ=harbaughFormationType(p);
+        if(typ==='i_form') sc+=40;
+        if(typ==='singleback') sc+=38;
+        if(typ==='pistol') sc+=34;
+        if(harbaughIsPlayAction(p)) sc+=22;
+        if(harbaughQuickWco(p)) sc+=18;
+        if(harbaughCoreRun(p)) sc+=12;
+        return sc;
+      };
+      return score(b)-score(a);
+    });
+}
+function harbaughCounts(arr){
+  return (arr||[]).reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
+}
+function harbaughRemoveOne(out,used,protectPred){
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const counts=harbaughCounts(out);
+  let idx=-1;
+  for(let i=out.length-1;i>=0;i--){
+    if(protectPred&&protectPred(out[i])) continue;
+    if((counts[out[i].formation]||0)<=min) continue;
+    if(String(out[i].family||'')==='run' && String(out[i].concept||'')==='Inside Zone'){idx=i;break;}
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      if((counts[out[i].formation]||0)<=min) continue;
+      idx=i;break;
+    }
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      idx=i;break;
+    }
+  }
+  if(idx<0) return false;
+  used.delete(playUniqueKey(out[idx]));
+  out.splice(idx,1);
+  return true;
+}
+function harbaughAddOrReplace(out,used,pl,target,protectPred){
+  if(!pl || !harbaughFormationAllowed(pl) || harbaughIsRpo(pl)) return false;
+  const next=harbaughRepairConceptLabels(pl);
+  const k=playUniqueKey(next);
+  if(used.has(k)) return false;
+  while(out.length>=target){
+    if(!harbaughRemoveOne(out,used,protectPred)) break;
+  }
+  if(out.length>=target) return false;
+  out.push(next); used.add(k);
+  return true;
+}
+function harbaughEnforcePredicateQuota(out,pool,target,desired,currentPred,candidatePred,protectPred){
+  out=uniquePlayArray(out||[]).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p));
+  let used=new Set(out.map(playUniqueKey));
+  let current=out.filter(currentPred).length;
+  if(current>=desired) return out.slice(0,target);
+  const existingForms=new Set(out.map(p=>p.formation));
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl)||!existingForms.has(pl.formation)) continue;
+    if(harbaughAddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  if(current>=desired) return uniquePlayArray(out).slice(0,target);
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const forms=[...new Set(pool.filter(x=>candidatePred(x.pl)).map(x=>x.pl.formation))].filter(f=>!existingForms.has(f));
+  for(const form of forms){
+    if(current>=desired) break;
+    const pack=[]; const seen=new Set();
+    for(const {pl} of pool){
+      if(pl.formation!==form||!candidatePred(pl)) continue;
+      const k=playUniqueKey(pl);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); pack.push(pl);
+      if(pack.length>=min) break;
+    }
+    if(pack.length<min) continue;
+    for(const pl of pack){
+      if(current>=desired) break;
+      if(harbaughAddOrReplace(out,used,pl,target,protectPred)) current++;
+    }
+  }
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl)) continue;
+    if(harbaughAddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function harbaughRebuildAfterFiltering(out,pool,target){
+  out=uniquePlayArray(out||[]).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p));
+  const used=new Set(out.map(playUniqueKey));
+  for(const {pl} of pool){
+    if(out.length>=target) break;
+    const k=playUniqueKey(pl);
+    if(used.has(k)) continue;
+    out.push(pl); used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function enforceHarbaughPowerWestCoastIdentity(book,scoredPool,target){
+  if(!harbaughSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  const pool=harbaughLegalPool(scoredPool);
+  let out=harbaughRebuildAfterFiltering(book,pool,tgt);
+  const desired21=Math.max(64,Math.round(tgt*.18));
+  const desired22=Math.max(44,Math.round(tgt*.12));
+  const desired13=Math.max(12,Math.round(tgt*.035));
+  const desiredI=Math.max(78,Math.round(tgt*.21));
+  const desiredSingleback=Math.max(70,Math.round(tgt*.20));
+  const desiredPistol=Math.max(24,Math.round(tgt*.07));
+  const desiredPA=Math.max(58,Math.round(tgt*.16));
+  const desiredQuick=Math.max(44,Math.round(tgt*.12));
+  const protect=p=>harbaughCoreRun(p)||harbaughIsPlayAction(p)||harbaughQuickWco(p);
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desired21,p=>p.pers==='21',p=>p.pers==='21',protect);
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desired22,p=>p.pers==='22',p=>p.pers==='22',protect);
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desired13,p=>p.pers==='13',p=>p.pers==='13',protect);
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desiredI,p=>harbaughFormationType(p)==='i_form',p=>harbaughFormationType(p)==='i_form',protect);
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desiredSingleback,p=>harbaughFormationType(p)==='singleback',p=>harbaughFormationType(p)==='singleback',protect);
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desiredPistol,p=>harbaughFormationType(p)==='pistol',p=>harbaughFormationType(p)==='pistol',protect);
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desiredPA,harbaughIsPlayAction,harbaughIsPlayAction,p=>harbaughCoreRun(p)||harbaughQuickWco(p));
+  out=harbaughEnforcePredicateQuota(out,pool,tgt,desiredQuick,harbaughQuickWco,harbaughQuickWco,p=>harbaughCoreRun(p)||harbaughIsPlayAction(p));
+  return uniquePlayArray(out).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p)).slice(0,tgt);
+}
+function harbaughSameFormationDropbackPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&harbaughFormationAllowed(x.pl)&&!harbaughIsRpo(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .map(x=>({pl:harbaughRepairConceptLabels(x.pl),s:x.s||0}))
+    .filter(x=>personnelAllowedByUser(x.pl)&&harbaughIsTrueDropbackPass(x.pl))
+    .sort((a,b)=>(b.s||0)-(a.s||0));
+}
+function enforceHarbaughFormationMenu(book,scoredPool,target){
+  if(!harbaughSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  let out=uniquePlayArray(book||[]).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p)).slice(0,tgt);
+  const used=new Set(out.map(playUniqueKey));
+  const pool=harbaughSameFormationDropbackPool(scoredPool);
+  const byForm={};
+  for(const {pl} of pool)(byForm[pl.formation]||(byForm[pl.formation]=[])).push(pl);
+  for(const form of [...new Set(out.map(p=>p.formation))]){
+    const ps=out.filter(p=>p.formation===form);
+    if(ps.length<(FORMATION_MIN_PACKAGE_PLAYS||5)) continue;
+    if(ps.some(harbaughIsTrueDropbackPass)) continue;
+    const cand=(byForm[form]||[]).find(p=>!used.has(playUniqueKey(p)));
+    if(!cand) continue;
+    const idx=[...out.keys()].reverse().find(i=>out[i].formation===form && !harbaughIsTrueDropbackPass(out[i]) && String(out[i].family||'')==='run');
+    if(idx==null || idx<0) continue;
+    used.delete(playUniqueKey(out[idx]));
+    out[idx]=cand;
+    used.add(playUniqueKey(cand));
+  }
+  return uniquePlayArray(out).slice(0,tgt);
+}
+function enforceHarbaughHardFormationMenu(book,scoredPool,target){
+  if(!harbaughSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400, min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  let out=uniquePlayArray(book||[]).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p)).slice(0,tgt);
+  let used=new Set(out.map(playUniqueKey));
+  const pool=harbaughLegalPool(scoredPool);
+  function byForm(arr){const m={}; for(const p of arr)(m[p.formation]||(m[p.formation]=[])).push(p); return m;}
+  function zeroDropForms(arr){return Object.entries(byForm(arr)).filter(([f,ps])=>ps.length>=min&&!ps.some(harbaughIsTrueDropbackPass)).map(([f,ps])=>({formation:f,count:ps.length}));}
+  function packageForForm(form,n){
+    const seen=new Set(); const all=[];
+    for(const {pl} of pool){ if(pl.formation!==form) continue; const k=playUniqueKey(pl); if(used.has(k)||seen.has(k)) continue; seen.add(k); all.push(pl); }
+    if(all.length<min || !all.some(harbaughIsTrueDropbackPass)) return null;
+    const drop=all.find(harbaughIsTrueDropbackPass);
+    const pa=all.filter(harbaughIsPlayAction).filter(p=>playUniqueKey(p)!==playUniqueKey(drop));
+    const run=all.filter(p=>String(p.family||'')==='run'&&playUniqueKey(p)!==playUniqueKey(drop));
+    const rest=all.filter(p=>![drop,...pa,...run].map(playUniqueKey).includes(playUniqueKey(p)));
+    const pack=[drop,...pa,...run,...rest].slice(0,Math.max(min,Number(n)||min));
+    return pack.length>=min?pack:null;
+  }
+  for(const z of zeroDropForms(out)){
+    for(const p of out.filter(p=>p.formation===z.formation)) used.delete(playUniqueKey(p));
+    out=out.filter(p=>p.formation!==z.formation);
+    const existing=new Set(out.map(p=>p.formation));
+    const forms=[...new Set(pool.map(x=>x.pl.formation))].filter(f=>!existing.has(f)).sort((a,b)=>{
+      const score=f=>pool.filter(x=>x.pl.formation===f).map(x=>x.pl).reduce((sc,p)=>sc+(harbaughFormationType(p)==='singleback'?30:0)+(harbaughFormationType(p)==='i_form'?28:0)+(harbaughFormationType(p)==='pistol'?15:0)+(harbaughIsPlayAction(p)?12:0)+(harbaughQuickWco(p)?10:0),0);
+      return score(b)-score(a);
+    });
+    let added=false;
+    for(const f of forms){
+      const pack=packageForForm(f,z.count);
+      if(!pack) continue;
+      for(const p of pack){ if(out.length>=tgt) break; const k=playUniqueKey(p); if(used.has(k)) continue; out.push(p); used.add(k); }
+      added=true; break;
+    }
+    if(!added){
+      const complete=new Set(Object.entries(byForm(out)).filter(([f,ps])=>ps.some(harbaughIsTrueDropbackPass)).map(([f])=>f));
+      for(const {pl} of pool){ if(out.length>=tgt) break; if(!complete.has(pl.formation)) continue; const k=playUniqueKey(pl); if(used.has(k)) continue; out.push(pl); used.add(k); }
+    }
+  }
+  return uniquePlayArray(out).slice(0,tgt);
+}
+
+// v15.8.23: Harbaugh play-action feature rail.
+// Harbaugh should marry power/zone/counter to PA, boot, flood, crossers,
+// and TE/WC shots. It should not be a gun run menu with token PA.
+function harbaughPlayActionFeatureScore(pl,baseScore){
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  let score=Number(baseScore)||0;
+  if(/\b(pa|play\s*action|boot|keeper|naked|rollout|leak)\b/.test(t)) score+=80;
+  if(/\b(flood|y\s*cross|cross|sail|wheel|post|seam|vertical|verts|scissors|leak|shot)\b/.test(t)) score+=30;
+  if(/\b(power|counter|duo|outside\s+zone|wide\s+zone|stretch|split\s+zone|trap)\b/.test(t)) score+=16;
+  if(/\brpo\b/.test(t)) score-=200;
+  return score;
+}
+function harbaughPlayActionPool(scoredPool){
+  return harbaughLegalPool(scoredPool)
+    .filter(x=>harbaughIsPlayAction(x.pl))
+    .sort((a,b)=>harbaughPlayActionFeatureScore(b.pl,b.s)-harbaughPlayActionFeatureScore(a.pl,a.s));
+}
+function enforceHarbaughPlayActionFeature(book,scoredPool,target){
+  if(!harbaughSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  let out=uniquePlayArray(book||[]).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p)).slice(0,tgt);
+  let used=new Set(out.map(playUniqueKey));
+  const pool=harbaughPlayActionPool(scoredPool);
+  const byForm={};
+  for(const {pl} of pool)(byForm[pl.formation]||(byForm[pl.formation]=[])).push(pl);
+  // Give every kept formation a PA answer if same-formation PA exists.
+  for(const form of [...new Set(out.map(p=>p.formation))]){
+    const ps=out.filter(p=>p.formation===form);
+    if(ps.length<(FORMATION_MIN_PACKAGE_PLAYS||5)) continue;
+    if(ps.some(harbaughIsPlayAction)) continue;
+    const cand=(byForm[form]||[]).find(p=>!used.has(playUniqueKey(p)));
+    if(!cand) continue;
+    const idx=[...out.keys()].reverse().find(i=>out[i].formation===form && !harbaughIsPlayAction(out[i]) && !harbaughQuickWco(out[i]));
+    if(idx==null || idx<0) continue;
+    used.delete(playUniqueKey(out[idx]));
+    out[idx]=cand;
+    used.add(playUniqueKey(cand));
+  }
+  const desiredPa=Math.max(72,Math.round(tgt*.20));
+  let current=out.filter(harbaughIsPlayAction).length;
+  const existingForms=new Set(out.map(p=>p.formation));
+  for(const {pl} of pool){
+    if(current>=desiredPa) break;
+    if(!existingForms.has(pl.formation)) continue;
+    if(harbaughAddOrReplace(out,used,pl,tgt,p=>harbaughIsPlayAction(p)||harbaughCoreRun(p)||harbaughQuickWco(p))) current++;
+  }
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  for(const form of [...new Set(pool.map(x=>x.pl.formation))].filter(f=>!existingForms.has(f))){
+    if(current>=desiredPa) break;
+    const candidates=pool.filter(x=>x.pl.formation===form).map(x=>x.pl);
+    if(candidates.length<min || !candidates.some(harbaughIsPlayAction)) continue;
+    const pack=candidates.slice(0,min);
+    for(const p of pack){
+      if(current>=desiredPa) break;
+      if(harbaughAddOrReplace(out,used,p,tgt,q=>harbaughIsPlayAction(q)||harbaughCoreRun(q)||harbaughQuickWco(q))) current++;
+    }
+  }
+  for(const {pl} of pool){
+    if(current>=desiredPa) break;
+    if(harbaughAddOrReplace(out,used,pl,tgt,p=>harbaughIsPlayAction(p)||harbaughCoreRun(p)||harbaughQuickWco(p))) current++;
+  }
+  return uniquePlayArray(out).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p)).slice(0,tgt);
+}
+
+// v15.8.24: Harbaugh pistol package rail.
+// Pistol should appear as a small QB-threat/changeup package, but only if it
+// has a real menu: run + PA + dropback/quick answer. Otherwise formation-depth
+// cleanup correctly removes it.
+function enforceHarbaughPistolMenuPackage(book,scoredPool,target){
+  if(!harbaughSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400, min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  let out=uniquePlayArray(book||[]).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p)).slice(0,tgt);
+  let used=new Set(out.map(playUniqueKey));
+  let current=out.filter(p=>harbaughFormationType(p)==='pistol').length;
+  const desired=Math.max(24,Math.round(tgt*.07));
+  if(current>=desired) return out.slice(0,tgt);
+  const pool=harbaughLegalPool(scoredPool).filter(x=>harbaughFormationType(x.pl)==='pistol');
+  const forms=[...new Set(pool.map(x=>x.pl.formation))]
+    .filter(f=>!out.some(p=>p.formation===f))
+    .sort((a,b)=>{
+      const score=f=>{
+        const ps=pool.filter(x=>x.pl.formation===f).map(x=>x.pl);
+        let sc=0;
+        if(ps.some(harbaughIsTrueDropbackPass)) sc+=40;
+        if(ps.some(harbaughIsPlayAction)) sc+=30;
+        if(ps.some(harbaughCoreRun)) sc+=25;
+        if(ps.some(harbaughQuickWco)) sc+=20;
+        if(/\bwing|y\s*off|u\s*off|bunch|deuce|strong\b/i.test(f)) sc+=10;
+        return sc;
+      };
+      return score(b)-score(a);
+    });
+  function packageFor(form){
+    const all=[];
+    const seen=new Set();
+    for(const {pl} of pool){
+      if(pl.formation!==form) continue;
+      const k=playUniqueKey(pl);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); all.push(pl);
+    }
+    if(all.length<min) return null;
+    const drop=all.find(harbaughIsTrueDropbackPass);
+    const pa=all.find(p=>harbaughIsPlayAction(p) && (!drop||playUniqueKey(p)!==playUniqueKey(drop)));
+    const run=all.find(p=>harbaughCoreRun(p) && (!drop||playUniqueKey(p)!==playUniqueKey(drop)) && (!pa||playUniqueKey(p)!==playUniqueKey(pa)));
+    if(!drop || !pa || !run) return null;
+    const seeded=[drop,pa,run].filter(Boolean);
+    const rest=all.filter(p=>!seeded.map(playUniqueKey).includes(playUniqueKey(p)));
+    return [...seeded,...rest].slice(0,Math.max(min,5));
+  }
+  for(const form of forms){
+    if(current>=desired) break;
+    const pack=packageFor(form);
+    if(!pack) continue;
+    for(const pl of pack){
+      if(current>=desired) break;
+      if(harbaughAddOrReplace(out,used,pl,tgt,p=>harbaughIsPlayAction(p)||harbaughCoreRun(p)||harbaughQuickWco(p)||harbaughFormationType(p)==='singleback'||harbaughFormationType(p)==='i_form')){
+        current++;
+      }
+    }
+  }
+  return uniquePlayArray(out).slice(0,tgt);
+}
+
+
+function repairHarbaughPowerWestCoastLabels(book){
+  if(!harbaughSystemActive()) return book||[];
+  return (book||[]).map(harbaughRepairConceptLabels).filter(p=>harbaughFormationAllowed(p)&&!harbaughIsRpo(p));
+}
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -7540,6 +8011,13 @@ function generatePlaybook(){
   book=enforceRvoHardFormationMenu(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairRvoReliableViolentLabels(book);
+  book=enforceHarbaughPowerWestCoastIdentity(book,finalScoredPool,target);
+  book=enforceHarbaughFormationMenu(book,finalScoredPool,target);
+  book=enforceHarbaughPlayActionFeature(book,finalScoredPool,target);
+  book=enforceHarbaughPistolMenuPackage(book,finalScoredPool,target);
+  book=enforceHarbaughHardFormationMenu(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=repairHarbaughPowerWestCoastLabels(book);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
