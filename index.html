@@ -4565,9 +4565,9 @@ Object.assign(BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread,{
   passIdentity:'Wide-split vertical choice passing, deep choice, slot choice, single choice, outside choice, screens, quick throws, and downfield isolation created by tempo and space.',
   coreFormations:['Shotgun 3x1 / Trips','Shotgun 2x2 / Doubles','Empty / 10 personnel','Double stack / wide split looks','Pistol or 12 personnel as changeups'],
   preferredPersonnel:['11','10','12'],
-  baseConcepts:['Dart','Inside Zone','Power Read','Option / RPO','Choice','Verticals / Four Verticals','Go Routes','Screen','Slants','Quick Game'],
-  conceptTargetsPreset:{'Dart':12,'Inside Zone':10,'Power Read':8,'Option / RPO':12,'Choice':12,'Verticals / Four Verticals':10,'Go Routes':6,'Screen':10,'Slants':5,'Post':5,'Quick Game':5},
-  conceptBoosts:Object.assign({},BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread.conceptBoosts||{},{'Dart':1.30,'Power Read':1.24,'Inside Zone':1.18,'Choice':1.28,'Verticals / Four Verticals':1.18,'Go Routes':1.18,'Screen':1.20,'Option / RPO':1.26,'Slants':1.10,'Post':1.10}),
+  baseConcepts:['Dart','Inside Zone','Power Read','Option / RPO','Deep Choice','Slot Choice','Choice','Verticals / Four Verticals','Go Routes','Screen','Slants','Quick Game'],
+  conceptTargetsPreset:{'Deep Choice':16,'Slot Choice':10,'Choice':10,'Dart':10,'Inside Zone':8,'Power Read':7,'Option / RPO':10,'Verticals / Four Verticals':8,'Go Routes':6,'Screen':8,'Slants':4,'Post':4,'Quick Game':4},
+  conceptBoosts:Object.assign({},BUILT_IN_OFFENSE_SYSTEMS.art_briles_spread.conceptBoosts||{},{'Deep Choice':1.62,'Slot Choice':1.58,'Choice':1.42,'Dart':1.26,'Power Read':1.20,'Inside Zone':1.14,'Verticals / Four Verticals':1.20,'Go Routes':1.22,'Screen':1.14,'Option / RPO':1.16,'Slants':1.08,'Post':1.08}),
   persMixPreset:{'11':58,'10':28,'12':10,'20':2,'21':1,'13':0,'22':1,'23':0,'30':0},
   formMixPreset:{shotgun:72,singleback:0,pistol:5,i_form:0,flexbone:0,wingbone:0,empty:18,under_center:0,other:5},
   formTypeBoosts:{shotgun:1.30,empty:1.18,pistol:1.05,singleback:.42,i_form:.30,under_center:.28,flexbone:.22,wingbone:.22,other:.92},
@@ -5572,6 +5572,187 @@ function enforceArtBrilesFormationRails(book,scoredPool,target){
 function repairArtBrilesGoGoLeakage(book,scoredPool,target){
   return enforceArtBrilesFormationRails(book,scoredPool,target);
 }
+
+// v15.8.12: Art Briles identity quotas.
+// Baylor/Briles should be driven by actual wide-split formations and the
+// Deep Choice / Slot Choice / Choice vertical family. This is not a generic
+// spread pass book; these are hard identity quotas for this system only.
+function artBrilesIsWideFormation(pl){
+  return !!pl && /\bwide\b/i.test(String(pl.formation||''));
+}
+function artBrilesChoiceKind(pl){
+  if(!pl) return '';
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  if(/\bslot\s+choice\b|\bchoice\s+slot\b/.test(t)) return 'slot';
+  if(/\bdeep\s+choice\b|\bchoice\s+deep\b/.test(t)) return 'deep';
+  if(/\bchoice\b/.test(t)) return 'choice';
+  return '';
+}
+function artBrilesNormalizeChoicePlay(pl){
+  const kind=artBrilesChoiceKind(pl);
+  if(!kind) return pl;
+  const out={...pl};
+  if(kind==='deep') out.concept='Deep Choice';
+  else if(kind==='slot') out.concept='Slot Choice';
+  else out.concept='Choice';
+  // Slot/deep choice can be tagged PA in the raw DB. For Briles scoring,
+  // the concept is more important than preserving an occasional family typo.
+  if(out.family!=='play_action') out.family='pass';
+  if(Array.isArray(out.targetTags)){
+    const tags=new Set(out.targetTags.filter(t=>!/core_choice|core_deep_choice|core_slot_choice|route_checkdown|series_changeup|action_unknown|role_unclassified/.test(String(t))));
+    tags.add(kind==='deep'?'core_deep_choice':kind==='slot'?'core_slot_choice':'core_choice');
+    tags.add('route_verts_seams');
+    tags.add('series_vertical_series');
+    tags.add('role_shot_explosive');
+    tags.add('stress_vertical_stretch');
+    tags.add('pass_shot');
+    tags.add('read_half_field');
+    out.targetTags=[...tags].sort();
+  }
+  return out;
+}
+function repairArtBrilesChoiceLabels(book){
+  if(!artBrilesSystemActive()) return book||[];
+  return (book||[]).map(artBrilesNormalizeChoicePlay);
+}
+function artBrilesLegalPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&artBrilesFormationAllowed(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl))
+    .sort((a,b)=>(b.s||0)-(a.s||0));
+}
+function artBrilesCounts(arr){
+  return (arr||[]).reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
+}
+function artBrilesRemoveOne(out,used,protectPred){
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const counts=artBrilesCounts(out);
+  let idx=-1;
+  // Prefer removing non-wide, non-choice plays from formations above the floor.
+  for(let i=out.length-1;i>=0;i--){
+    if(protectPred&&protectPred(out[i])) continue;
+    if((counts[out[i].formation]||0)<=min) continue;
+    if(!artBrilesIsWideFormation(out[i]) && !artBrilesChoiceKind(out[i])){idx=i;break;}
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      if((counts[out[i].formation]||0)<=min) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0) return false;
+  used.delete(playUniqueKey(out[idx]));
+  out.splice(idx,1);
+  return true;
+}
+function artBrilesAddOrReplace(out,used,pl,target,protectPred){
+  if(!pl||!artBrilesFormationAllowed(pl)) return false;
+  const k=playUniqueKey(pl);
+  if(used.has(k)) return false;
+  while(out.length>=target){
+    if(!artBrilesRemoveOne(out,used,protectPred)) break;
+  }
+  if(out.length>=target) return false;
+  out.push(pl);
+  used.add(k);
+  return true;
+}
+function artBrilesEnforcePredicateQuota(out,pool,target,desired,currentPred,candidatePred,transform,protectPred){
+  out=uniquePlayArray(out||[]);
+  let used=new Set(out.map(playUniqueKey));
+  let current=out.filter(currentPred).length;
+  if(current>=desired) return out.slice(0,target);
+  const existingForms=new Set(out.map(p=>p.formation));
+  // First add from formations already in the book.
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl) || !existingForms.has(pl.formation)) continue;
+    const next=transform?transform(pl):pl;
+    if(artBrilesAddOrReplace(out,used,next,target,protectPred)) current++;
+  }
+  if(current>=desired) return uniquePlayArray(out).slice(0,target);
+  // Then add new formations only as 5-play packages so the formation-depth
+  // repair does not immediately remove the identity fix.
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const forms=[...new Set(pool.filter(x=>candidatePred(x.pl)).map(x=>x.pl.formation))]
+    .filter(f=>!existingForms.has(f));
+  for(const form of forms){
+    if(current>=desired) break;
+    const pack=[];
+    const seen=new Set();
+    for(const {pl} of pool){
+      if(pl.formation!==form || !candidatePred(pl)) continue;
+      const next=transform?transform(pl):pl;
+      const k=playUniqueKey(next);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); pack.push(next);
+      if(pack.length>=min) break;
+    }
+    if(pack.length<min) continue;
+    for(const pl of pack){
+      if(current>=desired) break;
+      if(artBrilesAddOrReplace(out,used,pl,target,protectPred)) current++;
+    }
+  }
+  // Finally, top up with best candidates if still short. This is a fallback.
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl)) continue;
+    const next=transform?transform(pl):pl;
+    if(artBrilesAddOrReplace(out,used,next,target,protectPred)) current++;
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function enforceArtBrilesWideChoiceIdentity(book,scoredPool,target){
+  if(!artBrilesSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  let out=uniquePlayArray(book||[]).filter(artBrilesFormationAllowed).map(artBrilesNormalizeChoicePlay);
+  const pool=artBrilesLegalPool(scoredPool).map(x=>({pl:artBrilesNormalizeChoicePlay(x.pl),s:x.s||0}));
+  // Wide-split formations should dominate the Briles book.
+  const desiredWide=Math.max(120,Math.round(tgt*.52));
+  // Deep/slot choice are Briles staples, so they get independent floors.
+  const desiredDeep=Math.max(32,Math.round(tgt*.12));
+  const desiredSlot=Math.max(20,Math.round(tgt*.07));
+  const desiredChoiceTotal=Math.max(72,Math.round(tgt*.22));
+  const protectChoice=p=>!!artBrilesChoiceKind(p);
+  out=artBrilesEnforcePredicateQuota(
+    out,pool,tgt,desiredWide,
+    artBrilesIsWideFormation,
+    p=>artBrilesIsWideFormation(p),
+    p=>p,
+    protectChoice
+  );
+  out=artBrilesEnforcePredicateQuota(
+    out,pool,tgt,desiredDeep,
+    p=>artBrilesChoiceKind(p)==='deep',
+    p=>artBrilesChoiceKind(p)==='deep',
+    artBrilesNormalizeChoicePlay,
+    p=>artBrilesChoiceKind(p)==='slot'||artBrilesIsWideFormation(p)
+  );
+  out=artBrilesEnforcePredicateQuota(
+    out,pool,tgt,desiredSlot,
+    p=>artBrilesChoiceKind(p)==='slot',
+    p=>artBrilesChoiceKind(p)==='slot',
+    artBrilesNormalizeChoicePlay,
+    p=>artBrilesChoiceKind(p)==='deep'||artBrilesIsWideFormation(p)
+  );
+  out=artBrilesEnforcePredicateQuota(
+    out,pool,tgt,desiredChoiceTotal,
+    p=>!!artBrilesChoiceKind(p),
+    p=>!!artBrilesChoiceKind(p),
+    artBrilesNormalizeChoicePlay,
+    p=>artBrilesChoiceKind(p)==='deep'||artBrilesChoiceKind(p)==='slot'||artBrilesIsWideFormation(p)
+  );
+  return uniquePlayArray(out).slice(0,tgt);
+}
+
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -6272,10 +6453,13 @@ function generatePlaybook(){
   book=repairDebesseLeadReadOptionLabels(book);
   book=repairDebesseFinalLabels(book);
   book=repairArtBrilesGoGoLeakage(book,finalScoredPool,target);
+  book=enforceArtBrilesWideChoiceIdentity(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairArtBrilesGoGoLeakage(book,finalScoredPool,target);
+  book=enforceArtBrilesWideChoiceIdentity(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairArtBrilesGoGoLeakage(book,finalScoredPool,target);
+  book=repairArtBrilesChoiceLabels(book);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
