@@ -1,9 +1,12 @@
-# Coach Brain v15.8.12 Art Briles Wide/Choice Fix
+# Coach Brain v15.8.13 Shanahan WZ-YAC Fix
 
-Coach correction: Art Briles / Baylor should be dominated by wide-split formations and Deep Choice / Slot Choice.
+Fixes Kyle Shanahan / WZ-YAC Play-Action generation.
 
-- Keeps the v15.8.11 no-Go-Go rail.
-- Adds hard wide-formation quota for Art Briles.
-- Adds hard Deep Choice / Slot Choice / Choice quota for Art Briles.
-- Normalizes PA CHOICE DEEP and SLOT CHOICE concepts for scoring/export.
-- Preserves DeBesse lead-read correction and Generate hotfix.
+- Removes RPO leakage because the Shanahan profile has rpoTargetPct 0.
+- Blocks generic Goal Line / Maryland leakage from the base Shanahan book.
+- Fixes Strong I / Weak I / I Form personnel as 21/22 instead of 11.
+- Forces more Outside Zone / Stretch.
+- Forces more play-action/YAC concepts.
+- Normalizes Shanahan crossers as Y Cross.
+- Keeps the final formation-depth repair after the Shanahan identity rail.
+- Preserves Briles Wide/Choice fix, DeBesse Lead Read fix, and Generate hotfix.

@@ -5753,6 +5753,207 @@ function enforceArtBrilesWideChoiceIdentity(book,scoredPool,target){
   return uniquePlayArray(out).slice(0,tgt);
 }
 
+
+// v15.8.13: Kyle Shanahan / WZ-YAC Play-Action identity rails.
+// The system should be 21/12 heavy wide-zone + keeper/boot + crossers/YAC,
+// not a generic run-heavy Y-off/RPO book.
+function shanahanSystemActive(){
+  if(typeof window!=='undefined' && window.__COACH_BRAIN_TEST_SYSTEM==='shanahan_wide_zone') return true;
+  return (philosophy&&philosophy.system)==='shanahan_wide_zone';
+}
+function shanahanFormationAllowed(pl){
+  if(!pl || !shanahanSystemActive()) return true;
+  const f=String(pl.formation||'').toLowerCase().trim();
+  // Keep normal Shanahan worlds: singleback, I/strong/weak, gun/pistol changeups.
+  // Remove generic goal-line/Maryland leakage from the normal system book.
+  if(/^(goal\s*line|maryland)\b/.test(f)) return false;
+  if(/^singleback\b/.test(f) || /^i\s*form\b/.test(f) || /^strong\s*i\b/.test(f) || /^weak\s*i\b/.test(f)) return true;
+  if(/^gun\b/.test(f) || /^pistol\b/.test(f) || /^empty\b/.test(f)) return true;
+  return false;
+}
+function shanahanIsRpo(pl){
+  return !!pl && (String(pl.family||'')==='option_rpo' || /\brpo\b/i.test(String(pl.play||'')) || /\brpo\b/i.test(String(pl.concept||'')));
+}
+function shanahanRepairPersonnel(pl){
+  if(!pl || !shanahanSystemActive()) return pl;
+  const out={...pl};
+  const f=String(out.formation||'').toLowerCase();
+  if(/^strong\s*i\b|^weak\s*i\b/.test(f)){
+    out.pers=/jumbo|heavy/.test(f)?'22':'21';
+  }else if(/^i\s*form\b/.test(f)){
+    out.pers=/wing|jumbo|heavy|over/.test(f)?'22':'21';
+  }else if(/^singleback\b/.test(f)){
+    out.pers=/pair|heavy|trio|3te|ace pair/.test(f)?'13':'12';
+  }else if(/^gun\b/.test(f)){
+    if(/bunch\s*te|deuce|tight\s*y|y\s*off|wing|u\s*off/.test(f)) out.pers='12';
+    else if(/split|pony|2rb|two\s*back/.test(f)) out.pers='20';
+    else out.pers=out.pers||'11';
+  }
+  return out;
+}
+function shanahanRepairConceptLabels(pl){
+  if(!pl || !shanahanSystemActive()) return pl;
+  let out={...pl};
+  const t=String(out.play||'').toLowerCase();
+  if(/\b(y\s*cross|crossers|post\s+cross|deep\s+cross|pa\s+cross|cross\s+switch|switch\s+z\s+cross)\b/.test(t)){
+    out.concept='Y Cross';
+    if(/\bpa\b|boot|keeper|naked|rollout|stretch|zone|duo|counter/.test(t)) out.family='play_action';
+  }
+  if(/\b(pa|boot|keeper|naked|rollout|slide)\b/.test(t) && /(flood|sail|flat|corner|cross|drive|leak|wheel|post|seam|slide)/.test(t)){
+    if(out.concept==='Other / Unknown' || out.concept==='HB Base / Zone') out.concept='Boot / Play Action';
+    if(out.family!=='screen') out.family='play_action';
+  }
+  if(/\b(screen|slip|now|smoke|tunnel)\b/.test(t) && !/\brpo\b/.test(t)){
+    out.family='screen';
+    if(out.concept==='Other / Unknown') out.concept='Screen';
+  }
+  // Shanahan profile has rpoTargetPct 0. Remove RPO family labels if an old
+  // exported/raw call slips through; final replacement also removes them.
+  return shanahanRepairPersonnel(out);
+}
+function shanahanIsWideZone(pl){
+  if(!pl) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return /\b(wide\s+zone|outside\s+zone|stretch)\b/.test(t) || String(pl.concept||'')==='Outside Zone / Stretch';
+}
+function shanahanIsPlayActionYac(pl){
+  if(!pl || shanahanIsRpo(pl)) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return String(pl.family||'')==='play_action'
+    || /\b(pa|boot|keeper|naked|rollout|slide|leak|drift)\b/.test(t)
+    || /\b(y\s*cross|crossers|flood|sail|drive|mesh|shallow|corner|wheel|flat)\b/.test(t);
+}
+function shanahanIsScreenYac(pl){
+  if(!pl || shanahanIsRpo(pl)) return false;
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  return String(pl.family||'')==='screen' || /\b(screen|slip|now|smoke|tunnel|bubble)\b/.test(t);
+}
+function shanahanLegalPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&shanahanFormationAllowed(x.pl)&&!shanahanIsRpo(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl))
+    .map(x=>({pl:shanahanRepairConceptLabels(x.pl),s:x.s||0}))
+    .sort((a,b)=>(b.s||0)-(a.s||0));
+}
+function shanahanCounts(arr){
+  return (arr||[]).reduce((m,p)=>{m[p.formation]=(m[p.formation]||0)+1;return m;},{});
+}
+function shanahanRemoveOne(out,used,protectPred){
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const counts=shanahanCounts(out);
+  let idx=-1;
+  for(let i=out.length-1;i>=0;i--){
+    if(protectPred&&protectPred(out[i])) continue;
+    if((counts[out[i].formation]||0)<=min) continue;
+    // Prefer trimming generic run.
+    if(String(out[i].family||'')==='run' && !shanahanIsWideZone(out[i])){idx=i;break;}
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      if((counts[out[i].formation]||0)<=min) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0){
+    for(let i=out.length-1;i>=0;i--){
+      if(protectPred&&protectPred(out[i])) continue;
+      idx=i; break;
+    }
+  }
+  if(idx<0) return false;
+  used.delete(playUniqueKey(out[idx]));
+  out.splice(idx,1);
+  return true;
+}
+function shanahanAddOrReplace(out,used,pl,target,protectPred){
+  if(!pl || !shanahanFormationAllowed(pl) || shanahanIsRpo(pl)) return false;
+  const next=shanahanRepairConceptLabels(pl);
+  const k=playUniqueKey(next);
+  if(used.has(k)) return false;
+  while(out.length>=target){
+    if(!shanahanRemoveOne(out,used,protectPred)) break;
+  }
+  if(out.length>=target) return false;
+  out.push(next);
+  used.add(k);
+  return true;
+}
+function shanahanEnforcePredicateQuota(out,pool,target,desired,currentPred,candidatePred,protectPred){
+  out=uniquePlayArray(out||[]).map(shanahanRepairConceptLabels).filter(p=>shanahanFormationAllowed(p)&&!shanahanIsRpo(p));
+  let used=new Set(out.map(playUniqueKey));
+  let current=out.filter(currentPred).length;
+  if(current>=desired) return out.slice(0,target);
+  const existingForms=new Set(out.map(p=>p.formation));
+  // First add from formations already in the book to avoid thin packages.
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl) || !existingForms.has(pl.formation)) continue;
+    if(shanahanAddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  if(current>=desired) return uniquePlayArray(out).slice(0,target);
+  // Add new formations as 5-play packages.
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const forms=[...new Set(pool.filter(x=>candidatePred(x.pl)).map(x=>x.pl.formation))]
+    .filter(f=>!existingForms.has(f));
+  for(const form of forms){
+    if(current>=desired) break;
+    const pack=[];
+    const seen=new Set();
+    for(const {pl} of pool){
+      if(pl.formation!==form || !candidatePred(pl)) continue;
+      const k=playUniqueKey(pl);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k); pack.push(pl);
+      if(pack.length>=min) break;
+    }
+    if(pack.length<min) continue;
+    for(const pl of pack){
+      if(current>=desired) break;
+      if(shanahanAddOrReplace(out,used,pl,target,protectPred)) current++;
+    }
+  }
+  // Fallback top-up.
+  for(const {pl} of pool){
+    if(current>=desired) break;
+    if(!candidatePred(pl)) continue;
+    if(shanahanAddOrReplace(out,used,pl,target,protectPred)) current++;
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function shanahanRebuildAfterFiltering(out,pool,target){
+  out=uniquePlayArray(out||[]).map(shanahanRepairConceptLabels).filter(p=>shanahanFormationAllowed(p)&&!shanahanIsRpo(p));
+  const used=new Set(out.map(playUniqueKey));
+  for(const {pl} of pool){
+    if(out.length>=target) break;
+    const k=playUniqueKey(pl);
+    if(used.has(k)) continue;
+    out.push(pl); used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,target);
+}
+function enforceShanahanWideZoneYacIdentity(book,scoredPool,target){
+  if(!shanahanSystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  let out=shanahanRebuildAfterFiltering(book,shanahanLegalPool(scoredPool),tgt);
+  const pool=shanahanLegalPool(scoredPool);
+  // Identity floors for a 400-play generated book.
+  const desiredWZ=Math.max(82,Math.round(tgt*.22));
+  const desiredPAYac=Math.max(95,Math.round(tgt*.27));
+  const desiredScreen=Math.max(18,Math.round(tgt*.055));
+  const desiredYCross=Math.max(24,Math.round(tgt*.075));
+  const protect=p=>shanahanIsWideZone(p)||shanahanIsPlayActionYac(p)||shanahanIsScreenYac(p);
+  out=shanahanEnforcePredicateQuota(out,pool,tgt,desiredWZ,shanahanIsWideZone,shanahanIsWideZone,p=>shanahanIsPlayActionYac(p)||shanahanIsScreenYac(p));
+  out=shanahanEnforcePredicateQuota(out,pool,tgt,desiredPAYac,shanahanIsPlayActionYac,shanahanIsPlayActionYac,p=>shanahanIsWideZone(p)||shanahanIsScreenYac(p));
+  out=shanahanEnforcePredicateQuota(out,pool,tgt,desiredScreen,shanahanIsScreenYac,shanahanIsScreenYac,p=>shanahanIsWideZone(p)||shanahanIsPlayActionYac(p));
+  out=shanahanEnforcePredicateQuota(
+    out,pool,tgt,desiredYCross,
+    p=>String(p.concept||'')==='Y Cross' || /\b(y\s*cross|crossers|post\s+cross|deep\s+cross|pa\s+cross)\b/i.test(String(p.play||'')),
+    p=>/\b(y\s*cross|crossers|post\s+cross|deep\s+cross|pa\s+cross)\b/i.test(String(p.play||'')),
+    protect
+  );
+  return uniquePlayArray(out).map(shanahanRepairConceptLabels).filter(p=>shanahanFormationAllowed(p)&&!shanahanIsRpo(p)).slice(0,tgt);
+}
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -6460,6 +6661,12 @@ function generatePlaybook(){
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairArtBrilesGoGoLeakage(book,finalScoredPool,target);
   book=repairArtBrilesChoiceLabels(book);
+  book=enforceShanahanWideZoneYacIdentity(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  // Final Shanahan pass must be label-only so it cannot reintroduce thin formations.
+  if(typeof shanahanSystemActive==='function' && shanahanSystemActive()){
+    book=uniquePlayArray(book).map(shanahanRepairConceptLabels).filter(p=>shanahanFormationAllowed(p)&&!shanahanIsRpo(p));
+  }
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated
 
   playbook={
