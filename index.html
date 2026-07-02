@@ -6162,6 +6162,183 @@ function repairRg3PersonnelLabels(book){
   if(!rg3SystemActive()) return book||[];
   return (book||[]).map(rg3RepairConceptLabels).filter(rg3FormationAllowed);
 }
+
+// v15.8.15: RG3 formation situational menu rail.
+// Formation depth is not enough. Each kept RG3 formation needs at least one
+// true dropback/quick-game answer so it can survive 2nd/3rd down and obvious
+// pass situations instead of being run/RPO/PA only.
+function rg3IsTrueDropbackPass(pl){
+  if(!pl || !rg3SystemActive()) return false;
+  if(rg3IsRpo(pl)) return false;
+  const play=String(pl.play||'').toLowerCase();
+  const concept=String(pl.concept||'').toLowerCase();
+  if(String(pl.family||'')!=='pass') return false;
+  if(/\b(pa|play\s*action|boot|keeper|naked|rollout|rpo)\b/.test(play+' '+concept)) return false;
+  return true;
+}
+function rg3SituationalPassScore(pl,baseScore){
+  const t=(String(pl.play||'')+' '+String(pl.concept||'')).toLowerCase();
+  let score=Number(baseScore)||0;
+  if(/\b(mesh|stick|spacing|spot|slant|flat|shallow|drive|levels|smash|curl|choice|quick|snag|bench|corner|flood|sail|verts|verticals|seam)\b/.test(t)) score+=60;
+  if(/\b(screen|draw|rpo|pa|boot|keeper|naked|rollout)\b/.test(t)) score-=40;
+  if(/\b(mesh|stick|slant|flat|spacing|spot|snag)\b/.test(t)) score+=30;
+  return score;
+}
+function rg3SameFormationDropbackPool(scoredPool){
+  return (scoredPool||[])
+    .map(x=>x&&x.pl?x:{pl:x,s:1})
+    .filter(x=>x&&x.pl&&rg3FormationAllowed(x.pl)&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation))
+    .map(x=>({pl:rg3RepairConceptLabels(x.pl),s:x.s||0}))
+    .filter(x=>personnelAllowedByUser(x.pl)&&rg3IsTrueDropbackPass(x.pl))
+    .sort((a,b)=>rg3SituationalPassScore(b.pl,b.s)-rg3SituationalPassScore(a.pl,a.s));
+}
+function rg3ChooseSituationalReplacementIndex(out,formation){
+  const counts=rg3Counts(out);
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  const indexes=[];
+  for(let i=0;i<out.length;i++) if(out[i].formation===formation) indexes.push(i);
+  if(!indexes.length) return -1;
+  // Keep the formation floor. We replace within the formation, so count stays stable.
+  // Prefer removing generic run first, then extra RPO, then PA. Never remove an existing true dropback.
+  const priorities=[
+    p=>String(p.family||'')==='run' && !/read option|triple option|speed option|load option|power read|bash/i.test(String(p.concept||'')),
+    p=>String(p.family||'')==='run',
+    p=>rg3IsRpo(p),
+    p=>String(p.family||'')==='play_action',
+    p=>!rg3IsTrueDropbackPass(p)
+  ];
+  for(const pred of priorities){
+    for(let j=indexes.length-1;j>=0;j--){
+      const i=indexes[j];
+      if(pred(out[i])) return i;
+    }
+  }
+  return -1;
+}
+function enforceRg3FormationSituationalMenu(book,scoredPool,target){
+  if(!rg3SystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  let out=uniquePlayArray(book||[]).map(rg3RepairConceptLabels).filter(rg3FormationAllowed).slice(0,tgt);
+  const used=new Set(out.map(playUniqueKey));
+  const passPool=rg3SameFormationDropbackPool(scoredPool);
+  const poolByForm={};
+  for(const item of passPool){
+    const f=item.pl.formation;
+    (poolByForm[f]||(poolByForm[f]=[])).push(item.pl);
+  }
+  const forms=[...new Set(out.map(p=>p.formation))];
+  for(const form of forms){
+    const formPlays=out.filter(p=>p.formation===form);
+    if(formPlays.length<(FORMATION_MIN_PACKAGE_PLAYS||5)) continue;
+    if(formPlays.some(rg3IsTrueDropbackPass)) continue;
+    const candidates=poolByForm[form]||[];
+    let chosen=null;
+    for(const cand of candidates){
+      if(!used.has(playUniqueKey(cand))){
+        chosen=cand;
+        break;
+      }
+    }
+    if(!chosen) continue;
+    const idx=rg3ChooseSituationalReplacementIndex(out,form);
+    if(idx<0) continue;
+    used.delete(playUniqueKey(out[idx]));
+    out[idx]=rg3RepairConceptLabels(chosen);
+    used.add(playUniqueKey(out[idx]));
+  }
+  return uniquePlayArray(out).slice(0,tgt);
+}
+
+// v15.8.16: Hard menu cleanup.
+// If a formation still has no true dropback pass after same-formation repair,
+// remove that formation and backfill with a complete package that has a menu.
+function enforceRg3HardFormationMenu(book,scoredPool,target){
+  if(!rg3SystemActive()) return uniquePlayArray(book||[]).slice(0,target);
+  const tgt=Number(target)||400;
+  const min=FORMATION_MIN_PACKAGE_PLAYS||5;
+  let out=uniquePlayArray(book||[]).map(rg3RepairConceptLabels).filter(rg3FormationAllowed).slice(0,tgt);
+  let used=new Set(out.map(playUniqueKey));
+  const pool=rg3LegalPool(scoredPool).filter(x=>x&&x.pl&&rg3FormationAllowed(x.pl));
+  function byForm(arr){
+    const m={};
+    for(const p of arr)(m[p.formation]||(m[p.formation]=[])).push(p);
+    return m;
+  }
+  function zeroDropForms(arr){
+    return Object.entries(byForm(arr)).filter(([f,ps])=>ps.length>=min && !ps.some(rg3IsTrueDropbackPass)).map(([f,ps])=>({formation:f,count:ps.length}));
+  }
+  function formHasPackage(form,countNeeded,existingForms){
+    const seen=new Set();
+    const all=[];
+    for(const {pl} of pool){
+      if(pl.formation!==form) continue;
+      const k=playUniqueKey(pl);
+      if(used.has(k)||seen.has(k)) continue;
+      seen.add(k);
+      all.push(pl);
+    }
+    if(all.length<min || !all.some(rg3IsTrueDropbackPass)) return null;
+    const drop=all.find(rg3IsTrueDropbackPass);
+    const rest=all.filter(p=>playUniqueKey(p)!==playUniqueKey(drop));
+    const packageSize=Math.max(min,Number(countNeeded)||min);
+    const pack=[drop,...rest].slice(0,packageSize);
+    if(pack.length<min) return null;
+    return pack;
+  }
+  let zeros=zeroDropForms(out);
+  for(const z of zeros){
+    // Remove the bad menu formation.
+    for(const p of out.filter(p=>p.formation===z.formation)) used.delete(playUniqueKey(p));
+    out=out.filter(p=>p.formation!==z.formation);
+    const existingForms=new Set(out.map(p=>p.formation));
+    // Prefer a formation already in the RG3 family that is not currently used.
+    const forms=[...new Set(pool.map(x=>x.pl.formation))]
+      .filter(f=>!existingForms.has(f))
+      .sort((a,b)=>{
+        const ap=pool.filter(x=>x.pl.formation===a).some(x=>rg3IsPistol(x.pl))?20:0;
+        const bp=pool.filter(x=>x.pl.formation===b).some(x=>rg3IsPistol(x.pl))?20:0;
+        const as=pool.filter(x=>x.pl.formation===a).some(x=>rg3IsBunchStack(x.pl))?10:0;
+        const bs=pool.filter(x=>x.pl.formation===b).some(x=>rg3IsBunchStack(x.pl))?10:0;
+        return (bp+bs)-(ap+as);
+      });
+    let added=false;
+    for(const f of forms){
+      const pack=formHasPackage(f,z.count,existingForms);
+      if(!pack) continue;
+      for(const p of pack){
+        if(out.length>=tgt) break;
+        const k=playUniqueKey(p);
+        if(used.has(k)) continue;
+        out.push(p); used.add(k);
+      }
+      added=true;
+      break;
+    }
+    // If no new formation package exists, refill removed slots inside existing complete forms only.
+    if(!added){
+      const completeForms=new Set(Object.entries(byForm(out)).filter(([f,ps])=>ps.some(rg3IsTrueDropbackPass)).map(([f])=>f));
+      for(const {pl} of pool){
+        if(out.length>=tgt) break;
+        if(!completeForms.has(pl.formation)) continue;
+        const k=playUniqueKey(pl);
+        if(used.has(k)) continue;
+        out.push(pl); used.add(k);
+      }
+    }
+  }
+  // Top off only into existing formations that already have a dropback menu.
+  const completeForms=new Set(Object.entries(byForm(out)).filter(([f,ps])=>ps.some(rg3IsTrueDropbackPass)).map(([f])=>f));
+  for(const {pl} of pool){
+    if(out.length>=tgt) break;
+    if(!completeForms.has(pl.formation)) continue;
+    const k=playUniqueKey(pl);
+    if(used.has(k)) continue;
+    out.push(pl); used.add(k);
+  }
+  return uniquePlayArray(out).slice(0,tgt);
+}
+
+
 function enforceFinalFormationDepth(book,scoredPool,target){
   const min=FORMATION_MIN_PACKAGE_PLAYS||5;
   let scored=(scoredPool||[]).filter(x=>x&&x.pl&&formationTypeAllowedByUser(x.pl.formation)&&formationMeetsPackageCoverage(x.pl.formation)&&personnelAllowedByUser(x.pl)).sort((a,b)=>(b.s||0)-(a.s||0));
@@ -6876,6 +7053,10 @@ function generatePlaybook(){
     book=uniquePlayArray(book).map(shanahanRepairConceptLabels).filter(p=>shanahanFormationAllowed(p)&&!shanahanIsRpo(p));
   }
   book=enforceRg3PersonnelAndGoals(book,finalScoredPool,target);
+  book=enforceFinalFormationDepth(book,finalScoredPool,target);
+  book=repairRg3PersonnelLabels(book);
+  book=enforceRg3FormationSituationalMenu(book,finalScoredPool,target);
+  book=enforceRg3HardFormationMenu(book,finalScoredPool,target);
   book=enforceFinalFormationDepth(book,finalScoredPool,target);
   book=repairRg3PersonnelLabels(book);
   const finalBook=seededShuffle(uniquePlayArray(book),seed);  // deduped, slider-balanced, and package-validated

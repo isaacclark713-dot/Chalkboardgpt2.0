@@ -1,9 +1,9 @@
-# Coach Brain v15.8.14 RG3 Personnel/Goal Fix
+# Coach Brain v15.8.16 RG3 Hard Formation Menu Fix
 
-Fixes Capital Motion-Read Pro / Modernized RG3 Washington generation.
+Hardens the Capital Motion-Read Pro / Modernized RG3 Washington formation menu rule.
 
-- Corrects personnel labels by formation: Y-off/wing-slot mostly 11, Deuce/Dbl Tight 12/13, Strong/Weak/I looks 21/22, I Slot 20.
-- Blocks Power-I / Goal-Line / Maryland leakage from RG3 generated books.
-- Adds RG3 identity floors for 20/21 personnel, pistol, play-action, and bunch/stack.
-- Keeps RPO access quota and formation-depth repair.
+- Keeps v15.8.14 personnel corrections.
+- Keeps v15.8.15 same-formation dropback repair.
+- If a formation still cannot carry a true dropback pass, removes it and backfills with a complete formation package that can.
+- Keeps the 5-play formation-depth repair.
 - Preserves Shanahan, Briles, DeBesse, Wake, Manning, and Generate hotfixes.
